@@ -1,8 +1,8 @@
 # Know Studio
 
-Know Studio 是一个面向企业知识库的 RAG 与 AI 助手工作台。项目默认进入 Chat UI，同时提供管理后台，用于组织成员、文档入库、知识检索、问答验证和系统配置。
+Know Studio 是一个基于 Spring Boot 3.5、Spring AI、Spring AI Alibaba、PostgreSQL pgvector、Elasticsearch、MinIO 和 React 的全栈知识库系统。它围绕企业知识沉淀、权限协作、文档入库、混合检索、证据问答和 AI 助手工具调用构建，覆盖从后端 RAG 链路到前端 Chat UI 与管理后台的完整实现。
 
-当前默认前端是 `know-studio-ui`。根目录下的 `frontend` 是早期 Vue 版本工作台，仅保留作参考，不是当前默认 UI。
+系统包含 Chat UI、管理后台、组织协作、用户权限、文档解析入库、向量与关键词双通道召回、RRF 融合、引用来源、会话记忆和 Docker 本地部署能力，可作为企业知识助手的基础工程骨架。
 
 ## 功能概览
 
@@ -173,7 +173,6 @@ mvn spring-boot:run -Dspring-boot.run.profiles=dev
 ```text
 know-studio
 ├─ know-studio-ui             # 当前 React 前端
-├─ frontend                   # 早期 Vue 前端，仅保留作参考
 ├─ src/main/java/com/dong/ddrag
 │  ├─ auth                    # 认证与 token
 │  ├─ user                    # 用户与后台管理
