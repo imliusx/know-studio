@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react"
-import { motion, useReducedMotion } from "motion/react"
 import { cn } from "@/lib/utils"
 import { Separator } from "@/components/ui/separator"
 import { SidebarTrigger } from "@/components/ui/sidebar"
@@ -27,7 +26,6 @@ export function Header({
 }: HeaderProps) {
   const headerRef = useRef<HTMLElement | null>(null)
   const [offset, setOffset] = useState(0)
-  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     if (!fixed) return
@@ -71,20 +69,11 @@ export function Header({
       )}
       {...props}
     >
-      <motion.div
-        className="relative flex h-full items-center gap-3 p-4 sm:gap-4"
-        initial={reduceMotion ? false : { opacity: 0, y: -8 }}
-        animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-        transition={
-          reduceMotion
-            ? undefined
-            : { duration: 0.24, ease: [0.22, 1, 0.36, 1] }
-        }
-      >
+      <div className="relative flex h-full items-center gap-3 p-4 sm:gap-4">
         <SidebarTrigger />
         <Separator orientation="vertical" className="h-6 data-vertical:self-center" />
         {children}
-      </motion.div>
+      </div>
     </header>
   )
 }

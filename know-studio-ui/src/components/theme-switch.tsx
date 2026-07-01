@@ -1,19 +1,31 @@
 import { useEffect, type MouseEvent } from 'react'
-import { Check, Monitor, Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
 import { useTheme } from '@/context/theme-provider'
-import { Button } from '@/components/ui/button'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+  HeaderIconButton,
+  HeaderIconTooltip,
+} from '@/components/layout/header-icon-button'
+
+type Theme = 'dark' | 'light' | 'system'
+
+const THEME_SEQUENCE: Theme[] = ['light', 'dark', 'system']
+const THEME_ICONS = {
+  dark: Moon,
+  light: Sun,
+  system: Monitor,
+} satisfies Record<Theme, typeof Sun>
+
+function getNextTheme(theme: Theme) {
+  const currentIndex = THEME_SEQUENCE.indexOf(theme)
+  return THEME_SEQUENCE[(currentIndex + 1) % THEME_SEQUENCE.length]
+}
 
 export function ThemeSwitch() {
   const { t } = useTranslation()
   const { resolvedTheme, theme, setTheme } = useTheme()
+  const reduceMotion = useReducedMotion()
 
   /* Update theme-color meta tag
    * when theme is updated */
@@ -31,50 +43,45 @@ export function ThemeSwitch() {
     }
   }
 
+  const nextTheme = getNextTheme(theme)
+  const label = t('theme.toggle')
+  const ThemeIcon = THEME_ICONS[theme]
+
   return (
-    <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button variant='ghost' size='icon'>
-          <Sun className='size-[1.2rem] scale-100 rotate-0 transition-all dark:scale-0 dark:-rotate-90' />
-          <Moon className='absolute size-[1.2rem] scale-0 rotate-90 transition-all dark:scale-100 dark:rotate-0' />
-          <span className='sr-only'>{t('theme.toggle')}</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end'>
-        <DropdownMenuItem
-          onClick={(event) =>
-            setTheme('light', { origin: getTransitionOrigin(event) })
-          }
-        >
-          <Sun aria-hidden='true' />
-          {t('theme.light')}
-          <Check
-            className={cn('ms-auto', theme !== 'light' && 'hidden')}
-          />
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={(event) =>
-            setTheme('dark', { origin: getTransitionOrigin(event) })
-          }
-        >
-          <Moon aria-hidden='true' />
-          {t('theme.dark')}
-          <Check
-            className={cn('ms-auto', theme !== 'dark' && 'hidden')}
-          />
-        </DropdownMenuItem>
-        <DropdownMenuItem
-          onClick={(event) =>
-            setTheme('system', { origin: getTransitionOrigin(event) })
-          }
-        >
-          <Monitor aria-hidden='true' />
-          {t('theme.system')}
-          <Check
-            className={cn('ms-auto', theme !== 'system' && 'hidden')}
-          />
-        </DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <HeaderIconTooltip label={label}>
+      <HeaderIconButton
+        label={label}
+        iconScale={theme === 'dark' ? 'lg' : 'default'}
+        className='overflow-hidden'
+        onClick={(event) =>
+          setTheme(nextTheme, { origin: getTransitionOrigin(event) })
+        }
+      >
+        <AnimatePresence mode='wait' initial={false}>
+          <motion.span
+            key={theme}
+            className='absolute inset-0 flex items-center justify-center'
+            initial={
+              reduceMotion ? false : { opacity: 0, rotate: -45, scale: 0.75 }
+            }
+            animate={
+              reduceMotion
+                ? undefined
+                : { opacity: 1, rotate: 0, scale: 1 }
+            }
+            exit={
+              reduceMotion ? undefined : { opacity: 0, rotate: 45, scale: 0.75 }
+            }
+            transition={
+              reduceMotion
+                ? undefined
+                : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+            }
+          >
+            <ThemeIcon aria-hidden='true' />
+          </motion.span>
+        </AnimatePresence>
+      </HeaderIconButton>
+    </HeaderIconTooltip>
   )
 }

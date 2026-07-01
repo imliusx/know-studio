@@ -2,6 +2,8 @@ export const en = {
   common: {
     reset: "Reset",
     search: "Search",
+    cancel: "Cancel",
+    continue: "Continue",
   },
   language: {
     select: "Select language",
@@ -10,7 +12,7 @@ export const en = {
     chinese: "中文",
   },
   theme: {
-    toggle: "Toggle theme",
+    toggle: "Theme",
     group: "Theme",
     light: "Light",
     dark: "Dark",
@@ -544,6 +546,8 @@ export const zhCN = {
   common: {
     reset: "重置",
     search: "搜索",
+    cancel: "取消",
+    continue: "继续",
   },
   language: {
     select: "选择语言",
@@ -552,7 +556,7 @@ export const zhCN = {
     chinese: "中文",
   },
   theme: {
-    toggle: "切换明暗模式",
+    toggle: "明暗切换",
     group: "主题",
     light: "浅色",
     dark: "深色",

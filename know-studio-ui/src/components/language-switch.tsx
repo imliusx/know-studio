@@ -5,7 +5,10 @@ import {
   useLanguage,
 } from '@/context/language-provider'
 import { type Language } from '@/lib/i18n/languages'
-import { Button } from '@/components/ui/button'
+import {
+  HeaderIconButton,
+  HeaderIconTooltip,
+} from '@/components/layout/header-icon-button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,23 +23,22 @@ export function LanguageSwitch() {
 
   return (
     <DropdownMenu modal={false}>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant='ghost'
-          size='icon'
-          aria-label={t('language.select')}
-        >
-          <Languages className='size-[1.2rem]' aria-hidden='true' />
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='min-w-36'>
+      <HeaderIconTooltip label={t('language.select')}>
+        <DropdownMenuTrigger asChild>
+          <HeaderIconButton
+            label={t('language.select')}
+            icon={Languages}
+          />
+        </DropdownMenuTrigger>
+      </HeaderIconTooltip>
+      <DropdownMenuContent align='end'>
         <DropdownMenuRadioGroup
           value={language}
           onValueChange={(value) => setLanguage(value as Language)}
         >
           {LANGUAGE_OPTIONS.map((option) => (
             <DropdownMenuRadioItem key={option.value} value={option.value}>
-              <span className='w-7 text-xs font-medium text-muted-foreground'>
+              <span className='inline-flex size-4 shrink-0 items-center justify-center text-xs font-medium text-muted-foreground'>
                 {option.shortLabel}
               </span>
               {t(option.labelKey)}

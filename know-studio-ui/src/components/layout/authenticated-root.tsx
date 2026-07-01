@@ -10,7 +10,7 @@ export function AuthenticatedRoot() {
   const currentUserQuery = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: getCurrentUser,
-    enabled: import.meta.env.PROD && Boolean(accessToken),
+    enabled: Boolean(accessToken),
   })
 
   useEffect(() => {

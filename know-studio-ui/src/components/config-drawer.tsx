@@ -19,6 +19,10 @@ import { cn } from '@/lib/utils'
 import { useColorTheme } from '@/context/color-theme-provider'
 import { type Collapsible, useLayout } from '@/context/layout-provider'
 import { useTheme } from '@/context/theme-provider'
+import {
+  HeaderIconButton,
+  HeaderIconTooltip,
+} from '@/components/layout/header-icon-button'
 import { Button } from '@/components/ui/button'
 import {
   Sheet,
@@ -47,11 +51,15 @@ export function ConfigDrawer() {
 
   return (
     <Sheet>
-      <SheetTrigger asChild>
-        <Button size='icon' variant='ghost' aria-label={t('config.trigger')}>
-          <Palette className='size-[1.2rem]' aria-hidden='true' />
-        </Button>
-      </SheetTrigger>
+      <HeaderIconTooltip label={t('config.trigger')}>
+        <SheetTrigger asChild>
+          <HeaderIconButton
+            label={t('config.trigger')}
+            icon={Palette}
+            iconScale='sm'
+          />
+        </SheetTrigger>
+      </HeaderIconTooltip>
       <SheetContent className='flex flex-col'>
         <SheetHeader className='pb-0 text-start'>
           <SheetTitle>{t('config.title')}</SheetTitle>

@@ -183,10 +183,17 @@ type ChatConversation = {
   isArchived?: boolean
 }
 
+type ChatState = {
+  conversations: ChatConversation[]
+  activeConversationId: string | null
+}
+
 type ChatSidebarView = 'active' | 'favorites' | 'archived'
 type ChatSidebarVariant = 'inset' | 'sidebar' | 'floating'
 
 const CHAT_STORAGE_KEY = 'know-studio.chat-ui.conversations'
+const DEFAULT_CONVERSATION_TITLE = '新的对话'
+const LEGACY_DEFAULT_CONVERSATION_TITLE = '新对话'
 const CHAT_EMPTY_TITLES = [
   '企业知识，一问即达',
   '今天想知道什么？',
@@ -347,7 +354,7 @@ const initialMessages: ChatMessage[] = [
 const initialConversations: ChatConversation[] = [
   {
     id: 'rag-overview',
-    title: '知识库问答链路',
+    title: 'RAG 总览：从上传到回答',
     description: '来源、工具、执行步骤',
     updatedAt: '刚刚',
     createdAt: DEMO_NOW - 1000 * 60 * 20,
@@ -358,7 +365,7 @@ const initialConversations: ChatConversation[] = [
   },
   {
     id: 'api-adapter',
-    title: '后端检索接口',
+    title: '检索 API',
     description: '前端调用模型',
     updatedAt: '12 分钟前',
     createdAt: DEMO_NOW - 1000 * 60 * 80,
@@ -382,7 +389,7 @@ const initialConversations: ChatConversation[] = [
   },
   {
     id: 'document-status',
-    title: '文档解析状态',
+    title: '解析队列',
     description: '队列、切分、索引进度',
     updatedAt: '昨天',
     createdAt: DEMO_NOW - 1000 * 60 * 60 * 26,
@@ -405,13 +412,435 @@ const initialConversations: ChatConversation[] = [
       },
     ],
   },
+  {
+    id: 'contract-risk',
+    title: '合同里的风险',
+    description: '付款、违约、交付边界',
+    updatedAt: '2 小时前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 8,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 2,
+    isPinned: true,
+    isFavorited: false,
+    messages: [
+      {
+        id: 301,
+        role: 'user',
+        content: '帮我从合同知识库里找出付款、违约和交付相关风险。',
+        files: ['年度采购合同.pdf'],
+      },
+      {
+        id: 302,
+        role: 'assistant',
+        content:
+          '已按条款类型聚合风险点：付款节点需要补充验收口径，违约责任存在单边约束，交付范围建议增加附件版本号和变更流程。',
+      },
+    ],
+  },
+  {
+    id: 'customer-churn',
+    title: '近两季客户为什么流失',
+    description: '工单、回访、续费记录',
+    updatedAt: '3 小时前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 14,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 3,
+    isPinned: false,
+    isFavorited: true,
+    messages: [
+      {
+        id: 401,
+        role: 'user',
+        content: '从近两季度客户反馈里总结流失原因，按影响程度排序。',
+      },
+      {
+        id: 402,
+        role: 'assistant',
+        content:
+          '高频原因集中在响应时效、权限配置复杂、迁移成本和培训不足。建议先处理企业版客户的工单响应 SLA，并补齐迁移手册。',
+      },
+    ],
+  },
+  {
+    id: 'employee-onboarding',
+    title: '新人入职',
+    description: '权限、设备、流程',
+    updatedAt: '5 小时前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 28,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 5,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 501,
+        role: 'user',
+        content: '整理一份新人第一天需要完成的入职清单。',
+      },
+      {
+        id: 502,
+        role: 'assistant',
+        content:
+          '第一天建议按账号开通、设备验收、组织架构、信息安全培训和直属团队同步五个步骤推进，并在系统里确认每项负责人。',
+      },
+    ],
+  },
+  {
+    id: 'incident-review',
+    title: '登录故障复盘摘要',
+    description: '日志、影响面、改进项',
+    updatedAt: '昨天',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 42,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 30,
+    isPinned: false,
+    isFavorited: true,
+    messages: [
+      {
+        id: 601,
+        role: 'user',
+        content: '根据故障记录生成一份复盘摘要，重点写根因和改进项。',
+        files: ['gateway-error.log'],
+      },
+      {
+        id: 602,
+        role: 'assistant',
+        content:
+          '根因是网关连接池耗尽后重试放大流量，影响登录和文档上传。改进项包括熔断阈值、连接池告警、灰度压测和回滚演练。',
+      },
+    ],
+  },
+  {
+    id: 'sales-playbook',
+    title: '销售话术：竞品异议怎么答',
+    description: '竞品、异议、案例',
+    updatedAt: '2 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 72,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 48,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 701,
+        role: 'user',
+        content: '客户问我们和竞品的差异，帮我从销售知识库里整理回答。',
+      },
+      {
+        id: 702,
+        role: 'assistant',
+        content:
+          '可以围绕私有化部署、权限隔离、混合检索和证据引用展开。避免泛泛比较，优先引用已成交客户的业务场景。',
+      },
+    ],
+  },
+  {
+    id: 'policy-search',
+    title: '差旅报销',
+    description: '差旅、票据、审批',
+    updatedAt: '3 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 96,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 72,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 801,
+        role: 'user',
+        content: '出差期间打车和酒店发票分别需要哪些材料？',
+      },
+      {
+        id: 802,
+        role: 'assistant',
+        content:
+          '打车需行程单和发票，酒店需住宿发票、入住明细和审批单。跨城市行程建议补充会议邀请或客户拜访记录。',
+      },
+    ],
+  },
+  {
+    id: 'meeting-actions',
+    title: '项目例会待办拆解',
+    description: '决议、负责人、截止时间',
+    updatedAt: '4 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 120,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 96,
+    isPinned: false,
+    isFavorited: true,
+    messages: [
+      {
+        id: 901,
+        role: 'user',
+        content: '把这份会议记录整理成决议和待办。',
+        files: ['项目例会记录.md'],
+      },
+      {
+        id: 902,
+        role: 'assistant',
+        content:
+          '已拆成三项决议和六个待办：知识库权限方案本周确认，上传体验下周提测，问答评测集由产品和实施共同补充。',
+      },
+    ],
+  },
+  {
+    id: 'permission-design',
+    title: '跨部门知识库权限隔离方案',
+    description: '组织、成员、可见范围',
+    updatedAt: '5 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 144,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 120,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 1001,
+        role: 'user',
+        content: '如何设计知识库的组织权限，避免跨部门误检索？',
+      },
+      {
+        id: 1002,
+        role: 'assistant',
+        content:
+          '建议把系统角色和知识库成员角色拆开：管理员管平台，OWNER 管空间，MEMBER 只读检索。检索接口必须带 groupId 做硬隔离。',
+      },
+    ],
+  },
+  {
+    id: 'rag-evaluation',
+    title: '问答评测集',
+    description: '命中率、拒答、引用质量',
+    updatedAt: '上周',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 9,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 7,
+    isPinned: false,
+    isFavorited: false,
+    isArchived: true,
+    messages: [
+      {
+        id: 1101,
+        role: 'user',
+        content: '帮我设计一套 RAG 问答评测指标。',
+      },
+      {
+        id: 1102,
+        role: 'assistant',
+        content:
+          '建议评估检索命中、证据覆盖、引用准确、拒答合理性和回答可读性。每类准备正例、相似干扰和无答案问题。',
+      },
+    ],
+  },
+  {
+    id: 'migration-plan',
+    title: '旧库迁移到 Know Studio 前的检查清单',
+    description: '字段映射、批量导入',
+    updatedAt: '上周',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 10,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 8,
+    isPinned: false,
+    isFavorited: true,
+    isArchived: true,
+    messages: [
+      {
+        id: 1201,
+        role: 'user',
+        content: '旧知识库迁移到新系统需要注意什么？',
+      },
+      {
+        id: 1202,
+        role: 'assistant',
+        content:
+          '迁移前先统一文档归属、权限、文件哈希和版本号。导入后抽样检查解析文本、chunk 数量、向量索引和关键词索引一致性。',
+      },
+    ],
+  },
+  {
+    id: 'pricing-faq',
+    title: '价格口径',
+    description: '套餐、折扣、续费',
+    updatedAt: '9 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 12,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 9,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 1301,
+        role: 'user',
+        content: '客户问企业版怎么收费，哪些信息可以直接对外说？',
+      },
+      {
+        id: 1302,
+        role: 'assistant',
+        content:
+          '可以直接说明按账号、知识库容量和私有化部署范围报价。折扣、赠送额度和定制条款需要销售负责人确认后再发出。',
+      },
+    ],
+  },
+  {
+    id: 'release-note',
+    title: '这周发版说明怎么写',
+    description: '更新点、风险、回滚',
+    updatedAt: '10 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 13,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 10,
+    isPinned: false,
+    isFavorited: true,
+    messages: [
+      {
+        id: 1401,
+        role: 'user',
+        content: '把本周更新整理成给客户看的发版说明，不要太技术化。',
+      },
+      {
+        id: 1402,
+        role: 'assistant',
+        content:
+          '本周重点可以写成三块：文档上传更稳定、问答来源更清晰、管理后台操作更顺手。技术细节放到内部变更记录。',
+      },
+    ],
+  },
+  {
+    id: 'security-check',
+    title: '安全检查项',
+    description: '账号、权限、审计',
+    updatedAt: '11 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 14,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 11,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 1501,
+        role: 'user',
+        content: '上线前帮我列一份安全检查清单。',
+      },
+      {
+        id: 1502,
+        role: 'assistant',
+        content:
+          '上线前重点检查默认密码、JWT 密钥、对象存储权限、跨组检索隔离、管理员操作审计和外部端口暴露范围。',
+      },
+    ],
+  },
+  {
+    id: 'support-reply',
+    title: '给客户的一封解释邮件',
+    description: '语气、原因、处理方案',
+    updatedAt: '12 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 15,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 12,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 1601,
+        role: 'user',
+        content: '客户反馈问答结果没引用来源，帮我写一封解释和处理邮件。',
+      },
+      {
+        id: 1602,
+        role: 'assistant',
+        content:
+          '邮件建议先承认影响，再说明原因是部分文档未完成索引，最后给出重建索引、补充引用展示和回访时间。',
+      },
+    ],
+  },
+  {
+    id: 'procurement-comparison',
+    title: '采购方案 A/B 对比表',
+    description: '成本、周期、风险',
+    updatedAt: '13 天前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 16,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 13,
+    isPinned: false,
+    isFavorited: true,
+    messages: [
+      {
+        id: 1701,
+        role: 'user',
+        content: '根据两份采购方案，总结成本、交付周期和主要风险。',
+        files: ['方案A.xlsx', '方案B.xlsx'],
+      },
+      {
+        id: 1702,
+        role: 'assistant',
+        content:
+          '方案 A 成本低但交付周期长，方案 B 交付快但后续维护成本更高。若项目窗口固定，建议优先评估方案 B 的维护条款。',
+      },
+    ],
+  },
+  {
+    id: 'data-retention',
+    title: '数据保留多久合适？',
+    description: '归档、删除、合规',
+    updatedAt: '两周前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 18,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 14,
+    isPinned: false,
+    isFavorited: false,
+    messages: [
+      {
+        id: 1801,
+        role: 'user',
+        content: '企业知识库里的历史会话和上传文档一般保留多久？',
+      },
+      {
+        id: 1802,
+        role: 'assistant',
+        content:
+          '建议分层设置：活跃知识长期保留，历史会话按 180 天归档，包含敏感信息的临时材料按项目周期自动清理。',
+      },
+    ],
+  },
+  {
+    id: 'okr-draft',
+    title: 'Q3 OKR 草稿',
+    description: '目标、关键结果',
+    updatedAt: '两周前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 20,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 15,
+    isPinned: false,
+    isFavorited: false,
+    isArchived: true,
+    messages: [
+      {
+        id: 1901,
+        role: 'user',
+        content: '结合产品路线图，帮我起草 Q3 的知识库产品 OKR。',
+      },
+      {
+        id: 1902,
+        role: 'assistant',
+        content:
+          '目标可以聚焦“让企业知识可验证、可治理、可持续运营”。关键结果围绕接入数量、检索质量、引用准确率和管理后台效率。',
+      },
+    ],
+  },
+  {
+    id: 'short-question',
+    title: '服务 SLA',
+    description: '响应时间',
+    updatedAt: '半个月前',
+    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 22,
+    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 16,
+    isPinned: false,
+    isFavorited: false,
+    isArchived: true,
+    messages: [
+      {
+        id: 2001,
+        role: 'user',
+        content: '企业版 SLA 怎么定义比较合适？',
+      },
+      {
+        id: 2002,
+        role: 'assistant',
+        content:
+          '可以按故障等级拆分响应和恢复目标：P0 立即响应，P1 一小时内响应，普通问题按工作日 SLA 处理。',
+      },
+    ],
+  },
 ]
 
 function createEmptyConversation(): ChatConversation {
   const now = Date.now()
   return {
     id: `chat-${Date.now()}`,
-    title: '新对话',
+    title: DEFAULT_CONVERSATION_TITLE,
     description: '开始知识库问答',
     updatedAt: '刚刚',
     createdAt: now,
@@ -439,20 +868,24 @@ function formatRelativeTime(value?: number, fallback = '刚刚') {
 }
 
 function normalizeConversations(conversations: ChatConversation[]) {
-  if (conversations.length === 0) return initialConversations
+  if (conversations.length === 0) return []
 
-  return conversations.map((conversation) => ({
-    ...conversation,
-    createdAt: conversation.createdAt ?? Date.now(),
-    updatedAtValue: conversation.updatedAtValue ?? Date.now(),
-    updatedAt: formatRelativeTime(
-      conversation.updatedAtValue,
-      conversation.updatedAt
-    ),
-    isPinned: Boolean(conversation.isPinned),
-    isFavorited: Boolean(conversation.isFavorited),
-    isArchived: Boolean(conversation.isArchived),
-  }))
+  const normalizedConversations = conversations
+    .map((conversation) => ({
+      ...conversation,
+      createdAt: conversation.createdAt ?? Date.now(),
+      updatedAtValue: conversation.updatedAtValue ?? Date.now(),
+      updatedAt: formatRelativeTime(
+        conversation.updatedAtValue,
+        conversation.updatedAt
+      ),
+      isPinned: Boolean(conversation.isPinned),
+      isFavorited: Boolean(conversation.isFavorited),
+      isArchived: Boolean(conversation.isArchived),
+    }))
+    .filter((conversation) => !isDraftConversation(conversation))
+
+  return normalizedConversations
 }
 
 function loadConversations() {
@@ -473,8 +906,19 @@ function getInitialActiveConversationId(conversations: ChatConversation[]) {
   return (
     conversations.find((conversation) => !conversation.isArchived)?.id ??
     conversations[0]?.id ??
-    createEmptyConversation().id
+    null
   )
+}
+
+function isDefaultConversationTitle(title: string) {
+  return (
+    title === DEFAULT_CONVERSATION_TITLE ||
+    title === LEGACY_DEFAULT_CONVERSATION_TITLE
+  )
+}
+
+function isDraftConversation(conversation: ChatConversation) {
+  return conversation.messages.length === 0
 }
 
 function orderConversations(conversations: ChatConversation[]) {
@@ -494,12 +938,12 @@ function touchConversation<T extends ChatConversation>(conversation: T): T {
   }
 }
 
-function createInitialChatState() {
+function createInitialChatState(): ChatState {
   const conversations = orderConversations(loadConversations())
 
   return {
     conversations,
-    activeConversationId: getInitialActiveConversationId(conversations),
+    activeConversationId: null,
   }
 }
 
@@ -543,11 +987,12 @@ export function ChatHome() {
 
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeConversationId) ??
-    conversations[0]
+    null
   const messages = activeConversation?.messages ?? []
   const hasMessages = messages.length > 0
   const isStreaming = messages.some((message) => message.isStreaming)
-  const activeConversationTitle = activeConversation?.title ?? '新对话'
+  const activeConversationTitle =
+    activeConversation?.title ?? DEFAULT_CONVERSATION_TITLE
 
   useEffect(() => {
     window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(conversations))
@@ -589,12 +1034,10 @@ export function ChatHome() {
   }
 
   function handleNewConversation() {
-    const nextConversation = createEmptyConversation()
-    setConversations((prev) => orderConversations([nextConversation, ...prev]))
-    setActiveConversationId(nextConversation.id)
+    setActiveConversationId(null)
     setInput('')
     setFiles([])
-    toast.success('已创建新对话')
+    toast.success('已准备新对话')
   }
 
   function handleSelectConversation(conversationId: string) {
@@ -613,16 +1056,15 @@ export function ChatHome() {
       (conversation) => conversation.id !== conversationId
     )
     if (nextConversations.length === 0) {
-      const nextConversation = createEmptyConversation()
-      setConversations([nextConversation])
-      setActiveConversationId(nextConversation.id)
+      setConversations([])
+      setActiveConversationId(null)
       toast.success('已删除对话')
       return
     }
 
     setConversations(orderConversations(nextConversations))
     if (conversationId === activeConversationId) {
-      setActiveConversationId(nextConversations[0].id)
+      setActiveConversationId(getInitialActiveConversationId(nextConversations))
     }
     toast.success('已删除对话')
   }
@@ -761,9 +1203,8 @@ export function ChatHome() {
   }
 
   function handleResetDemo() {
-    const nextConversations = orderConversations(initialConversations)
-    setConversations(nextConversations)
-    setActiveConversationId(getInitialActiveConversationId(nextConversations))
+    setConversations(orderConversations(initialConversations))
+    setActiveConversationId(null)
     setInput('')
     setFiles([])
     toast.success('已恢复默认演示数据')
@@ -777,7 +1218,7 @@ export function ChatHome() {
             ? touchConversation({
                 ...conversation,
                 title:
-                  conversation.title === '新对话' && input.trim()
+                  isDefaultConversationTitle(conversation.title) && input.trim()
                     ? input.trim().slice(0, 24)
                     : conversation.title,
                 description: 'mock 对话，后续接后端历史',
@@ -841,7 +1282,22 @@ export function ChatHome() {
       createNextMessageId()
     )
 
-    updateActiveConversation((prev) => [...prev, userMessage, assistantMessage])
+    if (!activeConversation) {
+      const nextConversation = touchConversation({
+        ...createEmptyConversation(),
+        title: userMessage.content.slice(0, 24),
+        description: 'mock 对话，后续接后端历史',
+        messages: [userMessage, assistantMessage],
+      })
+      setConversations((prev) => orderConversations([nextConversation, ...prev]))
+      setActiveConversationId(nextConversation.id)
+    } else {
+      updateActiveConversation((prev) => [
+        ...prev,
+        userMessage,
+        assistantMessage,
+      ])
+    }
     setInput('')
     setFiles([])
   }
@@ -1059,7 +1515,7 @@ export function ChatHome() {
               <div className='pointer-events-auto absolute left-1/2 flex max-w-[min(32rem,calc(100%-12rem))] -translate-x-1/2 items-center justify-center gap-2 text-sm font-medium'>
                 <span className='truncate'>{activeConversationTitle}</span>
               </div>
-              <div className='pointer-events-auto flex items-center gap-2'>
+              <div className='pointer-events-auto flex items-center'>
                 <HeaderActions showSearch={false} showAdminLink />
               </div>
             </header>
@@ -1189,7 +1645,7 @@ function ChatHistorySidebar({
   collapsible: Collapsible
   variant: ChatSidebarVariant
   conversations: ChatConversation[]
-  activeConversationId: string
+  activeConversationId: string | null
   onNewConversation: () => void
   onSelectConversation: (conversationId: string) => void
   onDeleteConversation: (conversationId: string) => void
@@ -1547,7 +2003,7 @@ function ChatHistorySidebar({
                               pinnedVisibleConversations.length > 0 && 'mt-2'
                             )}
                           >
-                            历史消息
+                            最近
                           </SidebarGroupLabel>
                           <SidebarMenu className='gap-1'>
                             <AnimatePresence initial={false}>
@@ -1639,7 +2095,7 @@ function ChatHistorySidebar({
                   >
                     <MoreHorizontal />
                     <span className='group-data-[collapsible=icon]:hidden'>
-                      更多操作
+                      更多
                     </span>
                   </SidebarMenuButton>
                 </DropdownMenuTrigger>

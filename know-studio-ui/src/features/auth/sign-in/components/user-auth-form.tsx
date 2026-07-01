@@ -87,10 +87,7 @@ export function UserAuthForm({
       auth.setAccessToken(tokens.accessToken)
       auth.setUser(tokens.currentUser)
       toast.success('登录成功')
-      const defaultTarget =
-        tokens.currentUser.systemRole === 'ADMIN' ? '/admin' : '/'
-      const target =
-        redirectTo && redirectTo !== '/500' ? redirectTo : defaultTarget
+      const target = redirectTo && redirectTo !== '/500' ? redirectTo : '/'
       navigate({ to: target, replace: true })
     } catch (error) {
       toast.error(extractApiError(error, '登录失败'))

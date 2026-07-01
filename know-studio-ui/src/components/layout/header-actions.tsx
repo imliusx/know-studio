@@ -1,49 +1,65 @@
-import { Link } from '@tanstack/react-router'
-import { ShieldCheck } from 'lucide-react'
+import { useLocation } from '@tanstack/react-router'
+import { MessageSquare, ShieldCheck } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+import { cn } from '@/lib/utils'
 import { ConfigDrawer } from '@/components/config-drawer'
 import { LanguageSwitch } from '@/components/language-switch'
 import { ProfileDropdown } from '@/components/profile-dropdown'
 import { Search } from '@/components/search'
 import { ThemeSwitch } from '@/components/theme-switch'
-import { Button } from '@/components/ui/button'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
+  HeaderIconLinkButton,
+  HeaderIconTooltip,
+} from './header-icon-button'
 
 type HeaderActionsProps = {
   showSearch?: boolean
   showAdminLink?: boolean
+  className?: string
 }
 
 export function HeaderActions({
   showSearch = true,
   showAdminLink = false,
+  className,
 }: HeaderActionsProps) {
   const { t } = useTranslation()
+  const href = useLocation({ select: (location) => location.href })
   const adminLabel = t('userMenu.adminConsole')
+  const chatLabel = '回到聊天'
+  const shouldShowChatLink = href.split('?')[0] !== '/'
 
   return (
-    <>
+    <div
+      className={cn(
+        'flex items-center gap-2',
+        showSearch ? 'min-w-0 flex-1' : 'shrink-0',
+        className
+      )}
+    >
       {showSearch ? <Search className='me-auto' /> : null}
+      {shouldShowChatLink ? (
+        <HeaderIconTooltip label={chatLabel}>
+          <HeaderIconLinkButton
+            to='/'
+            label={chatLabel}
+            icon={MessageSquare}
+          />
+        </HeaderIconTooltip>
+      ) : null}
       {showAdminLink ? (
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Button asChild variant='ghost' size='icon' aria-label={adminLabel}>
-              <Link to='/admin'>
-                <ShieldCheck className='size-[1.2rem]' aria-hidden='true' />
-              </Link>
-            </Button>
-          </TooltipTrigger>
-          <TooltipContent side='bottom'>{adminLabel}</TooltipContent>
-        </Tooltip>
+        <HeaderIconTooltip label={adminLabel}>
+          <HeaderIconLinkButton
+            to='/admin'
+            label={adminLabel}
+            icon={ShieldCheck}
+          />
+        </HeaderIconTooltip>
       ) : null}
       <LanguageSwitch />
       <ThemeSwitch />
       <ConfigDrawer />
       <ProfileDropdown />
-    </>
+    </div>
   )
 }

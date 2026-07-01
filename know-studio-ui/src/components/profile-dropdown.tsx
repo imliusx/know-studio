@@ -28,15 +28,19 @@ export function ProfileDropdown() {
   const { t } = useTranslation()
   const [open, setOpen] = useDialogState()
   const currentUser = useAuthStore((state) => state.auth.user)
-  const displayName = currentUser?.displayName ?? 'Know Studio Admin'
-  const userCode = currentUser?.userCode ?? 'admin'
-  const role = currentUser?.systemRole ?? 'USER'
+  const displayName = currentUser?.displayName ?? '未登录'
+  const userCode = currentUser?.userCode ?? '访客'
+  const role = currentUser?.systemRole ?? 'GUEST'
 
   return (
     <>
       <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
-          <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
+          <Button
+            variant='ghost'
+            size='icon-lg'
+            className='relative rounded-full p-0 hover:bg-accent aria-expanded:bg-accent'
+          >
             <Avatar className='h-8 w-8'>
               <AvatarImage src='/avatars/01.png' alt={displayName} />
               <AvatarFallback>{getDisplayNameInitials(displayName)}</AvatarFallback>

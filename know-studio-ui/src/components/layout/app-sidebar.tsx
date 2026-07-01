@@ -1,6 +1,6 @@
 import { Fragment } from 'react'
 import { Link, useLocation } from '@tanstack/react-router'
-import { KeyRound, MessageSquare } from 'lucide-react'
+import { KeyRound } from 'lucide-react'
 import { useLayout } from '@/context/layout-provider'
 import {
   Sidebar,
@@ -46,14 +46,6 @@ export function AppSidebar() {
       </SidebarContent>
       <SidebarFooter>
         <SidebarMenu className='gap-1'>
-          <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip='回到聊天'>
-              <Link to='/' onClick={() => setOpenMobile(false)}>
-                <MessageSquare />
-                <span>回到聊天</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild

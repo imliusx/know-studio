@@ -21,7 +21,7 @@ export function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const currentUserQuery = useQuery({
     queryKey: ["auth", "me"],
     queryFn: getCurrentUser,
-    enabled: import.meta.env.PROD && Boolean(accessToken),
+    enabled: Boolean(accessToken),
   })
 
   useEffect(() => {

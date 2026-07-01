@@ -4,6 +4,7 @@ import { setAuthToken } from '@/api/http'
 import type { CurrentUserProfile } from '@/api/auth'
 
 const ACCESS_TOKEN = 'ddrag_access_token'
+const CURRENT_USER = 'ddrag_current_user'
 
 interface AuthState {
   auth: {
@@ -19,13 +20,18 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set) => {
   const cookieState = getCookie(ACCESS_TOKEN)
   const initToken = cookieState ? decodeURIComponent(cookieState) : ''
+  const initUser = initToken ? readStoredUser() : null
+  if (!initToken) writeStoredUser(null)
   setAuthToken(initToken || null)
 
   return {
     auth: {
-      user: null,
+      user: initUser,
       setUser: (user) =>
-        set((state) => ({ ...state, auth: { ...state.auth, user } })),
+        set((state) => {
+          writeStoredUser(user)
+          return { ...state, auth: { ...state.auth, user } }
+        }),
       accessToken: initToken,
       setAccessToken: (accessToken) =>
         set((state) => {
@@ -36,12 +42,17 @@ export const useAuthStore = create<AuthState>()((set) => {
       resetAccessToken: () =>
         set((state) => {
           removeCookie(ACCESS_TOKEN)
+          writeStoredUser(null)
           setAuthToken(null)
-          return { ...state, auth: { ...state.auth, accessToken: '' } }
+          return {
+            ...state,
+            auth: { ...state.auth, user: null, accessToken: '' },
+          }
         }),
       reset: () =>
         set((state) => {
           removeCookie(ACCESS_TOKEN)
+          writeStoredUser(null)
           setAuthToken(null)
           return {
             ...state,
@@ -51,3 +62,21 @@ export const useAuthStore = create<AuthState>()((set) => {
     },
   }
 })
+
+function readStoredUser() {
+  try {
+    const value = window.localStorage.getItem(CURRENT_USER)
+    return value ? (JSON.parse(value) as CurrentUserProfile) : null
+  } catch {
+    return null
+  }
+}
+
+function writeStoredUser(user: CurrentUserProfile | null) {
+  if (!user) {
+    window.localStorage.removeItem(CURRENT_USER)
+    return
+  }
+
+  window.localStorage.setItem(CURRENT_USER, JSON.stringify(user))
+}
