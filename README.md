@@ -17,17 +17,27 @@ Know Studio 是一个基于 Spring Boot 3.5、Spring AI、Spring AI Alibaba、Po
   </tr>
 </table>
 
-### 管理后台与主题
+### 管理后台
 
 <table>
   <tr>
     <td width="50%"><img src="docs/assets/preview/light-admin-console.png" alt="管理后台控制台" /></td>
     <td width="50%"><img src="docs/assets/preview/light-admin-doc.png" alt="管理后台文档页" /></td>
   </tr>
+</table>
+
+### 登录注册
+
+<table>
   <tr>
     <td width="50%"><img src="docs/assets/preview/light-signin.png" alt="登录页" /></td>
     <td width="50%"><img src="docs/assets/preview/light-signup.png" alt="注册页" /></td>
   </tr>
+</table>
+
+### 主题
+
+<table>
   <tr>
     <td width="50%"><img src="docs/assets/preview/color-theme.png" alt="主题配置" /></td>
     <td width="50%"><img src="docs/assets/preview/light-blue.png" alt="蓝色主题" /></td>
