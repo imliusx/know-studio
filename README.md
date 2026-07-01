@@ -247,7 +247,7 @@ know-studio
 │  └─ prompts                 # Prompt 模板
 ├─ docker                     # 自定义 Docker 资源
 ├─ deploy/two-node            # 双机部署示例
-└─ docs                       # 技术文档
+└─ docs/assets/preview        # README 预览图
 ```
 
 ## 常用命令
@@ -276,15 +276,6 @@ cd know-studio-ui && pnpm lint && pnpm build
 - MinIO 本地默认账号：`minioadmin / minioadmin`。
 - PostgreSQL 本地默认配置：数据库 `know_studio`，用户 `root`，密码 `123456`。
 - 文档默认存储桶：`know-studio-documents`。
-
-## 文档
-
-- `docs/API.md`：接口说明。
-- `docs/PROJECT_READING_GUIDE.md`：代码阅读路线。
-- `docs/code-walkthrough.md`：实现走读。
-- `docs/rag-from-scratch.md`：RAG 设计说明。
-- `docs/run-in-idea.md`：IDEA 本地启动说明。
-- `deploy/two-node/README.md`：双机部署说明。
 
 ## License
 
