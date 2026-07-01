@@ -8,6 +8,13 @@ export function formatDateTime(value: string | null | undefined) {
   }).format(new Date(value))
 }
 
+export function formatDate(value: string | null | undefined) {
+  if (!value) return '-'
+  return new Intl.DateTimeFormat('zh-CN', {
+    dateStyle: 'medium',
+  }).format(new Date(value))
+}
+
 export function formatFileSize(size: number | null | undefined) {
   if (!size) return '0 B'
   const units = ['B', 'KB', 'MB', 'GB']

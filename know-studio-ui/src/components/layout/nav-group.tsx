@@ -35,6 +35,7 @@ import {
   type NavLink,
   type NavGroup as NavGroupProps,
 } from "./types"
+import { SidebarActiveIndicator } from "./sidebar-active-indicator"
 
 export function NavGroup({ title, items }: NavGroupProps) {
   const { t } = useTranslation()
@@ -43,7 +44,7 @@ export function NavGroup({ title, items }: NavGroupProps) {
   const label = t(`navigation.${title}`, { defaultValue: title })
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>{label}</SidebarGroupLabel>
+      {title ? <SidebarGroupLabel>{label}</SidebarGroupLabel> : null}
       <SidebarMenu className="gap-1">
         {items.map((item) => {
           const key = `${item.title}-${item.url}`
@@ -75,14 +76,17 @@ function SidebarMenuLink({ item, href }: { item: NavLink; href: string }) {
   const { t } = useTranslation()
   const { setOpenMobile } = useSidebar()
   const label = t(`navigation.${item.title}`, { defaultValue: item.title })
+  const isActive = checkIsActive(href, item)
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
         asChild
-        isActive={checkIsActive(href, item)}
+        isActive={isActive}
         tooltip={label}
+        className="relative pl-4 group-data-[collapsible=icon]:pl-[0.4rem]"
       >
         <Link to={item.url} onClick={() => setOpenMobile(false)}>
+          {isActive ? <SidebarActiveIndicator /> : null}
           {item.icon && <item.icon />}
           <span className="min-w-0 flex-1 truncate">{label}</span>
           {item.badge && <NavBadge>{item.badge}</NavBadge>}
@@ -110,7 +114,10 @@ function SidebarMenuCollapsible({
     >
       <SidebarMenuItem>
         <CollapsibleTrigger asChild>
-          <SidebarMenuButton tooltip={label}>
+          <SidebarMenuButton
+            tooltip={label}
+            className="relative pl-4 group-data-[collapsible=icon]:pl-[0.4rem]"
+          >
             {item.icon && <item.icon />}
             <span>{label}</span>
             {item.badge && <NavBadge>{item.badge}</NavBadge>}
@@ -119,24 +126,30 @@ function SidebarMenuCollapsible({
         </CollapsibleTrigger>
         <CollapsibleContent>
           <SidebarMenuSub className="mt-1 py-0">
-            {item.items.map((subItem) => (
-              <SidebarMenuSubItem key={subItem.title}>
-                <SidebarMenuSubButton
-                  asChild
-                  isActive={checkIsActive(href, subItem)}
-                >
-                  <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
-                    {subItem.icon && <subItem.icon />}
-                    <span>
-                      {t(`navigation.${subItem.title}`, {
-                        defaultValue: subItem.title,
-                      })}
-                    </span>
-                    {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
-                  </Link>
-                </SidebarMenuSubButton>
-              </SidebarMenuSubItem>
-            ))}
+            {item.items.map((subItem) => {
+              const subItemActive = checkIsActive(href, subItem)
+
+              return (
+                <SidebarMenuSubItem key={subItem.title}>
+                  <SidebarMenuSubButton
+                    asChild
+                    isActive={subItemActive}
+                    className="relative pl-4"
+                  >
+                    <Link to={subItem.url} onClick={() => setOpenMobile(false)}>
+                      {subItemActive ? <SidebarActiveIndicator /> : null}
+                      {subItem.icon && <subItem.icon />}
+                      <span>
+                        {t(`navigation.${subItem.title}`, {
+                          defaultValue: subItem.title,
+                        })}
+                      </span>
+                      {subItem.badge && <NavBadge>{subItem.badge}</NavBadge>}
+                    </Link>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              )
+            })}
           </SidebarMenuSub>
         </CollapsibleContent>
       </SidebarMenuItem>
@@ -153,14 +166,17 @@ function SidebarMenuCollapsedDropdown({
 }) {
   const { t } = useTranslation()
   const label = t(`navigation.${item.title}`, { defaultValue: item.title })
+  const isActive = checkIsActive(href, item)
   return (
     <SidebarMenuItem>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <SidebarMenuButton
             tooltip={label}
-            isActive={checkIsActive(href, item)}
+            isActive={isActive}
+            className="relative pl-4 group-data-[collapsible=icon]:pl-[0.4rem]"
           >
+            {isActive ? <SidebarActiveIndicator /> : null}
             {item.icon && <item.icon />}
             <span>{label}</span>
             {item.badge && <NavBadge>{item.badge}</NavBadge>}

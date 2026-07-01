@@ -1,11 +1,17 @@
 import {
-  Bot,
-  FileText,
+  ClipboardCheck,
+  ClipboardList,
+  Database,
   FolderKanban,
+  GitBranch,
   KeyRound,
+  Layers,
   LayoutDashboard,
-  MessageCircleQuestion,
+  Lightbulb,
+  Route,
   Settings,
+  SquareStack,
+  Upload,
   Users,
   DraftingCompass as LuDraftingCompass,
 } from 'lucide-react'
@@ -26,37 +32,64 @@ export const sidebarData: SidebarData = {
   ],
   navGroups: [
     {
-      title: 'Workspace',
+      title: '常用',
       items: [
         {
-          title: '控制台',
+          title: 'Dashboard',
           url: '/admin',
           icon: LayoutDashboard,
         },
         {
-          title: '小组协作',
-          url: '/admin/groups',
-          icon: FolderKanban,
-        },
-        {
-          title: '文档知识库',
+          title: '知识库管理',
           url: '/admin/documents',
-          icon: FileText,
+          icon: Database,
         },
         {
-          title: '知识库问答',
-          url: '/admin/qa',
-          icon: MessageCircleQuestion,
+          title: '意图管理',
+          icon: Layers,
+          items: [
+            {
+              title: '意图树配置',
+              url: '/admin/intent/tree',
+              icon: GitBranch,
+            },
+            {
+              title: '意图列表',
+              url: '/admin/intent/list',
+              icon: ClipboardList,
+            },
+          ],
         },
         {
-          title: 'AI 助手',
-          url: '/admin/assistant',
-          icon: Bot,
+          title: '数据通道',
+          icon: Upload,
+          items: [
+            {
+              title: '流水线管理',
+              url: '/admin/data-channels/pipelines',
+              icon: FolderKanban,
+            },
+            {
+              title: '流水线任务',
+              url: '/admin/data-channels/tasks',
+              icon: ClipboardCheck,
+            },
+            {
+              title: '关键词映射',
+              url: '/admin/data-channels/keywords',
+              icon: KeyRound,
+            },
+            {
+              title: '链路追踪',
+              url: '/admin/data-channels/traces',
+              icon: Route,
+            },
+          ],
         },
       ],
     },
     {
-      title: 'Administration',
+      title: '管理',
       items: [
         {
           title: '用户管理',
@@ -64,15 +97,19 @@ export const sidebarData: SidebarData = {
           icon: Users,
         },
         {
-          title: '设置',
+          title: '小组协作',
+          url: '/admin/groups',
+          icon: SquareStack,
+        },
+        {
+          title: '示例问题',
+          url: '/admin/qa',
+          icon: Lightbulb,
+        },
+        {
+          title: '系统设置',
+          url: '/admin/settings/account',
           icon: Settings,
-          items: [
-            {
-              title: '账号安全',
-              url: '/admin/settings/account',
-              icon: KeyRound,
-            },
-          ],
         },
       ],
     },

@@ -67,13 +67,10 @@ export function QaPage() {
       <Header fixed>
         <HeaderActions />
       </Header>
-      <Main className='grid gap-6 xl:grid-cols-[420px_1fr]'>
+      <Main className='grid gap-6 pt-4 xl:grid-cols-[420px_1fr]'>
         <div className='xl:col-span-2'>
           <div className='min-w-0'>
             <h1 className='text-2xl font-bold tracking-tight'>知识库问答</h1>
-            <p className='text-sm text-muted-foreground'>
-              调用 /api/qa/ask，根据小组文档证据生成回答
-            </p>
           </div>
         </div>
         <Card className='self-start'>

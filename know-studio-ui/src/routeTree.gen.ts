@@ -34,7 +34,6 @@ import { Route as AuthenticatedHelpCenterIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedGroupsIndexRouteImport } from './routes/_authenticated/groups/index'
 import { Route as AuthenticatedDocumentsIndexRouteImport } from './routes/_authenticated/documents/index'
 import { Route as AuthenticatedChatsIndexRouteImport } from './routes/_authenticated/chats/index'
-import { Route as AuthenticatedAssistantIndexRouteImport } from './routes/_authenticated/assistant/index'
 import { Route as AuthenticatedAppsIndexRouteImport } from './routes/_authenticated/apps/index'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin/index'
 import { Route as ClerkAuthenticatedUserManagementRouteImport } from './routes/clerk/_authenticated/user-management'
@@ -51,11 +50,16 @@ import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_a
 import { Route as AuthenticatedAdminQaIndexRouteImport } from './routes/_authenticated/admin/qa/index'
 import { Route as AuthenticatedAdminGroupsIndexRouteImport } from './routes/_authenticated/admin/groups/index'
 import { Route as AuthenticatedAdminDocumentsIndexRouteImport } from './routes/_authenticated/admin/documents/index'
-import { Route as AuthenticatedAdminAssistantIndexRouteImport } from './routes/_authenticated/admin/assistant/index'
 import { Route as AuthenticatedAdminSettingsNotificationsRouteImport } from './routes/_authenticated/admin/settings/notifications'
 import { Route as AuthenticatedAdminSettingsDisplayRouteImport } from './routes/_authenticated/admin/settings/display'
 import { Route as AuthenticatedAdminSettingsAppearanceRouteImport } from './routes/_authenticated/admin/settings/appearance'
 import { Route as AuthenticatedAdminSettingsAccountRouteImport } from './routes/_authenticated/admin/settings/account'
+import { Route as AuthenticatedAdminIntentTreeRouteImport } from './routes/_authenticated/admin/intent/tree'
+import { Route as AuthenticatedAdminIntentListRouteImport } from './routes/_authenticated/admin/intent/list'
+import { Route as AuthenticatedAdminDataChannelsTracesRouteImport } from './routes/_authenticated/admin/data-channels/traces'
+import { Route as AuthenticatedAdminDataChannelsTasksRouteImport } from './routes/_authenticated/admin/data-channels/tasks'
+import { Route as AuthenticatedAdminDataChannelsPipelinesRouteImport } from './routes/_authenticated/admin/data-channels/pipelines'
+import { Route as AuthenticatedAdminDataChannelsKeywordsRouteImport } from './routes/_authenticated/admin/data-channels/keywords'
 
 const ClerkRouteRoute = ClerkRouteRouteImport.update({
   id: '/clerk',
@@ -184,12 +188,6 @@ const AuthenticatedChatsIndexRoute = AuthenticatedChatsIndexRouteImport.update({
   path: '/chats/',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
-const AuthenticatedAssistantIndexRoute =
-  AuthenticatedAssistantIndexRouteImport.update({
-    id: '/assistant/',
-    path: '/assistant/',
-    getParentRoute: () => AuthenticatedRouteRoute,
-  } as any)
 const AuthenticatedAppsIndexRoute = AuthenticatedAppsIndexRouteImport.update({
   id: '/apps/',
   path: '/apps/',
@@ -282,12 +280,6 @@ const AuthenticatedAdminDocumentsIndexRoute =
     path: '/documents/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
-const AuthenticatedAdminAssistantIndexRoute =
-  AuthenticatedAdminAssistantIndexRouteImport.update({
-    id: '/assistant/',
-    path: '/assistant/',
-    getParentRoute: () => AuthenticatedAdminRouteRoute,
-  } as any)
 const AuthenticatedAdminSettingsNotificationsRoute =
   AuthenticatedAdminSettingsNotificationsRouteImport.update({
     id: '/notifications',
@@ -311,6 +303,42 @@ const AuthenticatedAdminSettingsAccountRoute =
     id: '/account',
     path: '/account',
     getParentRoute: () => AuthenticatedAdminSettingsRouteRoute,
+  } as any)
+const AuthenticatedAdminIntentTreeRoute =
+  AuthenticatedAdminIntentTreeRouteImport.update({
+    id: '/intent/tree',
+    path: '/intent/tree',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminIntentListRoute =
+  AuthenticatedAdminIntentListRouteImport.update({
+    id: '/intent/list',
+    path: '/intent/list',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminDataChannelsTracesRoute =
+  AuthenticatedAdminDataChannelsTracesRouteImport.update({
+    id: '/data-channels/traces',
+    path: '/data-channels/traces',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminDataChannelsTasksRoute =
+  AuthenticatedAdminDataChannelsTasksRouteImport.update({
+    id: '/data-channels/tasks',
+    path: '/data-channels/tasks',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminDataChannelsPipelinesRoute =
+  AuthenticatedAdminDataChannelsPipelinesRouteImport.update({
+    id: '/data-channels/pipelines',
+    path: '/data-channels/pipelines',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
+const AuthenticatedAdminDataChannelsKeywordsRoute =
+  AuthenticatedAdminDataChannelsKeywordsRouteImport.update({
+    id: '/data-channels/keywords',
+    path: '/data-channels/keywords',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -339,7 +367,6 @@ export interface FileRoutesByFullPath {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
   '/apps/': typeof AuthenticatedAppsIndexRoute
-  '/assistant/': typeof AuthenticatedAssistantIndexRoute
   '/chats/': typeof AuthenticatedChatsIndexRoute
   '/documents/': typeof AuthenticatedDocumentsIndexRoute
   '/groups/': typeof AuthenticatedGroupsIndexRoute
@@ -348,11 +375,16 @@ export interface FileRoutesByFullPath {
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
+  '/admin/data-channels/keywords': typeof AuthenticatedAdminDataChannelsKeywordsRoute
+  '/admin/data-channels/pipelines': typeof AuthenticatedAdminDataChannelsPipelinesRoute
+  '/admin/data-channels/tasks': typeof AuthenticatedAdminDataChannelsTasksRoute
+  '/admin/data-channels/traces': typeof AuthenticatedAdminDataChannelsTracesRoute
+  '/admin/intent/list': typeof AuthenticatedAdminIntentListRoute
+  '/admin/intent/tree': typeof AuthenticatedAdminIntentTreeRoute
   '/admin/settings/account': typeof AuthenticatedAdminSettingsAccountRoute
   '/admin/settings/appearance': typeof AuthenticatedAdminSettingsAppearanceRoute
   '/admin/settings/display': typeof AuthenticatedAdminSettingsDisplayRoute
   '/admin/settings/notifications': typeof AuthenticatedAdminSettingsNotificationsRoute
-  '/admin/assistant/': typeof AuthenticatedAdminAssistantIndexRoute
   '/admin/documents/': typeof AuthenticatedAdminDocumentsIndexRoute
   '/admin/groups/': typeof AuthenticatedAdminGroupsIndexRoute
   '/admin/qa/': typeof AuthenticatedAdminQaIndexRoute
@@ -382,7 +414,6 @@ export interface FileRoutesByTo {
   '/clerk/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
   '/apps': typeof AuthenticatedAppsIndexRoute
-  '/assistant': typeof AuthenticatedAssistantIndexRoute
   '/chats': typeof AuthenticatedChatsIndexRoute
   '/documents': typeof AuthenticatedDocumentsIndexRoute
   '/groups': typeof AuthenticatedGroupsIndexRoute
@@ -391,11 +422,16 @@ export interface FileRoutesByTo {
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
+  '/admin/data-channels/keywords': typeof AuthenticatedAdminDataChannelsKeywordsRoute
+  '/admin/data-channels/pipelines': typeof AuthenticatedAdminDataChannelsPipelinesRoute
+  '/admin/data-channels/tasks': typeof AuthenticatedAdminDataChannelsTasksRoute
+  '/admin/data-channels/traces': typeof AuthenticatedAdminDataChannelsTracesRoute
+  '/admin/intent/list': typeof AuthenticatedAdminIntentListRoute
+  '/admin/intent/tree': typeof AuthenticatedAdminIntentTreeRoute
   '/admin/settings/account': typeof AuthenticatedAdminSettingsAccountRoute
   '/admin/settings/appearance': typeof AuthenticatedAdminSettingsAppearanceRoute
   '/admin/settings/display': typeof AuthenticatedAdminSettingsDisplayRoute
   '/admin/settings/notifications': typeof AuthenticatedAdminSettingsNotificationsRoute
-  '/admin/assistant': typeof AuthenticatedAdminAssistantIndexRoute
   '/admin/documents': typeof AuthenticatedAdminDocumentsIndexRoute
   '/admin/groups': typeof AuthenticatedAdminGroupsIndexRoute
   '/admin/qa': typeof AuthenticatedAdminQaIndexRoute
@@ -432,7 +468,6 @@ export interface FileRoutesById {
   '/clerk/_authenticated/user-management': typeof ClerkAuthenticatedUserManagementRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
   '/_authenticated/apps/': typeof AuthenticatedAppsIndexRoute
-  '/_authenticated/assistant/': typeof AuthenticatedAssistantIndexRoute
   '/_authenticated/chats/': typeof AuthenticatedChatsIndexRoute
   '/_authenticated/documents/': typeof AuthenticatedDocumentsIndexRoute
   '/_authenticated/groups/': typeof AuthenticatedGroupsIndexRoute
@@ -441,11 +476,16 @@ export interface FileRoutesById {
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
+  '/_authenticated/admin/data-channels/keywords': typeof AuthenticatedAdminDataChannelsKeywordsRoute
+  '/_authenticated/admin/data-channels/pipelines': typeof AuthenticatedAdminDataChannelsPipelinesRoute
+  '/_authenticated/admin/data-channels/tasks': typeof AuthenticatedAdminDataChannelsTasksRoute
+  '/_authenticated/admin/data-channels/traces': typeof AuthenticatedAdminDataChannelsTracesRoute
+  '/_authenticated/admin/intent/list': typeof AuthenticatedAdminIntentListRoute
+  '/_authenticated/admin/intent/tree': typeof AuthenticatedAdminIntentTreeRoute
   '/_authenticated/admin/settings/account': typeof AuthenticatedAdminSettingsAccountRoute
   '/_authenticated/admin/settings/appearance': typeof AuthenticatedAdminSettingsAppearanceRoute
   '/_authenticated/admin/settings/display': typeof AuthenticatedAdminSettingsDisplayRoute
   '/_authenticated/admin/settings/notifications': typeof AuthenticatedAdminSettingsNotificationsRoute
-  '/_authenticated/admin/assistant/': typeof AuthenticatedAdminAssistantIndexRoute
   '/_authenticated/admin/documents/': typeof AuthenticatedAdminDocumentsIndexRoute
   '/_authenticated/admin/groups/': typeof AuthenticatedAdminGroupsIndexRoute
   '/_authenticated/admin/qa/': typeof AuthenticatedAdminQaIndexRoute
@@ -480,7 +520,6 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/admin/'
     | '/apps/'
-    | '/assistant/'
     | '/chats/'
     | '/documents/'
     | '/groups/'
@@ -489,11 +528,16 @@ export interface FileRouteTypes {
     | '/settings/'
     | '/tasks/'
     | '/users/'
+    | '/admin/data-channels/keywords'
+    | '/admin/data-channels/pipelines'
+    | '/admin/data-channels/tasks'
+    | '/admin/data-channels/traces'
+    | '/admin/intent/list'
+    | '/admin/intent/tree'
     | '/admin/settings/account'
     | '/admin/settings/appearance'
     | '/admin/settings/display'
     | '/admin/settings/notifications'
-    | '/admin/assistant/'
     | '/admin/documents/'
     | '/admin/groups/'
     | '/admin/qa/'
@@ -523,7 +567,6 @@ export interface FileRouteTypes {
     | '/clerk/user-management'
     | '/admin'
     | '/apps'
-    | '/assistant'
     | '/chats'
     | '/documents'
     | '/groups'
@@ -532,11 +575,16 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/users'
+    | '/admin/data-channels/keywords'
+    | '/admin/data-channels/pipelines'
+    | '/admin/data-channels/tasks'
+    | '/admin/data-channels/traces'
+    | '/admin/intent/list'
+    | '/admin/intent/tree'
     | '/admin/settings/account'
     | '/admin/settings/appearance'
     | '/admin/settings/display'
     | '/admin/settings/notifications'
-    | '/admin/assistant'
     | '/admin/documents'
     | '/admin/groups'
     | '/admin/qa'
@@ -572,7 +620,6 @@ export interface FileRouteTypes {
     | '/clerk/_authenticated/user-management'
     | '/_authenticated/admin/'
     | '/_authenticated/apps/'
-    | '/_authenticated/assistant/'
     | '/_authenticated/chats/'
     | '/_authenticated/documents/'
     | '/_authenticated/groups/'
@@ -581,11 +628,16 @@ export interface FileRouteTypes {
     | '/_authenticated/settings/'
     | '/_authenticated/tasks/'
     | '/_authenticated/users/'
+    | '/_authenticated/admin/data-channels/keywords'
+    | '/_authenticated/admin/data-channels/pipelines'
+    | '/_authenticated/admin/data-channels/tasks'
+    | '/_authenticated/admin/data-channels/traces'
+    | '/_authenticated/admin/intent/list'
+    | '/_authenticated/admin/intent/tree'
     | '/_authenticated/admin/settings/account'
     | '/_authenticated/admin/settings/appearance'
     | '/_authenticated/admin/settings/display'
     | '/_authenticated/admin/settings/notifications'
-    | '/_authenticated/admin/assistant/'
     | '/_authenticated/admin/documents/'
     | '/_authenticated/admin/groups/'
     | '/_authenticated/admin/qa/'
@@ -785,13 +837,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedChatsIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/assistant/': {
-      id: '/_authenticated/assistant/'
-      path: '/assistant'
-      fullPath: '/assistant/'
-      preLoaderRoute: typeof AuthenticatedAssistantIndexRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/apps/': {
       id: '/_authenticated/apps/'
       path: '/apps'
@@ -904,13 +949,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminDocumentsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
-    '/_authenticated/admin/assistant/': {
-      id: '/_authenticated/admin/assistant/'
-      path: '/assistant'
-      fullPath: '/admin/assistant/'
-      preLoaderRoute: typeof AuthenticatedAdminAssistantIndexRouteImport
-      parentRoute: typeof AuthenticatedAdminRouteRoute
-    }
     '/_authenticated/admin/settings/notifications': {
       id: '/_authenticated/admin/settings/notifications'
       path: '/notifications'
@@ -938,6 +976,48 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/settings/account'
       preLoaderRoute: typeof AuthenticatedAdminSettingsAccountRouteImport
       parentRoute: typeof AuthenticatedAdminSettingsRouteRoute
+    }
+    '/_authenticated/admin/intent/tree': {
+      id: '/_authenticated/admin/intent/tree'
+      path: '/intent/tree'
+      fullPath: '/admin/intent/tree'
+      preLoaderRoute: typeof AuthenticatedAdminIntentTreeRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/intent/list': {
+      id: '/_authenticated/admin/intent/list'
+      path: '/intent/list'
+      fullPath: '/admin/intent/list'
+      preLoaderRoute: typeof AuthenticatedAdminIntentListRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/data-channels/traces': {
+      id: '/_authenticated/admin/data-channels/traces'
+      path: '/data-channels/traces'
+      fullPath: '/admin/data-channels/traces'
+      preLoaderRoute: typeof AuthenticatedAdminDataChannelsTracesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/data-channels/tasks': {
+      id: '/_authenticated/admin/data-channels/tasks'
+      path: '/data-channels/tasks'
+      fullPath: '/admin/data-channels/tasks'
+      preLoaderRoute: typeof AuthenticatedAdminDataChannelsTasksRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/data-channels/pipelines': {
+      id: '/_authenticated/admin/data-channels/pipelines'
+      path: '/data-channels/pipelines'
+      fullPath: '/admin/data-channels/pipelines'
+      preLoaderRoute: typeof AuthenticatedAdminDataChannelsPipelinesRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
+    '/_authenticated/admin/data-channels/keywords': {
+      id: '/_authenticated/admin/data-channels/keywords'
+      path: '/data-channels/keywords'
+      fullPath: '/admin/data-channels/keywords'
+      preLoaderRoute: typeof AuthenticatedAdminDataChannelsKeywordsRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
     }
   }
 }
@@ -971,7 +1051,12 @@ const AuthenticatedAdminSettingsRouteRouteWithChildren =
 interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminSettingsRouteRoute: typeof AuthenticatedAdminSettingsRouteRouteWithChildren
   AuthenticatedAdminIndexRoute: typeof AuthenticatedAdminIndexRoute
-  AuthenticatedAdminAssistantIndexRoute: typeof AuthenticatedAdminAssistantIndexRoute
+  AuthenticatedAdminDataChannelsKeywordsRoute: typeof AuthenticatedAdminDataChannelsKeywordsRoute
+  AuthenticatedAdminDataChannelsPipelinesRoute: typeof AuthenticatedAdminDataChannelsPipelinesRoute
+  AuthenticatedAdminDataChannelsTasksRoute: typeof AuthenticatedAdminDataChannelsTasksRoute
+  AuthenticatedAdminDataChannelsTracesRoute: typeof AuthenticatedAdminDataChannelsTracesRoute
+  AuthenticatedAdminIntentListRoute: typeof AuthenticatedAdminIntentListRoute
+  AuthenticatedAdminIntentTreeRoute: typeof AuthenticatedAdminIntentTreeRoute
   AuthenticatedAdminDocumentsIndexRoute: typeof AuthenticatedAdminDocumentsIndexRoute
   AuthenticatedAdminGroupsIndexRoute: typeof AuthenticatedAdminGroupsIndexRoute
   AuthenticatedAdminQaIndexRoute: typeof AuthenticatedAdminQaIndexRoute
@@ -983,8 +1068,16 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminSettingsRouteRoute:
       AuthenticatedAdminSettingsRouteRouteWithChildren,
     AuthenticatedAdminIndexRoute: AuthenticatedAdminIndexRoute,
-    AuthenticatedAdminAssistantIndexRoute:
-      AuthenticatedAdminAssistantIndexRoute,
+    AuthenticatedAdminDataChannelsKeywordsRoute:
+      AuthenticatedAdminDataChannelsKeywordsRoute,
+    AuthenticatedAdminDataChannelsPipelinesRoute:
+      AuthenticatedAdminDataChannelsPipelinesRoute,
+    AuthenticatedAdminDataChannelsTasksRoute:
+      AuthenticatedAdminDataChannelsTasksRoute,
+    AuthenticatedAdminDataChannelsTracesRoute:
+      AuthenticatedAdminDataChannelsTracesRoute,
+    AuthenticatedAdminIntentListRoute: AuthenticatedAdminIntentListRoute,
+    AuthenticatedAdminIntentTreeRoute: AuthenticatedAdminIntentTreeRoute,
     AuthenticatedAdminDocumentsIndexRoute:
       AuthenticatedAdminDocumentsIndexRoute,
     AuthenticatedAdminGroupsIndexRoute: AuthenticatedAdminGroupsIndexRoute,
@@ -1026,7 +1119,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
   AuthenticatedErrorsErrorRoute: typeof AuthenticatedErrorsErrorRoute
   AuthenticatedAppsIndexRoute: typeof AuthenticatedAppsIndexRoute
-  AuthenticatedAssistantIndexRoute: typeof AuthenticatedAssistantIndexRoute
   AuthenticatedChatsIndexRoute: typeof AuthenticatedChatsIndexRoute
   AuthenticatedDocumentsIndexRoute: typeof AuthenticatedDocumentsIndexRoute
   AuthenticatedGroupsIndexRoute: typeof AuthenticatedGroupsIndexRoute
@@ -1042,7 +1134,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
   AuthenticatedErrorsErrorRoute: AuthenticatedErrorsErrorRoute,
   AuthenticatedAppsIndexRoute: AuthenticatedAppsIndexRoute,
-  AuthenticatedAssistantIndexRoute: AuthenticatedAssistantIndexRoute,
   AuthenticatedChatsIndexRoute: AuthenticatedChatsIndexRoute,
   AuthenticatedDocumentsIndexRoute: AuthenticatedDocumentsIndexRoute,
   AuthenticatedGroupsIndexRoute: AuthenticatedGroupsIndexRoute,

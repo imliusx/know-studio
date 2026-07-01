@@ -12,9 +12,9 @@ import {
 type HeaderIconScale = 'default' | 'sm' | 'lg'
 
 const iconScaleClass: Record<HeaderIconScale, string> = {
-  default: '[&_svg]:size-[1.2rem]',
-  sm: '[&_svg]:size-[1.125rem]',
-  lg: '[&_svg]:size-[1.25rem]',
+  default: 'size-[1.2rem]',
+  sm: 'size-[1.125rem]',
+  lg: 'size-[1.25rem]',
 }
 
 type HeaderIconButtonProps = Omit<
@@ -32,10 +32,13 @@ type HeaderIconLinkButtonProps = HeaderIconButtonProps & {
 }
 
 export function headerIconButtonClass(
-  iconScale: HeaderIconScale = 'default',
   className?: string
 ) {
-  return cn('relative', iconScaleClass[iconScale], className)
+  return cn('relative', className)
+}
+
+export function headerIconClass(iconScale: HeaderIconScale = 'default') {
+  return iconScaleClass[iconScale]
 }
 
 export function HeaderIconTooltip({
@@ -65,11 +68,15 @@ export function HeaderIconButton({
     <Button
       variant='ghost'
       size='icon'
-      className={headerIconButtonClass(iconScale, className)}
+      className={headerIconButtonClass(className)}
       aria-label={label}
       {...props}
     >
-      {children ?? (Icon ? <Icon aria-hidden='true' /> : null)}
+      {children ?? (
+        Icon ? (
+          <Icon className={headerIconClass(iconScale)} aria-hidden='true' />
+        ) : null
+      )}
       <span className='sr-only'>{label}</span>
     </Button>
   )
@@ -88,12 +95,14 @@ export function HeaderIconLinkButton({
       asChild
       variant='ghost'
       size='icon'
-      className={headerIconButtonClass(iconScale, className)}
+      className={headerIconButtonClass(className)}
       aria-label={label}
       {...props}
     >
       <Link to={to}>
-        {Icon ? <Icon aria-hidden='true' /> : null}
+        {Icon ? (
+          <Icon className={headerIconClass(iconScale)} aria-hidden='true' />
+        ) : null}
         <span className='sr-only'>{label}</span>
       </Link>
     </Button>

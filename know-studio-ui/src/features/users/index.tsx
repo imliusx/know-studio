@@ -76,13 +76,10 @@ export function Users() {
       <Header fixed>
         <HeaderActions />
       </Header>
-      <Main className='flex flex-col gap-6'>
+      <Main className='flex flex-col gap-6 pt-4'>
         <div className='flex flex-wrap items-end justify-between gap-3'>
           <div className='min-w-0'>
             <h1 className='text-2xl font-bold tracking-tight'>用户管理</h1>
-            <p className='text-sm text-muted-foreground'>
-              管理系统账号、角色和账号状态
-            </p>
           </div>
           <Button variant='outline' size='sm' onClick={() => usersQuery.refetch()}>
             <RefreshCw data-icon='inline-start' />

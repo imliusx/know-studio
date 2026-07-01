@@ -6,6 +6,7 @@ import { useTheme } from '@/context/theme-provider'
 import {
   HeaderIconButton,
   HeaderIconTooltip,
+  headerIconClass,
 } from '@/components/layout/header-icon-button'
 
 type Theme = 'dark' | 'light' | 'system'
@@ -51,7 +52,6 @@ export function ThemeSwitch() {
     <HeaderIconTooltip label={label}>
       <HeaderIconButton
         label={label}
-        iconScale={theme === 'dark' ? 'lg' : 'default'}
         className='overflow-hidden'
         onClick={(event) =>
           setTheme(nextTheme, { origin: getTransitionOrigin(event) })
@@ -78,7 +78,7 @@ export function ThemeSwitch() {
                 : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
             }
           >
-            <ThemeIcon aria-hidden='true' />
+            <ThemeIcon className={headerIconClass()} aria-hidden='true' />
           </motion.span>
         </AnimatePresence>
       </HeaderIconButton>

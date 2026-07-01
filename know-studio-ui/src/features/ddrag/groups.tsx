@@ -178,13 +178,10 @@ export function GroupsPage() {
       <Header fixed>
         <HeaderActions />
       </Header>
-      <Main className='flex flex-col gap-6'>
+      <Main className='flex flex-col gap-6 pt-4'>
         <div className='flex flex-wrap items-end justify-between gap-3'>
           <div className='min-w-0'>
             <h1 className='text-2xl font-bold tracking-tight'>小组协作</h1>
-            <p className='text-sm text-muted-foreground'>
-              创建知识库小组、管理成员和处理邀请/申请
-            </p>
           </div>
           <Button variant='outline' size='sm' onClick={() => invalidateGroups()}>
             <RefreshCw data-icon='inline-start' />

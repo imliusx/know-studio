@@ -1589,7 +1589,7 @@ export function ChatHome() {
                     onScroll={handleChatScroll}
                   >
                     <motion.div
-                      className='mx-auto flex min-h-full w-full max-w-4xl flex-col items-center justify-center gap-15 py-6'
+                      className='mx-auto flex min-h-full w-full max-w-4xl flex-col items-center justify-center gap-15 pt-6 pb-[10vh]'
                       initial={
                         reduceMotion ? false : { opacity: 0, y: 10, scale: 0.99 }
                       }

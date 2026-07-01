@@ -14,6 +14,7 @@ type DataTableToolbarProps<TData> = {
   table: Table<TData>
   searchPlaceholder?: string
   searchKey?: string
+  searchAction?: React.ReactNode
   filters?: {
     columnId: string
     title: string
@@ -29,6 +30,7 @@ export function DataTableToolbar<TData>({
   table,
   searchPlaceholder,
   searchKey,
+  searchAction,
   filters = [],
 }: DataTableToolbarProps<TData>) {
   const { t } = useTranslation()
@@ -66,6 +68,7 @@ export function DataTableToolbar<TData>({
             />
           </InputGroup>
         )}
+        {searchAction}
         <div className="flex gap-x-2">
           {filters.map((filter) => {
             const column = table.getColumn(filter.columnId)
