@@ -112,10 +112,10 @@ export function UserAuthForm({
                     className='size-7 text-primary'
                     aria-hidden='true'
                   />
-                  Know Studio Admin
+                  Know Studio
                 </h1>
                 <p className='text-balance text-muted-foreground'>
-                  登录后台管理系统
+                  登录账号继续访问工作台
                 </p>
               </div>
               <Field data-invalid={Boolean(fieldError('loginId'))}>

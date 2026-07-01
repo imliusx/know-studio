@@ -160,6 +160,7 @@ export const en = {
     },
   },
   auth: {
+    sessionExpired: "Session expired. Please sign in again.",
     signIn: {
       title: "Welcome back",
       description: "Login to your Know Studio account",
@@ -697,6 +698,7 @@ export const zhCN = {
     },
   },
   auth: {
+    sessionExpired: "登录状态已失效，请重新登录。",
     signIn: {
       title: "欢迎回来",
       description: "登录你的 Know Studio 账号",

@@ -2274,7 +2274,7 @@ function ChatMessageItem({
 function UserMessage({ message }: { message: ChatMessage }) {
   return (
     <div className='flex flex-col items-end gap-2'>
-      <MessageContent className='bg-primary text-sm leading-relaxed text-primary-foreground'>
+      <MessageContent className='bg-primary text-sm leading-5 text-primary-foreground'>
         {message.content}
       </MessageContent>
       {message.files?.length ? (
@@ -2320,7 +2320,7 @@ function AssistantMessage({
       ) : null}
 
       {message.isStreaming ? (
-        <div className='prose text-sm leading-relaxed text-foreground dark:prose-invert'>
+        <div className='prose text-sm leading-6 text-foreground dark:prose-invert'>
           <ResponseStream
             textStream={message.content}
             speed={38}
@@ -2331,7 +2331,7 @@ function AssistantMessage({
       ) : (
         <MessageContent
           markdown
-          className='bg-transparent p-0 text-sm leading-relaxed'
+          className='bg-transparent p-0 text-sm leading-6'
           children={message.content}
         />
       )}

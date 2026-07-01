@@ -4,8 +4,6 @@ import { useAuthStore } from '@/stores/auth-store'
 
 export const Route = createFileRoute('/_authenticated')({
   beforeLoad: ({ location }) => {
-    if (import.meta.env.DEV) return
-
     const { accessToken } = useAuthStore.getState().auth
 
     if (!accessToken) {

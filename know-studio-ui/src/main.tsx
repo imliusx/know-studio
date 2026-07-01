@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/auth-store'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { handleServerError } from '@/lib/handle-server-error'
+import { i18n } from '@/lib/i18n'
 import { ColorThemeProvider } from './context/color-theme-provider'
 import { DirectionProvider } from './context/direction-provider'
 import { FontProvider } from './context/font-provider'
@@ -21,6 +22,8 @@ import { ThemeProvider } from './context/theme-provider'
 import { routeTree } from './routeTree.gen'
 // Styles
 import './index.css'
+
+const SESSION_EXPIRED_TOAST_ID = 'session-expired'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -55,12 +58,11 @@ const queryClient = new QueryClient({
     onError: (error) => {
       if (error instanceof AxiosError) {
         if (error.response?.status === 401) {
-          toast.error('Session expired!')
+          toast.error(i18n.t('auth.sessionExpired'), {
+            id: SESSION_EXPIRED_TOAST_ID,
+          })
           useAuthStore.getState().auth.reset()
-          if (import.meta.env.PROD) {
-            const redirect = `${router.history.location.href}`
-            router.navigate({ to: '/sign-in', search: { redirect } })
-          }
+          redirectToSignIn()
         }
         if (error.response?.status === 500) {
           toast.error('Internal Server Error!')
@@ -84,6 +86,18 @@ const router = createRouter({
   defaultPreload: 'intent',
   defaultPreloadStaleTime: 0,
 })
+
+function redirectToSignIn() {
+  const redirect = router.history.location.href
+
+  if (redirect.startsWith('/sign-in')) return
+
+  void router.navigate({
+    to: '/sign-in',
+    search: { redirect },
+    replace: true,
+  })
+}
 
 // Register the router instance for type safety
 declare module '@tanstack/react-router' {
