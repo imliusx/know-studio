@@ -1,0 +1,482 @@
+package com.dong.ddrag.document.service;
+
+import com.dong.ddrag.common.enums.DocumentStatus;
+import com.dong.ddrag.common.exception.BusinessException;
+import com.dong.ddrag.document.mapper.DocumentMapper;
+import com.dong.ddrag.document.model.dto.DocumentQuery;
+import com.dong.ddrag.document.model.dto.UploadDocumentRequest;
+import com.dong.ddrag.document.model.entity.DocumentEntity;
+import com.dong.ddrag.document.model.vo.DocumentListItemVO;
+import com.dong.ddrag.document.model.vo.DocumentPreviewVO;
+import com.dong.ddrag.groupmembership.service.GroupMembershipService;
+import com.dong.ddrag.identity.service.CurrentUserService;
+import com.dong.ddrag.ingestion.vector.VectorIngestionService;
+import com.dong.ddrag.retrieval.elasticsearch.ElasticsearchChunkIndexService;
+import com.dong.ddrag.storage.service.ObjectStorageService;
+import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+
+/**
+ * 文档管理服务（对应走读指南「链路 A」）。承担两类职责：
+ * <ul>
+ *   <li><b>上传落库</b>：整文件直传({@link #uploadDocument})、秒传({@link #createInstantUploadedDocument})、
+ *       分片完成({@link #finalizeUploadedDocument})——三者最终都走 {@link #persistAndFinalizeUploadedDocument}</li>
+ *   <li><b>查询/删除/重试/预览</b>：文档列表、软删、重新触发入库、预览文本</li>
+ * </ul>
+ *
+ * <p>⭐ <b>关键衔接点</b>：文档元数据入库后，不是同步调 ETL，而是通过 {@link ApplicationEventPublisher}
+ * 发布 {@code DocumentIngestionRequestedEvent}，由监听器异步执行 ETL(解析→切片→向量化)。
+ * 这样上传接口能立即返回 documentId，不被大文件解析阻塞——这是"上传与 ETL 解耦"的核心设计。
+ */
+@Service
+public class DocumentService {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentService.class);
+    private static final int PREVIEW_MAX_LENGTH = 200;
+    private static final int MAX_FILE_NAME_LENGTH = 255;
+    private static final int MAX_CONTENT_TYPE_LENGTH = 128;
+    private static final int MAX_FILE_EXT_LENGTH = 16;
+    private static final long MAX_FILE_SIZE = 10L * 1024 * 1024;
+    private static final Set<String> SUPPORTED_EXTENSIONS = Set.of("txt", "md", "pdf", "docx");
+
+    private final DocumentMapper documentMapper;
+    private final GroupMembershipService groupMembershipService;
+    private final CurrentUserService currentUserService;
+    private final ObjectStorageService objectStorageService;
+    private final VectorIngestionService vectorIngestionService;
+    private final ElasticsearchChunkIndexService elasticsearchChunkIndexService;
+    private final ApplicationEventPublisher applicationEventPublisher;
+
+    public DocumentService(
+            DocumentMapper documentMapper,
+            GroupMembershipService groupMembershipService,
+            CurrentUserService currentUserService,
+            ObjectStorageService objectStorageService,
+            VectorIngestionService vectorIngestionService,
+            ElasticsearchChunkIndexService elasticsearchChunkIndexService,
+            ApplicationEventPublisher applicationEventPublisher
+    ) {
+        this.documentMapper = documentMapper;
+        this.groupMembershipService = groupMembershipService;
+        this.currentUserService = currentUserService;
+        this.objectStorageService = objectStorageService;
+        this.vectorIngestionService = vectorIngestionService;
+        this.elasticsearchChunkIndexService = elasticsearchChunkIndexService;
+        this.applicationEventPublisher = applicationEventPublisher;
+    }
+
+    @Transactional
+    /**
+     * 整文件直传（小文件入口）。流程：校验 → 上传 MinIO → 落库 + 触发异步 ETL。
+     * 失败时做补偿：回滚已写的外部索引和 MinIO 对象，避免残留。
+     */
+    public Long uploadDocument(HttpServletRequest request, UploadDocumentRequest uploadRequest) {
+        Long groupId = requireGroupId(uploadRequest.getGroupId());
+        CurrentUserService.CurrentUser currentUser = requireGroupOwner(request, groupId);
+        MultipartFile file = requireValidFile(uploadRequest.getFile());
+        String fileName = extractFileName(file);
+        String fileExt = extractFileExt(fileName);
+        String bucket = objectStorageService.getDefaultBucket();
+        String objectKey = buildObjectKey(groupId, currentUser.userId(), fileExt);
+        DocumentEntity document = null;
+        log.info("开始上传文档: groupId={}, userId={}, fileName={}, size={}, objectKey={}",
+                groupId, currentUser.userId(), fileName, file.getSize(), objectKey);
+        uploadFile(bucket, objectKey, file);
+        log.info("对象存储上传完成: groupId={}, objectKey={}", groupId, objectKey);
+        try {
+            document = persistAndFinalizeUploadedDocument(new FinalizedUploadCommand(
+                    groupId,
+                    currentUser.userId(),
+                    fileName,
+                    fileExt,
+                    normalizeContentType(file.getContentType()),
+                    file.getSize(),
+                    null,
+                    bucket,
+                    objectKey
+            ));
+            return document.getId();
+        } catch (RuntimeException exception) {
+            // 补偿：落库失败时清理已上传的 MinIO 对象和外部索引，避免脏数据。
+            log.error("文档上传链路失败: groupId={}, objectKey={}, reason={}",
+                    groupId, objectKey, exception.getMessage(), exception);
+            compensateExternalIndexes(document);
+            compensateUploadedObject(bucket, objectKey, exception);
+            throw exception;
+        }
+    }
+
+    @Transactional
+    public Long createInstantUploadedDocument(
+            Long groupId,
+            Long userId,
+            DocumentEntity existingDocument,
+            String fileName
+    ) {
+        if (existingDocument == null) {
+            throw new BusinessException("复用文档不存在");
+        }
+        DocumentEntity document = persistAndFinalizeUploadedDocument(new FinalizedUploadCommand(
+                requireGroupId(groupId),
+                requirePositiveUserId(userId),
+                validateReusableFileName(fileName),
+                requireText(existingDocument.getFileExt(), "文件扩展名非法"),
+                normalizeContentType(existingDocument.getContentType()),
+                requirePositiveFileSize(existingDocument.getFileSize()),
+                existingDocument.getFileHash(),
+                requireText(existingDocument.getStorageBucket(), "对象存储桶非法"),
+                requireText(existingDocument.getStorageObjectKey(), "对象存储路径非法")
+        ));
+        return document.getId();
+    }
+
+    @Transactional
+    public Long finalizeUploadedDocument(
+            Long groupId,
+            Long userId,
+            String fileName,
+            String fileExt,
+            String contentType,
+            Long fileSize,
+            String fileHash,
+            String bucket,
+            String objectKey
+    ) {
+        DocumentEntity document = persistAndFinalizeUploadedDocument(new FinalizedUploadCommand(
+                requireGroupId(groupId),
+                requirePositiveUserId(userId),
+                normalizeFileName(fileName),
+                requireText(fileExt, "文件扩展名非法"),
+                normalizeContentType(contentType),
+                requirePositiveFileSize(fileSize),
+                fileHash,
+                requireText(bucket, "对象存储桶非法"),
+                requireText(objectKey, "对象存储路径非法")
+        ));
+        return document.getId();
+    }
+
+    public List<DocumentListItemVO> listDocuments(HttpServletRequest request, DocumentQuery query) {
+        DocumentQuery validatedQuery = normalizeQuery(request, query);
+        return documentMapper.selectReadableDocuments(validatedQuery);
+    }
+
+    public void softDeleteDocument(HttpServletRequest request, Long groupId, Long documentId) {
+        requireGroupOwner(request, requireGroupId(groupId));
+        if (documentId == null || documentId <= 0) {
+            throw new BusinessException("文档ID非法");
+        }
+        if (documentMapper.markDeleted(documentId, groupId) == 0) {
+            throw new BusinessException("文档不存在或已删除");
+        }
+        vectorIngestionService.deleteDocumentVectors(documentId);
+        elasticsearchChunkIndexService.deleteDocumentChunks(documentId);
+    }
+
+    @Transactional
+    public void retryFailedDocumentIngestion(HttpServletRequest request, Long groupId, Long documentId) {
+        Long requiredGroupId = requireGroupId(groupId);
+        requireGroupOwner(request, requiredGroupId);
+        if (documentId == null || documentId <= 0) {
+            throw new BusinessException("文档ID非法");
+        }
+        DocumentEntity document = documentMapper.selectByIdAndGroupId(documentId, requiredGroupId);
+        if (document == null) {
+            throw new BusinessException("文档不存在或已删除");
+        }
+        if (!DocumentStatus.FAILED.name().equals(document.getStatus())) {
+            throw new BusinessException("仅失败文档支持重新处理");
+        }
+        int updated = documentMapper.updateStatus(
+                documentId,
+                requiredGroupId,
+                DocumentStatus.PROCESSING.name(),
+                null,
+                null
+        );
+        if (updated == 0) {
+            throw new BusinessException("重置文档状态失败");
+        }
+        publishIngestionRequestedEvent(documentId, requiredGroupId);
+    }
+
+    public DocumentPreviewVO previewDocument(HttpServletRequest request, Long groupId, Long documentId) {
+        Long requiredGroupId = requireGroupId(groupId);
+        groupMembershipService.requireGroupReadable(request, requiredGroupId);
+        if (documentId == null || documentId <= 0) {
+            throw new BusinessException("文档ID非法");
+        }
+        DocumentEntity document = documentMapper.selectByIdAndGroupId(documentId, requiredGroupId);
+        if (document == null) {
+            throw new BusinessException("文档不存在或已删除");
+        }
+        if (!DocumentStatus.READY.name().equals(document.getStatus())) {
+            throw new BusinessException("文档尚未就绪，暂不可预览");
+        }
+        if (!StringUtils.hasText(document.getPreviewText())) {
+            throw new BusinessException("文档暂无可预览内容");
+        }
+        DocumentPreviewVO preview = new DocumentPreviewVO();
+        preview.setDocumentId(document.getId());
+        preview.setFileName(document.getFileName());
+        preview.setPreviewText(trimPreviewText(document.getPreviewText()));
+        return preview;
+    }
+
+    private Long requireGroupId(Long groupId) {
+        if (groupId == null || groupId <= 0) {
+            throw new BusinessException("groupId 非法");
+        }
+        return groupId;
+    }
+
+    private CurrentUserService.CurrentUser requireGroupOwner(HttpServletRequest request, Long groupId) {
+        CurrentUserService.CurrentUser currentUser = groupMembershipService.requireGroupReadable(request, groupId);
+        groupMembershipService.requireGroupOwner(request, groupId);
+        return currentUser;
+    }
+
+    private MultipartFile requireValidFile(MultipartFile file) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("上传文件不能为空");
+        }
+        if (file.getSize() > MAX_FILE_SIZE) {
+            throw new BusinessException("上传文件超过大小限制");
+        }
+        return file;
+    }
+
+    private String extractFileName(MultipartFile file) {
+        String originalFileName = file.getOriginalFilename();
+        return normalizeFileName(originalFileName);
+    }
+
+    private String extractFileExt(String fileName) {
+        int dotIndex = fileName.lastIndexOf('.');
+        if (dotIndex <= 0 || dotIndex == fileName.length() - 1) {
+            throw new BusinessException("文件扩展名非法");
+        }
+        String fileExt = fileName.substring(dotIndex + 1).toLowerCase();
+        if (fileExt.length() > MAX_FILE_EXT_LENGTH || !SUPPORTED_EXTENSIONS.contains(fileExt)) {
+            throw new BusinessException("文件类型不支持");
+        }
+        return fileExt;
+    }
+
+    private String buildObjectKey(Long groupId, Long userId, String fileExt) {
+        String fileId = UUID.randomUUID().toString().replace("-", "");
+        return "groups/%d/users/%d/%s.%s".formatted(groupId, userId, fileId, fileExt);
+    }
+
+    private void uploadFile(String bucket, String objectKey, MultipartFile file) {
+        try (InputStream inputStream = file.getInputStream()) {
+            objectStorageService.putObject(
+                    bucket,
+                    objectKey,
+                    inputStream,
+                    file.getSize(),
+                    normalizeContentType(file.getContentType())
+            );
+        } catch (IOException exception) {
+            throw new BusinessException("读取上传文件失败");
+        } catch (BusinessException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new BusinessException("文档上传失败");
+        }
+    }
+
+    private void compensateUploadedObject(String bucket, String objectKey, RuntimeException originalException) {
+        try {
+            objectStorageService.deleteObject(bucket, objectKey);
+        } catch (RuntimeException compensationException) {
+            originalException.addSuppressed(compensationException);
+            log.warn(
+                    "Failed to compensate uploaded object after metadata persistence failure, bucket={}, objectKey={}, reason={}",
+                    bucket,
+                    objectKey,
+                    compensationException.getMessage()
+            );
+        }
+    }
+
+    private void compensateExternalIndexes(DocumentEntity document) {
+        if (document == null || document.getId() == null) {
+            return;
+        }
+        try {
+            vectorIngestionService.deleteDocumentVectors(document.getId());
+        } catch (RuntimeException exception) {
+            log.warn("文档失败补偿时删除向量失败: documentId={}, reason={}", document.getId(), exception.getMessage());
+        }
+        try {
+            elasticsearchChunkIndexService.deleteDocumentChunks(document.getId());
+        } catch (RuntimeException exception) {
+            log.warn("文档失败补偿时删除 ES 索引失败: documentId={}, reason={}", document.getId(), exception.getMessage());
+        }
+    }
+
+    /**
+     * 落库 + 触发 ETL 的公共收口。直传/秒传/分片完成三条路最终都汇到这里。
+     * ⭐ 关键：文档入库后状态为 PROCESSING，随后发布异步事件 → 监听器跑 ETL(解析→切片→向量化)。
+     * 上传接口到此即返回，不等待 ETL，避免大文件解析阻塞。
+     */
+    private DocumentEntity persistAndFinalizeUploadedDocument(FinalizedUploadCommand command) {
+        DocumentEntity document = buildDocument(command);
+        documentMapper.insert(document);
+        log.info("文档元数据入库完成: documentId={}, groupId={}, status={}",
+                document.getId(), command.groupId(), document.getStatus());
+        publishIngestionRequestedEvent(document.getId(), command.groupId());
+        log.info("已发布文档异步ETL事件: documentId={}, groupId={}", document.getId(), command.groupId());
+        return document;
+    }
+
+    /** 发布"请求入库"事件。ETL 由监听器(@EventListener + @Async)异步消费，与上传解耦。 */
+    private void publishIngestionRequestedEvent(Long documentId, Long groupId) {
+        applicationEventPublisher.publishEvent(new DocumentIngestionRequestedEvent(documentId, groupId));
+    }
+
+    private String normalizeContentType(String contentType) {
+        if (!StringUtils.hasText(contentType)) {
+            return "application/octet-stream";
+        }
+        if (contentType.length() > MAX_CONTENT_TYPE_LENGTH) {
+            throw new BusinessException("文件类型描述过长");
+        }
+        return contentType;
+    }
+
+    private DocumentQuery normalizeQuery(HttpServletRequest request, DocumentQuery query) {
+        DocumentQuery safeQuery = query == null ? new DocumentQuery() : query;
+        CurrentUserService.CurrentUser currentUser = currentUserService.requireBusinessUser(request);
+        safeQuery.setCurrentUserId(currentUser.userId());
+        if (safeQuery.getGroupId() != null) {
+            groupMembershipService.requireGroupReadable(request, requireGroupId(safeQuery.getGroupId()));
+        }
+        if (safeQuery.getUploaderUserId() != null && safeQuery.getUploaderUserId() <= 0) {
+            throw new BusinessException("uploaderUserId 非法");
+        }
+        if (safeQuery.getUploadedFrom() != null
+                && safeQuery.getUploadedTo() != null
+                && safeQuery.getUploadedFrom().isAfter(safeQuery.getUploadedTo())) {
+            throw new BusinessException("uploadedFrom 不能晚于 uploadedTo");
+        }
+        if (StringUtils.hasText(safeQuery.getGroupRelation())) {
+            safeQuery.setGroupRelation(normalizeGroupRelation(safeQuery.getGroupRelation()));
+        }
+        if (StringUtils.hasText(safeQuery.getStatus())) {
+            safeQuery.setStatus(normalizeStatus(safeQuery.getStatus()));
+        }
+        if (StringUtils.hasText(safeQuery.getFileName())) {
+            safeQuery.setFileName(safeQuery.getFileName().trim());
+        }
+        return safeQuery;
+    }
+
+    private String normalizeGroupRelation(String groupRelation) {
+        String normalized = groupRelation.trim().toUpperCase();
+        return switch (normalized) {
+            case "OWNER", "OWNED" -> "OWNED";
+            case "MEMBER", "JOINED" -> "JOINED";
+            default -> throw new BusinessException("groupRelation 非法");
+        };
+    }
+
+    private String normalizeStatus(String status) {
+        try {
+            return DocumentStatus.valueOf(status.trim().toUpperCase()).name();
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException("status 非法");
+        }
+    }
+
+    private DocumentEntity buildDocument(FinalizedUploadCommand command) {
+        LocalDateTime now = LocalDateTime.now();
+        DocumentEntity document = new DocumentEntity();
+        document.setGroupId(command.groupId());
+        document.setUploaderUserId(command.userId());
+        document.setFileName(command.fileName());
+        document.setFileExt(command.fileExt());
+        document.setContentType(command.contentType());
+        document.setFileSize(command.fileSize());
+        document.setFileHash(command.fileHash());
+        document.setStorageBucket(command.bucket());
+        document.setStorageObjectKey(command.objectKey());
+        document.setStatus(DocumentStatus.PROCESSING.name());
+        document.setDeleted(false);
+        document.setUploadedAt(now);
+        document.setCreatedAt(now);
+        document.setUpdatedAt(now);
+        return document;
+    }
+
+    private Long requirePositiveUserId(Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new BusinessException("userId 非法");
+        }
+        return userId;
+    }
+
+    private long requirePositiveFileSize(Long fileSize) {
+        if (fileSize == null || fileSize <= 0) {
+            throw new BusinessException("fileSize 非法");
+        }
+        return fileSize;
+    }
+
+    private String trimPreviewText(String previewText) {
+        if (!StringUtils.hasText(previewText) || previewText.length() <= PREVIEW_MAX_LENGTH) {
+            return previewText;
+        }
+        return previewText.substring(0, PREVIEW_MAX_LENGTH);
+    }
+
+    private String validateReusableFileName(String fileName) {
+        return normalizeFileName(fileName);
+    }
+
+    private String requireText(String value, String message) {
+        if (!StringUtils.hasText(value)) {
+            throw new BusinessException(message);
+        }
+        return value.trim();
+    }
+
+    private String normalizeFileName(String rawFileName) {
+        if (!StringUtils.hasText(rawFileName)) {
+            throw new BusinessException("文件名非法");
+        }
+        String normalizedFileName = StringUtils.cleanPath(rawFileName.trim());
+        String fileName = normalizedFileName.substring(normalizedFileName.lastIndexOf('/') + 1);
+        if (!StringUtils.hasText(fileName) || fileName.length() > MAX_FILE_NAME_LENGTH) {
+            throw new BusinessException("文件名非法");
+        }
+        return fileName;
+    }
+
+    record FinalizedUploadCommand(
+            Long groupId,
+            Long userId,
+            String fileName,
+            String fileExt,
+            String contentType,
+            Long fileSize,
+            String fileHash,
+            String bucket,
+            String objectKey
+    ) {
+    }
+}
