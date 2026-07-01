@@ -4,6 +4,52 @@ Know Studio 是一个基于 Spring Boot 3.5、Spring AI、Spring AI Alibaba、Po
 
 系统包含 Chat UI、管理后台、组织协作、用户权限、文档解析入库、向量与关键词双通道召回、RRF 融合、引用来源、会话记忆和 Docker 本地部署能力，可作为企业知识助手的基础工程骨架。
 
+## 预览
+
+### Chat UI
+
+<table>
+  <tr>
+    <td><img src="docs/assets/preview/light-chat.png" alt="浅色 Chat UI" /></td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/preview/dark-chat.png" alt="暗色 Chat UI" /></td>
+  </tr>
+</table>
+
+### 管理后台与主题
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/light-admin-console.png" alt="管理后台控制台" /></td>
+    <td width="50%"><img src="docs/assets/preview/light-admin-doc.png" alt="管理后台文档页" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/light-signin.png" alt="登录页" /></td>
+    <td width="50%"><img src="docs/assets/preview/light-signup.png" alt="注册页" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/color-theme.png" alt="主题配置" /></td>
+    <td width="50%"><img src="docs/assets/preview/light-blue.png" alt="蓝色主题" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/light-violet.png" alt="紫色主题" /></td>
+    <td width="50%"><img src="docs/assets/preview/light-sky.png" alt="天蓝主题" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/light-emerald.png" alt="翠绿主题" /></td>
+    <td width="50%"><img src="docs/assets/preview/light-lime.png" alt="青柠主题" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/light-yellow.png" alt="黄色主题" /></td>
+    <td width="50%"><img src="docs/assets/preview/light-red.png" alt="红色主题" /></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/assets/preview/light-pink.png" alt="粉色主题" /></td>
+    <td width="50%"></td>
+  </tr>
+</table>
+
 ## 功能概览
 
 - Chat-first 入口：默认进入知识库问答界面。
