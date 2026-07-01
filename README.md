@@ -40,23 +40,23 @@ Know Studio 是一个基于 Spring Boot 3.5、Spring AI、Spring AI Alibaba、Po
 <table>
   <tr>
     <td width="50%"><img src="docs/assets/preview/color-theme.png" alt="主题配置" /></td>
+    <td width="50%"><img src="docs/assets/preview/theme-settings-panel.png" alt="主题设置面板" /></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="docs/assets/preview/light-blue.png" alt="蓝色主题" /></td>
-  </tr>
-  <tr>
     <td width="50%"><img src="docs/assets/preview/light-violet.png" alt="紫色主题" /></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="docs/assets/preview/light-sky.png" alt="天蓝主题" /></td>
-  </tr>
-  <tr>
     <td width="50%"><img src="docs/assets/preview/light-emerald.png" alt="翠绿主题" /></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="docs/assets/preview/light-lime.png" alt="青柠主题" /></td>
-  </tr>
-  <tr>
     <td width="50%"><img src="docs/assets/preview/light-yellow.png" alt="黄色主题" /></td>
-    <td width="50%"><img src="docs/assets/preview/light-red.png" alt="红色主题" /></td>
   </tr>
   <tr>
+    <td width="50%"><img src="docs/assets/preview/light-red.png" alt="红色主题" /></td>
     <td width="50%"><img src="docs/assets/preview/light-pink.png" alt="粉色主题" /></td>
-    <td width="50%"></td>
   </tr>
 </table>
 
