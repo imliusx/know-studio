@@ -132,7 +132,7 @@ docker compose --env-file .env.server-b -f docker-compose.server-b.yml logs -f b
 这套仍然是“开发态运行”：
 
 - backend 还是 `spring-boot:run`
-- frontend 还是 `npm run dev`
+- frontend 还是 Vite dev server，由 `know-studio-ui` 目录启动
 
 优点是接近你当前本地链路，迁移最简单。
 

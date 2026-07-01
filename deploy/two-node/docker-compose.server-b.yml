@@ -74,9 +74,9 @@ services:
     image: node:22-alpine
     container_name: know-studio-frontend
     restart: unless-stopped
-    working_dir: /workspace/frontend
+    working_dir: /workspace/know-studio-ui
     command: >
-      sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
+      sh -c "corepack enable && pnpm install && pnpm exec vite --host 0.0.0.0 --port 5173"
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
       VITE_DEV_PROXY_TARGET: ${VITE_DEV_PROXY_TARGET:-http://backend:8080}
@@ -84,7 +84,7 @@ services:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ../..:/workspace
-      - frontend-node-modules:/workspace/frontend/node_modules
+      - frontend-node-modules:/workspace/know-studio-ui/node_modules
     depends_on:
       backend:
         condition: service_healthy

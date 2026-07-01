@@ -25,6 +25,12 @@ export interface RegisterRequest {
   password: string
 }
 
+export interface ResetPasswordRequest {
+  username: string
+  email: string
+  newPassword: string
+}
+
 export async function login(request: LoginRequest) {
   const response = await http.post('/auth/login', request)
   return unwrapApiResponse<AuthTokensResponse>(response.data, '登录失败')
@@ -56,4 +62,9 @@ export async function changePassword(request: {
 }) {
   const response = await http.post('/account/change-password', request)
   return unwrapApiResponse<void>(response.data, '修改密码失败')
+}
+
+export async function resetPasswordByIdentity(request: ResetPasswordRequest) {
+  const response = await http.post('/auth/reset-password', request)
+  return unwrapApiResponse<void>(response.data, '重置密码失败')
 }

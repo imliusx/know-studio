@@ -7,7 +7,6 @@ import {
   listDocuments,
   previewDocument,
   retryDocumentIngestion,
-  uploadDocument,
   type DocumentPreview,
 } from '@/api/documents'
 import { getMyGroups } from '@/api/groups'
@@ -50,6 +49,11 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatDateTime, formatFileSize, mergeGroups } from './shared'
+import {
+  uploadDocumentWithResume,
+  type UploadMode,
+  type UploadStage,
+} from './document-upload'
 
 export function DocumentsPage() {
   const queryClient = useQueryClient()
@@ -57,6 +61,11 @@ export function DocumentsPage() {
   const [fileName, setFileName] = useState('')
   const [status, setStatus] = useState('ALL')
   const [uploadFile, setUploadFile] = useState<File | null>(null)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStage, setUploadStage] = useState<UploadStage | 'idle'>('idle')
+  const [uploadMode, setUploadMode] = useState<UploadMode | 'unknown'>(
+    'unknown'
+  )
   const [preview, setPreview] = useState<DocumentPreview | null>(null)
 
   const groupsQuery = useQuery({
@@ -89,13 +98,25 @@ export function DocumentsPage() {
 
   const uploadMutation = useMutation({
     mutationFn: ({ targetGroupId, file }: { targetGroupId: number; file: File }) =>
-      uploadDocument(targetGroupId, file),
+      uploadDocumentWithResume(targetGroupId, file, (progress) => {
+        setUploadProgress(progress.percent)
+        setUploadStage(progress.stage)
+        setUploadMode(progress.mode)
+      }),
     onSuccess: () => {
       toast.success('文档已上传，后台将异步入库')
       setUploadFile(null)
+      setUploadProgress(0)
+      setUploadStage('idle')
+      setUploadMode('unknown')
       queryClient.invalidateQueries({ queryKey: ['documents'] })
     },
-    onError: (error) => toast.error(extractApiError(error, '上传失败')),
+    onError: (error) => {
+      toast.error(extractApiError(error, '上传失败'))
+      setUploadProgress(0)
+      setUploadStage('idle')
+      setUploadMode('unknown')
+    },
   })
   const actionMutation = useMutation({
     mutationFn: async (fn: () => Promise<void>) => fn(),
@@ -124,6 +145,7 @@ export function DocumentsPage() {
   }
 
   const documents = documentsQuery.data ?? []
+  const uploadStageLabel = formatUploadStage(uploadStage)
 
   return (
     <>
@@ -151,7 +173,7 @@ export function DocumentsPage() {
           <CardHeader>
             <CardTitle>上传文档</CardTitle>
             <CardDescription>
-              当前实现使用后端兼容直传接口 POST /api/documents/upload
+              优先使用分片续传接口，浏览器环境不支持时自动回退直传。
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -185,16 +207,36 @@ export function DocumentsPage() {
                   <Input
                     id='documentFile'
                     type='file'
-                    onChange={(event) =>
+                    onChange={(event) => {
                       setUploadFile(event.target.files?.[0] ?? null)
-                    }
+                      setUploadProgress(0)
+                      setUploadStage('idle')
+                      setUploadMode('unknown')
+                    }}
                   />
                 </Field>
                 <Button type='submit' disabled={!uploadFile || uploadMutation.isPending}>
                   <Upload data-icon='inline-start' />
-                  上传
+                  {uploadMutation.isPending ? '上传中' : '上传'}
                 </Button>
               </FieldGroup>
+              {uploadMutation.isPending ? (
+                <div className='mt-4 grid gap-2'>
+                  <div className='flex items-center justify-between text-sm text-muted-foreground'>
+                    <span>
+                      {uploadStageLabel} ·{' '}
+                      {uploadMode === 'resumable' ? '分片续传' : '普通上传'}
+                    </span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <div className='h-2 overflow-hidden rounded-full bg-muted'>
+                    <div
+                      className='h-full rounded-full bg-primary transition-all'
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                </div>
+              ) : null}
             </form>
           </CardContent>
         </Card>
@@ -369,4 +411,19 @@ export function DocumentsPage() {
       </Dialog>
     </>
   )
+}
+
+function formatUploadStage(stage: UploadStage | 'idle') {
+  switch (stage) {
+    case 'hashing':
+      return '计算文件指纹'
+    case 'checking':
+      return '检查上传状态'
+    case 'uploading':
+      return '上传文件'
+    case 'completing':
+      return '合并入库'
+    default:
+      return '准备上传'
+  }
 }
