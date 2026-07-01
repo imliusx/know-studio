@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw, ShieldAlert, UserCheck, UserX } from 'lucide-react'
+import { Eye, RefreshCw, ShieldAlert, UserCheck, UserX } from 'lucide-react'
 import { toast } from 'sonner'
-import { listAdminUsers, updateUserStatus } from '@/api/admin-users'
+import {
+  getAdminUserDetail,
+  listAdminUsers,
+  updateUserStatus,
+} from '@/api/admin-users'
 import { extractApiError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth-store'
 import { Header } from '@/components/layout/header'
@@ -18,6 +22,13 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import {
   Table,
@@ -33,10 +44,16 @@ export function Users() {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((state) => state.auth.user)
   const [keyword, setKeyword] = useState('')
+  const [detailUserId, setDetailUserId] = useState<number | null>(null)
   const usersQuery = useQuery({
     queryKey: ['admin-users'],
     queryFn: listAdminUsers,
     enabled: currentUser?.systemRole === 'ADMIN',
+  })
+  const detailQuery = useQuery({
+    queryKey: ['admin-users', detailUserId],
+    queryFn: () => getAdminUserDetail(detailUserId!),
+    enabled: currentUser?.systemRole === 'ADMIN' && detailUserId !== null,
   })
   const statusMutation = useMutation({
     mutationFn: ({ userId, status }: { userId: number; status: string }) =>
@@ -52,6 +69,7 @@ export function Users() {
     const text = `${user.username} ${user.email} ${user.displayName} ${user.userCode}`
     return text.toLowerCase().includes(keyword.trim().toLowerCase())
   })
+  const detailUser = detailQuery.data
 
   return (
     <>
@@ -132,24 +150,34 @@ export function Users() {
                       <TableCell>{user.mustChangePassword ? '是' : '否'}</TableCell>
                       <TableCell>{formatDateTime(user.lastLoginAt)}</TableCell>
                       <TableCell className='text-right'>
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          disabled={statusMutation.isPending}
-                          onClick={() =>
-                            statusMutation.mutate({
-                              userId: user.userId,
-                              status: nextStatus,
-                            })
-                          }
-                        >
-                          {isDisabled ? (
-                            <UserCheck data-icon='inline-start' />
-                          ) : (
-                            <UserX data-icon='inline-start' />
-                          )}
-                          {isDisabled ? '启用' : '禁用'}
-                        </Button>
+                        <div className='flex justify-end gap-2'>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            onClick={() => setDetailUserId(user.userId)}
+                          >
+                            <Eye data-icon='inline-start' />
+                            详情
+                          </Button>
+                          <Button
+                            variant='outline'
+                            size='sm'
+                            disabled={statusMutation.isPending}
+                            onClick={() =>
+                              statusMutation.mutate({
+                                userId: user.userId,
+                                status: nextStatus,
+                              })
+                            }
+                          >
+                            {isDisabled ? (
+                              <UserCheck data-icon='inline-start' />
+                            ) : (
+                              <UserX data-icon='inline-start' />
+                            )}
+                            {isDisabled ? '启用' : '禁用'}
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )
@@ -169,6 +197,51 @@ export function Users() {
           </CardContent>
         </Card>
       </Main>
+
+      <Dialog
+        open={detailUserId !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetailUserId(null)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{detailUser?.displayName ?? '用户详情'}</DialogTitle>
+            <DialogDescription>
+              查看单个账号的身份、状态与登录信息
+            </DialogDescription>
+          </DialogHeader>
+          {detailQuery.isLoading ? (
+            <p className='text-sm text-muted-foreground'>正在加载用户详情...</p>
+          ) : detailQuery.isError ? (
+            <p className='text-sm text-destructive'>
+              {extractApiError(detailQuery.error, '加载用户详情失败')}
+            </p>
+          ) : detailUser ? (
+            <div className='grid gap-3 text-sm'>
+              {[
+                ['用户 ID', detailUser.userId],
+                ['账号编码', detailUser.userCode],
+                ['用户名', detailUser.username],
+                ['邮箱', detailUser.email],
+                ['显示名称', detailUser.displayName],
+                ['系统角色', detailUser.systemRole],
+                ['账号状态', detailUser.status],
+                ['密码状态', detailUser.mustChangePassword ? '待改密' : '正常'],
+                ['最近登录', formatDateTime(detailUser.lastLoginAt)],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className='grid gap-1 rounded-md border bg-muted/30 p-3 sm:grid-cols-[120px_1fr] sm:items-center'
+                >
+                  <span className='text-muted-foreground'>{label}</span>
+                  <span className='font-medium break-all'>{value}</span>
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

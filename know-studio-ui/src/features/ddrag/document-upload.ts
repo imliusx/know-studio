@@ -1,10 +1,10 @@
 import {
   completeDocumentUpload,
-  fetchUploadStatus,
+  getUploadStatus,
   initDocumentUpload,
   uploadDocument,
   uploadDocumentChunk,
-} from '../../api/document'
+} from '@/api/documents'
 
 const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024
 const DEFAULT_CONCURRENCY = 3
@@ -21,8 +21,8 @@ export interface UploadProgressPayload {
 export async function uploadDocumentWithResume(
   groupId: number,
   file: File,
-  onProgress: (payload: UploadProgressPayload) => void,
-): Promise<number> {
+  onProgress: (payload: UploadProgressPayload) => void
+) {
   if (!supportsResumableUpload()) {
     return uploadDocumentFallback(groupId, file, onProgress)
   }
@@ -52,24 +52,23 @@ export async function uploadDocumentWithResume(
     throw new Error('上传会话创建失败')
   }
 
-  const status = await fetchUploadStatus(initResponse.uploadId)
-  const uploadedChunks = new Set<number>(status.uploadedChunks ?? initResponse.uploadedChunks ?? [])
+  const status = await getUploadStatus(initResponse.uploadId)
+  const uploadedChunks = new Set([
+    ...(initResponse.uploadedChunks ?? []),
+    ...(status.uploadedChunks ?? []),
+  ])
   const chunkIndexes = Array.from({ length: chunkCount }, (_, index) => index)
-  const missingChunkIndexes = chunkIndexes.filter((index) => !uploadedChunks.has(index))
+  const missingChunkIndexes = chunkIndexes.filter(
+    (index) => !uploadedChunks.has(index)
+  )
   let uploadedBytes = calculateUploadedBytes(file.size, chunkSize, uploadedChunks)
-
-  const reportProgress = (loadedBytes: number) => {
-    const completedBytes = calculateUploadedBytes(file.size, chunkSize, uploadedChunks)
-    const totalBytes = completedBytes + loadedBytes
-    const percent = Math.min(99, Math.floor((totalBytes / file.size) * 100))
-    onProgress({ percent, stage: 'uploading', mode: 'resumable' })
-  }
 
   const uploadChunkTask = async (chunkIndex: number) => {
     const start = chunkIndex * chunkSize
     const end = Math.min(file.size, start + chunkSize)
     const chunk = file.slice(start, end)
     const chunkHash = await computeChunkHash(chunk)
+
     await uploadDocumentChunk(
       {
         uploadId: initResponse.uploadId!,
@@ -77,8 +76,20 @@ export async function uploadDocumentWithResume(
         chunkHash,
         chunk,
       },
-      (loadedBytes) => reportProgress(loadedBytes),
+      (loadedBytes) => {
+        const completedBytes = calculateUploadedBytes(
+          file.size,
+          chunkSize,
+          uploadedChunks
+        )
+        const percent = Math.min(
+          99,
+          Math.floor(((completedBytes + loadedBytes) / file.size) * 100)
+        )
+        onProgress({ percent, stage: 'uploading', mode: 'resumable' })
+      }
     )
+
     uploadedChunks.add(chunkIndex)
     uploadedBytes = calculateUploadedBytes(file.size, chunkSize, uploadedChunks)
     onProgress({
@@ -88,7 +99,11 @@ export async function uploadDocumentWithResume(
     })
   }
 
-  await runWithConcurrency(missingChunkIndexes, DEFAULT_CONCURRENCY, uploadChunkTask)
+  await runWithConcurrency(
+    missingChunkIndexes,
+    DEFAULT_CONCURRENCY,
+    uploadChunkTask
+  )
 
   onProgress({ percent: 99, stage: 'completing', mode: 'resumable' })
   const documentId = await completeDocumentUpload(initResponse.uploadId)
@@ -96,7 +111,7 @@ export async function uploadDocumentWithResume(
   return documentId
 }
 
-export function supportsResumableUpload() {
+function supportsResumableUpload() {
   return (
     typeof window !== 'undefined' &&
     window.isSecureContext &&
@@ -105,13 +120,14 @@ export function supportsResumableUpload() {
 }
 
 function resolveChunkSize(fileSize: number) {
-  if (fileSize <= DEFAULT_CHUNK_SIZE) {
-    return fileSize
-  }
-  return DEFAULT_CHUNK_SIZE
+  return fileSize <= DEFAULT_CHUNK_SIZE ? fileSize : DEFAULT_CHUNK_SIZE
 }
 
-function calculateUploadedBytes(fileSize: number, chunkSize: number, uploadedChunks: Set<number>) {
+function calculateUploadedBytes(
+  fileSize: number,
+  chunkSize: number,
+  uploadedChunks: Set<number>
+) {
   let total = 0
   for (const chunkIndex of uploadedChunks) {
     const start = chunkIndex * chunkSize
@@ -124,17 +140,20 @@ function calculateUploadedBytes(fileSize: number, chunkSize: number, uploadedChu
 async function runWithConcurrency(
   chunkIndexes: number[],
   concurrency: number,
-  handler: (chunkIndex: number) => Promise<void>,
+  handler: (chunkIndex: number) => Promise<void>
 ) {
   const queue = [...chunkIndexes]
-  const workers = Array.from({ length: Math.min(concurrency, queue.length || 1) }, async () => {
-    while (queue.length > 0) {
-      const chunkIndex = queue.shift()
-      if (typeof chunkIndex === 'number') {
-        await handler(chunkIndex)
+  const workers = Array.from(
+    { length: Math.min(concurrency, queue.length || 1) },
+    async () => {
+      while (queue.length > 0) {
+        const chunkIndex = queue.shift()
+        if (typeof chunkIndex === 'number') {
+          await handler(chunkIndex)
+        }
       }
     }
-  })
+  )
   await Promise.all(workers)
 }
 
@@ -158,17 +177,13 @@ async function computeHashHex(buffer: ArrayBuffer) {
 async function uploadDocumentFallback(
   groupId: number,
   file: File,
-  onProgress: (payload: UploadProgressPayload) => void,
+  onProgress: (payload: UploadProgressPayload) => void
 ) {
   onProgress({ percent: 0, stage: 'checking', mode: 'basic' })
-  const documentId = await uploadDocument({
-    groupId,
-    file,
-    onProgress: (loadedBytes, totalBytes) => {
-      const total = totalBytes && totalBytes > 0 ? totalBytes : file.size
-      const percent = total > 0 ? Math.min(99, Math.floor((loadedBytes / total) * 100)) : 0
-      onProgress({ percent, stage: 'uploading', mode: 'basic' })
-    },
+  const documentId = await uploadDocument(groupId, file, (loadedBytes, totalBytes) => {
+    const total = totalBytes && totalBytes > 0 ? totalBytes : file.size
+    const percent = total > 0 ? Math.min(99, Math.floor((loadedBytes / total) * 100)) : 0
+    onProgress({ percent, stage: 'uploading', mode: 'basic' })
   })
   onProgress({ percent: 100, stage: 'completing', mode: 'basic' })
   return documentId

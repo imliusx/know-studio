@@ -144,6 +144,12 @@ export function UserAuthForm({
               <Field data-invalid={Boolean(fieldError('password'))}>
                 <div className='flex items-center'>
                   <FieldLabel htmlFor='password'>密码</FieldLabel>
+                  <Link
+                    to='/forgot-password'
+                    className='ml-auto text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline'
+                  >
+                    忘记密码？
+                  </Link>
                 </div>
                 <Input
                   id='password'

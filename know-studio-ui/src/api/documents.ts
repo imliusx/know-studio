@@ -28,6 +28,39 @@ export interface DocumentQuery {
   status?: string
 }
 
+export interface InitDocumentUploadPayload {
+  groupId: number
+  fileName: string
+  fileSize: number
+  contentType: string
+  fileHash: string
+  chunkSize: number
+  chunkCount: number
+}
+
+export interface UploadChunkPayload {
+  uploadId: string
+  chunkIndex: number
+  chunkHash: string
+  chunk: Blob
+}
+
+export interface UploadInitResult {
+  instantUpload: boolean
+  documentId: number | null
+  uploadId: string | null
+  uploadedChunks: number[]
+  chunkSize: number | null
+  chunkCount: number | null
+}
+
+export interface UploadStatusResult {
+  status: string
+  uploadedChunks: number[]
+  uploadedChunkCount: number
+  chunkCount: number | null
+}
+
 export async function listDocuments(query: DocumentQuery = {}) {
   const response = await http.get<DocumentListItem[]>('/documents', {
     params: query,
@@ -35,16 +68,53 @@ export async function listDocuments(query: DocumentQuery = {}) {
   return unwrapBareResponse<DocumentListItem[]>(response.data, '获取文档失败')
 }
 
-export async function uploadDocument(groupId: number, file: File) {
+export async function uploadDocument(
+  groupId: number,
+  file: File,
+  onProgress?: (loadedBytes: number, totalBytes?: number) => void
+) {
   const formData = new FormData()
   formData.append('groupId', String(groupId))
   formData.append('file', file)
 
   const response = await http.post('/documents/upload', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event) => onProgress?.(event.loaded, event.total),
     timeout: 120_000,
   })
   return unwrapApiResponse<number>(response.data, '上传文档失败')
+}
+
+export async function initDocumentUpload(payload: InitDocumentUploadPayload) {
+  const response = await http.post('/documents/upload/init', payload)
+  return unwrapApiResponse<UploadInitResult>(response.data, '初始化上传失败')
+}
+
+export async function uploadDocumentChunk(
+  payload: UploadChunkPayload,
+  onProgress?: (loadedBytes: number) => void
+) {
+  const formData = new FormData()
+  formData.append('uploadId', payload.uploadId)
+  formData.append('chunkIndex', String(payload.chunkIndex))
+  formData.append('chunkHash', payload.chunkHash)
+  formData.append('chunk', payload.chunk)
+
+  const response = await http.post('/documents/upload/chunks', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+    onUploadProgress: (event) => onProgress?.(event.loaded),
+  })
+  return unwrapApiResponse<UploadStatusResult>(response.data, '上传分片失败')
+}
+
+export async function getUploadStatus(uploadId: string) {
+  const response = await http.get(`/documents/upload/${uploadId}`)
+  return unwrapApiResponse<UploadStatusResult>(response.data, '获取上传状态失败')
+}
+
+export async function completeDocumentUpload(uploadId: string) {
+  const response = await http.post(`/documents/upload/${uploadId}/complete`)
+  return unwrapApiResponse<number>(response.data, '完成上传失败')
 }
 
 export async function deleteDocument(documentId: number, groupId: number) {
