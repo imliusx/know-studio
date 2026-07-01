@@ -56,6 +56,7 @@ import { Route as AuthenticatedAdminSettingsAppearanceRouteImport } from './rout
 import { Route as AuthenticatedAdminSettingsAccountRouteImport } from './routes/_authenticated/admin/settings/account'
 import { Route as AuthenticatedAdminIntentTreeRouteImport } from './routes/_authenticated/admin/intent/tree'
 import { Route as AuthenticatedAdminIntentListRouteImport } from './routes/_authenticated/admin/intent/list'
+import { Route as AuthenticatedAdminDocumentsGroupIdRouteImport } from './routes/_authenticated/admin/documents/$groupId'
 import { Route as AuthenticatedAdminDataChannelsTracesRouteImport } from './routes/_authenticated/admin/data-channels/traces'
 import { Route as AuthenticatedAdminDataChannelsTasksRouteImport } from './routes/_authenticated/admin/data-channels/tasks'
 import { Route as AuthenticatedAdminDataChannelsPipelinesRouteImport } from './routes/_authenticated/admin/data-channels/pipelines'
@@ -316,6 +317,12 @@ const AuthenticatedAdminIntentListRoute =
     path: '/intent/list',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminDocumentsGroupIdRoute =
+  AuthenticatedAdminDocumentsGroupIdRouteImport.update({
+    id: '/documents/$groupId',
+    path: '/documents/$groupId',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminDataChannelsTracesRoute =
   AuthenticatedAdminDataChannelsTracesRouteImport.update({
     id: '/data-channels/traces',
@@ -379,6 +386,7 @@ export interface FileRoutesByFullPath {
   '/admin/data-channels/pipelines': typeof AuthenticatedAdminDataChannelsPipelinesRoute
   '/admin/data-channels/tasks': typeof AuthenticatedAdminDataChannelsTasksRoute
   '/admin/data-channels/traces': typeof AuthenticatedAdminDataChannelsTracesRoute
+  '/admin/documents/$groupId': typeof AuthenticatedAdminDocumentsGroupIdRoute
   '/admin/intent/list': typeof AuthenticatedAdminIntentListRoute
   '/admin/intent/tree': typeof AuthenticatedAdminIntentTreeRoute
   '/admin/settings/account': typeof AuthenticatedAdminSettingsAccountRoute
@@ -426,6 +434,7 @@ export interface FileRoutesByTo {
   '/admin/data-channels/pipelines': typeof AuthenticatedAdminDataChannelsPipelinesRoute
   '/admin/data-channels/tasks': typeof AuthenticatedAdminDataChannelsTasksRoute
   '/admin/data-channels/traces': typeof AuthenticatedAdminDataChannelsTracesRoute
+  '/admin/documents/$groupId': typeof AuthenticatedAdminDocumentsGroupIdRoute
   '/admin/intent/list': typeof AuthenticatedAdminIntentListRoute
   '/admin/intent/tree': typeof AuthenticatedAdminIntentTreeRoute
   '/admin/settings/account': typeof AuthenticatedAdminSettingsAccountRoute
@@ -480,6 +489,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/data-channels/pipelines': typeof AuthenticatedAdminDataChannelsPipelinesRoute
   '/_authenticated/admin/data-channels/tasks': typeof AuthenticatedAdminDataChannelsTasksRoute
   '/_authenticated/admin/data-channels/traces': typeof AuthenticatedAdminDataChannelsTracesRoute
+  '/_authenticated/admin/documents/$groupId': typeof AuthenticatedAdminDocumentsGroupIdRoute
   '/_authenticated/admin/intent/list': typeof AuthenticatedAdminIntentListRoute
   '/_authenticated/admin/intent/tree': typeof AuthenticatedAdminIntentTreeRoute
   '/_authenticated/admin/settings/account': typeof AuthenticatedAdminSettingsAccountRoute
@@ -532,6 +542,7 @@ export interface FileRouteTypes {
     | '/admin/data-channels/pipelines'
     | '/admin/data-channels/tasks'
     | '/admin/data-channels/traces'
+    | '/admin/documents/$groupId'
     | '/admin/intent/list'
     | '/admin/intent/tree'
     | '/admin/settings/account'
@@ -579,6 +590,7 @@ export interface FileRouteTypes {
     | '/admin/data-channels/pipelines'
     | '/admin/data-channels/tasks'
     | '/admin/data-channels/traces'
+    | '/admin/documents/$groupId'
     | '/admin/intent/list'
     | '/admin/intent/tree'
     | '/admin/settings/account'
@@ -632,6 +644,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/data-channels/pipelines'
     | '/_authenticated/admin/data-channels/tasks'
     | '/_authenticated/admin/data-channels/traces'
+    | '/_authenticated/admin/documents/$groupId'
     | '/_authenticated/admin/intent/list'
     | '/_authenticated/admin/intent/tree'
     | '/_authenticated/admin/settings/account'
@@ -991,6 +1004,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminIntentListRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/documents/$groupId': {
+      id: '/_authenticated/admin/documents/$groupId'
+      path: '/documents/$groupId'
+      fullPath: '/admin/documents/$groupId'
+      preLoaderRoute: typeof AuthenticatedAdminDocumentsGroupIdRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/data-channels/traces': {
       id: '/_authenticated/admin/data-channels/traces'
       path: '/data-channels/traces'
@@ -1055,6 +1075,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminDataChannelsPipelinesRoute: typeof AuthenticatedAdminDataChannelsPipelinesRoute
   AuthenticatedAdminDataChannelsTasksRoute: typeof AuthenticatedAdminDataChannelsTasksRoute
   AuthenticatedAdminDataChannelsTracesRoute: typeof AuthenticatedAdminDataChannelsTracesRoute
+  AuthenticatedAdminDocumentsGroupIdRoute: typeof AuthenticatedAdminDocumentsGroupIdRoute
   AuthenticatedAdminIntentListRoute: typeof AuthenticatedAdminIntentListRoute
   AuthenticatedAdminIntentTreeRoute: typeof AuthenticatedAdminIntentTreeRoute
   AuthenticatedAdminDocumentsIndexRoute: typeof AuthenticatedAdminDocumentsIndexRoute
@@ -1076,6 +1097,8 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
       AuthenticatedAdminDataChannelsTasksRoute,
     AuthenticatedAdminDataChannelsTracesRoute:
       AuthenticatedAdminDataChannelsTracesRoute,
+    AuthenticatedAdminDocumentsGroupIdRoute:
+      AuthenticatedAdminDocumentsGroupIdRoute,
     AuthenticatedAdminIntentListRoute: AuthenticatedAdminIntentListRoute,
     AuthenticatedAdminIntentTreeRoute: AuthenticatedAdminIntentTreeRoute,
     AuthenticatedAdminDocumentsIndexRoute:
