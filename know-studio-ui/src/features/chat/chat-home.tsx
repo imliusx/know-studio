@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -35,9 +36,12 @@ import {
   Archive,
   ArchiveRestore,
   ArrowUpIcon,
+  BookOpenText,
+  Brain,
   CheckCircle,
   Circle,
   Clipboard,
+  ClipboardList,
   Copy,
   Database,
   Download,
@@ -59,6 +63,7 @@ import {
   StarOff,
   Trash2,
   X,
+  type LucideIcon,
 } from 'lucide-react'
 import {
   ChainOfThought,
@@ -229,28 +234,112 @@ const CHAT_SIDEBAR_TEAMS = [
   },
 ]
 
-const suggestions = [
-  '从知识库里找出客户流失的主要原因',
-  '把这份上传文档整理成会议纪要和待办',
-  '对比两版方案的差异、风险和适用场景',
-  '根据接口报错日志生成排查步骤',
+const suggestions: Array<{
+  label: string
+  icon: LucideIcon
+  prompts: string[]
+}> = [
+  {
+    label: '制度查询',
+    icon: ClipboardList,
+    prompts: [
+      '制度查询 远程办公申请需要满足哪些条件，审批流程怎么走',
+      '制度查询 帮我总结绩效申诉的受理范围、时限和材料要求',
+      '制度查询 员工外部分享资料前，需要经过哪些合规检查',
+      '制度查询 试用期、转正和岗位调整分别有哪些规定',
+    ],
+  },
+  {
+    label: '费用报销',
+    icon: Clipboard,
+    prompts: [
+      '费用报销 客户拜访产生的交通、餐饮和住宿费用分别怎么报',
+      '费用报销 加班后返程交通补贴有哪些适用条件和限制',
+      '费用报销 发票抬头、税号和附件不完整时应该怎么处理',
+      '费用报销 帮我整理一份常见报销被退回的原因清单',
+    ],
+  },
+  {
+    label: '入职成长',
+    icon: BookOpenText,
+    prompts: [
+      '入职成长 新同事入职第一周需要完成哪些系统开通和培训',
+      '入职成长 帮我梳理导师、直属主管和 HRBP 的支持事项',
+      '入职成长 试用期转正前需要准备哪些材料和评估记录',
+      '入职成长 公司有哪些学习平台、认证课程和内部分享机制',
+    ],
+  },
+  {
+    label: '办公支持',
+    icon: FileSearch,
+    prompts: [
+      '办公支持 会议室设备连不上投屏时，应该按什么顺序排查',
+      '办公支持 办公网络、VPN 和邮箱异常分别找哪个团队处理',
+      '办公支持 公司常用软件权限如何申请，审批人是谁',
+      '办公支持 工位、门禁、访客和快递相关问题应该怎么处理',
+    ],
+  },
+  {
+    label: '假勤福利',
+    icon: CheckCircle,
+    prompts: [
+      '假勤福利 年假、病假和调休的申请规则有什么区别',
+      '假勤福利 异地办公期间考勤异常，应该如何补充说明',
+      '假勤福利 帮我查一下年度体检、补充保险和节日福利安排',
+      '假勤福利 出差期间遇到周末或节假日，考勤应该如何计算',
+    ],
+  },
+  {
+    label: '采购合同',
+    icon: Database,
+    prompts: [
+      '采购合同 新供应商准入需要哪些材料，谁负责审核',
+      '采购合同 合同评审中法务、财务和业务部门分别看什么',
+      '采购合同 小额采购和框架协议采购的流程有什么差异',
+      '采购合同 合同变更、续签和终止分别需要走哪些流程',
+    ],
+  },
+  {
+    label: '项目资料',
+    icon: Brain,
+    prompts: [
+      '项目资料 帮我汇总某个项目的里程碑、风险和待办事项',
+      '项目资料 对比两版方案在范围、成本和交付周期上的变化',
+      '项目资料 从复盘记录里提取可复用经验和需要避免的问题',
+      '项目资料 查找客户沟通纪要中承诺过的交付内容和时间点',
+    ],
+  },
 ]
 
 function ChatHeroTitle() {
   const reduceMotion = useReducedMotion()
   const typedElementRef = useRef<HTMLSpanElement>(null)
+  const typedTitles = useMemo(() => {
+    const titles = CHAT_EMPTY_TITLES.slice(1)
 
-  useEffect(() => {
+    for (let index = titles.length - 1; index > 0; index -= 1) {
+      const randomIndex = Math.floor(Math.random() * (index + 1))
+      const currentTitle = titles[index]
+      titles[index] = titles[randomIndex]
+      titles[randomIndex] = currentTitle
+    }
+
+    return titles
+  }, [])
+
+  useLayoutEffect(() => {
     if (reduceMotion || !typedElementRef.current) return
 
+    typedElementRef.current.textContent = CHAT_EMPTY_TITLES[0]
+
     const typed = new Typed(typedElementRef.current, {
-      strings: CHAT_EMPTY_TITLES,
+      strings: typedTitles,
       typeSpeed: 125,
       backSpeed: 100,
       backDelay: 3000,
-      startDelay: 450,
+      startDelay: 3000,
       smartBackspace: false,
-      shuffle: true,
+      shuffle: false,
       loop: true,
       showCursor: true,
       cursorChar: '_',
@@ -259,7 +348,7 @@ function ChatHeroTitle() {
     return () => {
       typed.destroy()
     }
-  }, [reduceMotion])
+  }, [reduceMotion, typedTitles])
 
   return (
     <motion.h1
@@ -1640,11 +1729,15 @@ export function ChatHome() {
     className?: string
     inputClassName?: string
   } = {}) {
+    const activeSuggestion = showSuggestions
+      ? suggestions.find((suggestion) => suggestion.label === input.trim())
+      : null
+
     return (
       <motion.div
         layout={!reduceMotion}
         layoutId={reduceMotion ? undefined : 'chat-prompt-composer'}
-        className={cn('mx-auto w-full px-4', className)}
+        className={cn('relative mx-auto w-full px-4', className)}
         initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.99 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
         transition={
@@ -1657,31 +1750,6 @@ export function ChatHome() {
               }
         }
       >
-        {showSuggestions ? (
-          <div className='mb-3 flex flex-wrap gap-2'>
-            {suggestions.map((suggestion, index) => (
-              <motion.div
-                key={suggestion}
-                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                transition={
-                  reduceMotion
-                    ? undefined
-                    : {
-                        delay: 0.08 + index * 0.04,
-                        duration: 0.24,
-                        ease: [0.22, 1, 0.36, 1],
-                      }
-                }
-              >
-                <PromptSuggestion onClick={() => setInput(suggestion)}>
-                  {suggestion}
-                </PromptSuggestion>
-              </motion.div>
-            ))}
-          </div>
-        ) : null}
-
         <PromptInput
           className={cn(
             'border-input rounded-xl border bg-background shadow-xs',
@@ -1745,10 +1813,10 @@ export function ChatHome() {
             placeholder='询问知识库、粘贴材料，或描述要分析的问题...'
             disabled={isStreaming}
             disableAutosize
-            className='h-26 min-h-26 max-h-26 overflow-y-auto md:text-[15px] [field-sizing:fixed]'
+            className='h-22 min-h-22 max-h-22 overflow-y-auto md:text-[15px] [field-sizing:fixed]'
           />
 
-          <PromptInputActions className='flex items-center justify-between gap-2 pt-2'>
+          <PromptInputActions className='flex items-center justify-between gap-2 pt-1'>
             <PromptInputAction tooltip='Attach files'>
               <FileUploadTrigger asChild>
                 <Button
@@ -1783,6 +1851,74 @@ export function ChatHome() {
             </PromptInputAction>
           </PromptInputActions>
         </PromptInput>
+
+        {showSuggestions && activeSuggestion ? (
+          <motion.div
+            key={activeSuggestion.label}
+            className='absolute top-full right-4 left-4 z-10 mt-5 flex flex-col gap-1.5'
+            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+            exit={reduceMotion ? undefined : { opacity: 0, y: 6 }}
+            transition={
+              reduceMotion
+                ? undefined
+                : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+            }
+          >
+            {activeSuggestion.prompts.map((prompt, index) => (
+              <motion.div
+                key={prompt}
+                initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        delay: index * 0.04,
+                        duration: 0.2,
+                        ease: [0.22, 1, 0.36, 1],
+                      }
+                }
+              >
+                <PromptSuggestion
+                  highlight={activeSuggestion.label}
+                  onClick={() => setInput(prompt)}
+                  className='h-auto min-h-9 rounded-lg px-3 py-2 text-left text-[15px] leading-6'
+                >
+                  {prompt}
+                </PromptSuggestion>
+              </motion.div>
+            ))}
+          </motion.div>
+        ) : showSuggestions ? (
+          <div className='absolute top-full right-4 left-4 z-10 mt-5 flex flex-wrap justify-center gap-2.5'>
+            {suggestions.map((suggestion, index) => (
+              <motion.div
+                key={suggestion.label}
+                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                transition={
+                  reduceMotion
+                    ? undefined
+                    : {
+                        delay: 0.08 + index * 0.04,
+                        duration: 0.24,
+                        ease: [0.22, 1, 0.36, 1],
+                      }
+                }
+              >
+                <PromptSuggestion
+                  size='lg'
+                  onClick={() => setInput(suggestion.label)}
+                  className='rounded-full px-5 shadow-xs has-data-[icon=inline-start]:px-5'
+                >
+                  <suggestion.icon data-icon='inline-start' />
+                  <span>{suggestion.label}</span>
+                </PromptSuggestion>
+              </motion.div>
+            ))}
+          </div>
+        ) : null}
       </motion.div>
     )
   }
@@ -1919,11 +2055,11 @@ export function ChatHome() {
                   </>
                 ) : (
                   <div
-                    className='no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-24 pb-8'
+                    className='no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-20 pb-8'
                     onScroll={handleChatScroll}
                   >
                     <motion.div
-                      className='mx-auto flex min-h-full w-full max-w-4xl flex-col items-center justify-center gap-15 pt-6 pb-[10vh]'
+                      className='mx-auto flex min-h-full w-full max-w-4xl flex-col items-center justify-center gap-15 pt-4 pb-[14vh]'
                       initial={
                         reduceMotion ? false : { opacity: 0, y: 10, scale: 0.99 }
                       }
@@ -1944,6 +2080,7 @@ export function ChatHome() {
 
                       {renderPromptComposer({
                         className: 'max-w-(--breakpoint-md)',
+                        showSuggestions: true,
                       })}
                     </motion.div>
                   </div>
