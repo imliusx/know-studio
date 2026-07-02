@@ -18,6 +18,18 @@ const http = axios.create({
   withCredentials: true,
 })
 
+export class HttpStatusError extends Error {
+  status: number
+  payload?: unknown
+
+  constructor(status: number, message: string, payload?: unknown) {
+    super(message)
+    this.name = 'HttpStatusError'
+    this.status = status
+    this.payload = payload
+  }
+}
+
 export function setAuthToken(accessToken: string | null) {
   if (!accessToken) {
     delete http.defaults.headers.common.Authorization
@@ -52,6 +64,10 @@ export function unwrapBareResponse<T>(payload: T | ApiResponse<T>, fallbackMessa
 }
 
 export function extractApiError(error: unknown, fallbackMessage = '请求失败') {
+  if (error instanceof HttpStatusError && error.message.trim()) {
+    return error.message
+  }
+
   if (axios.isAxiosError<ApiErrorPayload>(error)) {
     const responseMessage = error.response?.data?.message
     if (typeof responseMessage === 'string' && responseMessage.trim()) {
@@ -73,6 +89,14 @@ export function extractApiError(error: unknown, fallbackMessage = '请求失败'
   }
 
   return fallbackMessage
+}
+
+export function isUnauthorizedError(error: unknown) {
+  if (error instanceof HttpStatusError) {
+    return error.status === 401
+  }
+
+  return axios.isAxiosError(error) && error.response?.status === 401
 }
 
 export default http

@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 import { setAuthToken } from '@/api/http'
-import type { CurrentUserProfile } from '@/api/auth'
+import { refreshToken, type CurrentUserProfile } from '@/api/auth'
 
 const ACCESS_TOKEN = 'ddrag_access_token'
 const CURRENT_USER = 'ddrag_current_user'
@@ -12,6 +12,7 @@ interface AuthState {
     setUser: (user: CurrentUserProfile | null) => void
     accessToken: string
     setAccessToken: (accessToken: string) => void
+    refreshSession: () => Promise<string>
     resetAccessToken: () => void
     reset: () => void
   }
@@ -39,6 +40,34 @@ export const useAuthStore = create<AuthState>()((set) => {
           setAuthToken(accessToken)
           return { ...state, auth: { ...state.auth, accessToken } }
         }),
+      refreshSession: async () => {
+        try {
+          const tokens = await refreshToken()
+          set((state) => {
+            setCookie(ACCESS_TOKEN, encodeURIComponent(tokens.accessToken))
+            writeStoredUser(tokens.currentUser)
+            setAuthToken(tokens.accessToken)
+            return {
+              ...state,
+              auth: {
+                ...state.auth,
+                user: tokens.currentUser,
+                accessToken: tokens.accessToken,
+              },
+            }
+          })
+          return tokens.accessToken
+        } catch (error) {
+          removeCookie(ACCESS_TOKEN)
+          writeStoredUser(null)
+          setAuthToken(null)
+          set((state) => ({
+            ...state,
+            auth: { ...state.auth, user: null, accessToken: '' },
+          }))
+          throw error
+        }
+      },
       resetAccessToken: () =>
         set((state) => {
           removeCookie(ACCESS_TOKEN)

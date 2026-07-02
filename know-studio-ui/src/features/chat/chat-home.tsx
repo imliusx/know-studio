@@ -4,9 +4,12 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
   type UIEvent,
 } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
+import { marked } from 'marked'
 import Typed from 'typed.js'
 import {
   AnimatePresence,
@@ -17,8 +20,17 @@ import {
 import { HeaderActions } from '@/components/layout/header-actions'
 import { sidebarData } from '@/components/layout/data/sidebar-data'
 import { TeamSwitcher } from '@/components/layout/team-switcher'
+import {
+  createAssistantSession,
+  streamAssistantChat,
+} from '@/api/assistant'
+import { getMyGroups } from '@/api/groups'
+import { extractApiError, isUnauthorizedError } from '@/api/http'
+import type { Citation } from '@/api/qa'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
+import { mergeGroups } from '@/features/ddrag/shared'
+import { useAuthStore } from '@/stores/auth-store'
 import {
   Archive,
   ArchiveRestore,
@@ -26,6 +38,7 @@ import {
   CheckCircle,
   Circle,
   Clipboard,
+  Copy,
   Database,
   Download,
   Edit3,
@@ -58,9 +71,9 @@ import {
   ChatContainerContent,
   ChatContainerRoot,
   ChatContainerScrollAnchor,
+  ChatContainerScrollToBottom,
 } from '@/components/ui/chat-container'
 import { CodeBlock, CodeBlockCode, CodeBlockGroup } from '@/components/ui/code-block'
-import { FeedbackBar } from '@/components/ui/feedback-bar'
 import {
   FileUpload,
   FileUploadContent,
@@ -82,14 +95,9 @@ import {
   PromptInputTextarea,
 } from '@/components/ui/prompt-input'
 import { PromptSuggestion } from '@/components/ui/prompt-suggestion'
-import { ResponseStream } from '@/components/ui/response-stream'
 import { ScrollButton } from '@/components/ui/scroll-button'
-import { Source, SourceContent, SourceTrigger } from '@/components/ui/source'
 import { Steps, StepsContent, StepsItem, StepsTrigger } from '@/components/ui/steps'
-import { SystemMessage } from '@/components/ui/system-message'
 import { TextShimmer } from '@/components/ui/text-shimmer'
-import { ThinkingBar } from '@/components/ui/thinking-bar'
-import { Tool } from '@/components/ui/tool'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -168,12 +176,17 @@ type ChatMessage = {
   files?: string[]
   variant?: 'rag' | 'code' | 'document'
   isStreaming?: boolean
+  isResponseComplete?: boolean
+  isLive?: boolean
+  query?: string
+  citations?: Citation[]
 }
 
 type ChatConversation = {
   id: string
   title: string
   description: string
+  assistantSessionId?: number
   updatedAt: string
   createdAt?: number
   updatedAtValue?: number
@@ -316,7 +329,7 @@ const artifactJsx = `
 <div className="grid gap-3 rounded-lg border bg-background p-4 text-sm">
   <div className="flex items-center justify-between">
     <strong>文档解析队列</strong>
-    <span className="rounded-lg bg-secondary px-2 py-1 text-xs">mock</span>
+    <span className="rounded-lg bg-secondary px-2 py-1 text-xs">demo</span>
   </div>
   <div className="grid grid-cols-3 gap-2">
     <div className="rounded-lg border p-3">
@@ -347,7 +360,7 @@ const initialMessages: ChatMessage[] = [
     variant: 'rag',
     isStreaming: true,
     content:
-      '可以。当前 Chat UI 会先围绕知识库问答的真实使用路径组织内容：上传资料、解析入库、混合检索、证据重排、基于来源生成回答，最后保留反馈入口。页面里的工具调用、引用来源、执行步骤、代码块和产物预览都直接嵌在对话消息中，后续只需要把 mock 数据替换成后端接口返回的数据。',
+      '可以。当前 Chat UI 会围绕知识库问答的真实使用路径组织内容：上传资料、解析入库、混合检索、证据重排、基于来源生成回答，最后保留反馈入口。页面里的工具调用、引用来源、执行步骤、代码块和产物预览都直接嵌在对话消息中。',
   },
 ]
 
@@ -408,7 +421,7 @@ const initialConversations: ChatConversation[] = [
         role: 'assistant',
         variant: 'document',
         content:
-          '文档解析页面可以先展示队列状态、切分数量、索引进度和失败项。这里先用 mock 产物预览承载结构，后续接入后端解析状态即可。',
+          '文档解析页面可以展示队列状态、切分数量、索引进度和失败项，用产物预览承载解析结构。',
       },
     ],
   },
@@ -923,8 +936,13 @@ function isDraftConversation(conversation: ChatConversation) {
 
 function orderConversations(conversations: ChatConversation[]) {
   return [...conversations].sort((a, b) => {
-    if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1
-    if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+    const aArchived = Boolean(a.isArchived)
+    const bArchived = Boolean(b.isArchived)
+    const aPinned = Boolean(a.isPinned)
+    const bPinned = Boolean(b.isPinned)
+
+    if (aArchived !== bArchived) return aArchived ? 1 : -1
+    if (aPinned !== bPinned) return aPinned ? -1 : 1
     return (b.updatedAtValue ?? 0) - (a.updatedAtValue ?? 0)
   })
 }
@@ -947,37 +965,29 @@ function createInitialChatState(): ChatState {
   }
 }
 
-function createAssistantMessage(input: string, id = Date.now() + 1): ChatMessage {
-  const normalizedInput = input.toLowerCase()
-  const variant = normalizedInput.includes('代码') || normalizedInput.includes('接口')
-    ? 'code'
-    : normalizedInput.includes('文档') || normalizedInput.includes('解析')
-      ? 'document'
-      : 'rag'
-
-  return {
-    id,
-    role: 'assistant',
-    variant,
-    isStreaming: true,
-    content:
-      variant === 'code'
-        ? '下面先给出前端可以直接对接的检索接口调用模型。真实接入时，建议后端返回 answer、sources、toolCalls 和 feedbackId，前端按当前消息结构渲染即可。'
-        : variant === 'document'
-          ? '文档解析页面可以先展示队列状态、切分数量、索引进度和失败项。这里先用 mock 产物预览承载结构，后续接入后端解析状态即可。'
-          : '我会按 RAG 问答链路回答：先检索知识库，再整理证据，最后给出可复核的结论和来源。当前页面使用 mock 数据，组件已经直接出现在 Chat UI 消息内。',
-  }
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
 }
 
 export function ChatHome() {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const { collapsible, variant } = useLayout()
   const reduceMotion = useReducedMotion()
+  const accessToken = useAuthStore((state) => state.auth.accessToken)
+  const refreshSession = useAuthStore((state) => state.auth.refreshSession)
+  const groupsQuery = useQuery({
+    queryKey: ['groups', 'my'],
+    queryFn: getMyGroups,
+  })
+  const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
   const [initialChatState] = useState(createInitialChatState)
   const [input, setInput] = useState('')
   const [files, setFiles] = useState<File[]>([])
+  const [selectedGroupId, setSelectedGroupId] = useState('')
   const [isHeaderGlass, setIsHeaderGlass] = useState(false)
+  const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const messageIdRef = useRef(DEMO_NOW)
+  const streamAbortControllerRef = useRef<AbortController | null>(null)
   const [conversations, setConversations] = useState<ChatConversation[]>(
     initialChatState.conversations
   )
@@ -991,12 +1001,31 @@ export function ChatHome() {
   const messages = activeConversation?.messages ?? []
   const hasMessages = messages.length > 0
   const isStreaming = messages.some((message) => message.isStreaming)
+  const lastAssistantMessageId = useMemo(() => {
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      if (messages[index]?.role === 'assistant') {
+        return messages[index].id
+      }
+    }
+
+    return null
+  }, [messages])
   const activeConversationTitle =
     activeConversation?.title ?? DEFAULT_CONVERSATION_TITLE
+  const selectedGroup = groups.find(
+    (group) => String(group.groupId) === selectedGroupId
+  )
+  const activeGroupId = selectedGroup?.groupId ?? groups[0]?.groupId ?? null
 
   useEffect(() => {
     window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(conversations))
   }, [conversations])
+
+  useEffect(() => {
+    if (!selectedGroupId && groups[0]) {
+      setSelectedGroupId(String(groups[0].groupId))
+    }
+  }, [groups, selectedGroupId])
 
   function handleFilesAdded(nextFiles: File[]) {
     setFiles((prev) => [...prev, ...nextFiles])
@@ -1020,15 +1049,19 @@ export function ChatHome() {
 
   function markMessageComplete(messageId: number) {
     setConversations((prev) =>
-      orderConversations(
-        prev.map((conversation) => ({
-          ...(conversation.messages.some((message) => message.id === messageId)
-            ? touchConversation(conversation)
-            : conversation),
-          messages: conversation.messages.map((message) =>
-            message.id === messageId ? { ...message, isStreaming: false } : message
-          ),
-        }))
+      prev.map((conversation) =>
+        conversation.messages.some((message) => message.id === messageId)
+          ? {
+              ...conversation,
+              messages: conversation.messages.map((message) =>
+                message.id === messageId
+                  ? message.content
+                    ? { ...message, isStreaming: false, isResponseComplete: true }
+                    : message
+                  : message
+              ),
+            }
+          : conversation
       )
     )
   }
@@ -1077,49 +1110,55 @@ export function ChatHome() {
     }
 
     setConversations((prev) =>
-      orderConversations(
-        prev.map((conversation) =>
-          conversation.id === conversationId
-            ? touchConversation({
-                ...conversation,
-                title: nextTitle.slice(0, 40),
-              })
-            : conversation
-        )
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              title: nextTitle.slice(0, 40),
+            }
+          : conversation
       )
     )
     toast.success('已重命名对话')
   }
 
   function handleTogglePin(conversationId: string) {
-    let nextPinned = false
+    const target = conversations.find(
+      (conversation) => conversation.id === conversationId
+    )
+    if (!target) return
+
+    const nextPinned = !target.isPinned
     setConversations((prev) =>
       orderConversations(
-        prev.map((conversation) => {
-          if (conversation.id !== conversationId) return conversation
-          nextPinned = !conversation.isPinned
-          return {
-            ...touchConversation(conversation),
-            isPinned: nextPinned,
-          }
-        })
+        prev.map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                isPinned: nextPinned,
+              }
+            : conversation
+        )
       )
     )
     toast.success(nextPinned ? '已置顶对话' : '已取消置顶')
   }
 
   function handleToggleFavorite(conversationId: string) {
-    let nextFavorited = false
+    const target = conversations.find(
+      (conversation) => conversation.id === conversationId
+    )
+    if (!target) return
+
+    const nextFavorited = !target.isFavorited
     setConversations((prev) =>
-      orderConversations(
-        prev.map((conversation) => {
-          if (conversation.id !== conversationId) return conversation
-          nextFavorited = !conversation.isFavorited
-          return {
-            ...touchConversation(conversation),
-            isFavorited: nextFavorited,
-          }
-        })
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              isFavorited: nextFavorited,
+            }
+          : conversation
       )
     )
     toast.success(nextFavorited ? '已收藏对话' : '已取消收藏')
@@ -1135,11 +1174,11 @@ export function ChatHome() {
     const nextConversations = orderConversations(
       conversations.map((conversation) =>
         conversation.id === conversationId
-          ? touchConversation({
+          ? {
               ...conversation,
               isArchived: nextArchived,
               isPinned: nextArchived ? false : conversation.isPinned,
-            })
+            }
           : conversation
       )
     )
@@ -1221,7 +1260,7 @@ export function ChatHome() {
                   isDefaultConversationTitle(conversation.title) && input.trim()
                     ? input.trim().slice(0, 24)
                     : conversation.title,
-                description: 'mock 对话，后续接后端历史',
+                description: '知识库问答',
                 messages: messagesUpdater(conversation.messages),
               })
             : conversation
@@ -1230,65 +1269,344 @@ export function ChatHome() {
     )
   }
 
-  function stopStreaming() {
-    updateActiveConversation((prev) =>
-      prev.map((message) =>
-        message.isStreaming ? { ...message, isStreaming: false } : message
+  function updateConversationMessage(
+    conversationId: string,
+    messageId: number,
+    messageUpdater: (message: ChatMessage) => ChatMessage
+  ) {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              messages: conversation.messages.map((message) =>
+                message.id === messageId ? messageUpdater(message) : message
+              ),
+            }
+          : conversation
       )
     )
   }
 
-  function handleRegenerateAnswer(messageId: number) {
+  function updateConversationSession(
+    conversationId: string,
+    assistantSessionId: number
+  ) {
+    setConversations((prev) =>
+      prev.map((conversation) =>
+        conversation.id === conversationId
+          ? {
+              ...conversation,
+              assistantSessionId,
+            }
+          : conversation
+      )
+    )
+  }
+
+  function stopStreaming() {
+    streamAbortControllerRef.current?.abort()
+    streamAbortControllerRef.current = null
+    updateActiveConversation((prev) =>
+      prev.map((message) =>
+        message.isStreaming
+          ? { ...message, isStreaming: false, isResponseComplete: true }
+          : message
+      )
+    )
+  }
+
+  async function getStreamAccessToken() {
+    if (accessToken) return accessToken
+
+    try {
+      const refreshedAccessToken = await refreshSession()
+      if (refreshedAccessToken) return refreshedAccessToken
+    } catch {
+      toast.error('登录状态已失效，请重新登录')
+      return null
+    }
+
+    toast.error('登录状态已失效，请重新登录')
+    return null
+  }
+
+  async function streamAssistantReply({
+    targetConversationId,
+    assistantMessageId,
+    question,
+    assistantSessionId,
+    initialAccessToken,
+  }: {
+    targetConversationId: string
+    assistantMessageId: number
+    question: string
+    assistantSessionId: number | null
+    initialAccessToken: string
+  }) {
+    const targetGroupId = activeGroupId
+    if (!targetGroupId) {
+      const errorMessage = '请先在管理后台创建知识库并上传文档'
+      toast.error(errorMessage)
+      updateConversationMessage(
+        targetConversationId,
+        assistantMessageId,
+        (message) => ({
+          ...message,
+          isStreaming: false,
+          isResponseComplete: true,
+          content: `请求失败：${errorMessage}`,
+          citations: [],
+        })
+      )
+      return
+    }
+
+    const abortController = new AbortController()
+    streamAbortControllerRef.current = abortController
+    let receivedTerminalEvent = false
+    let currentAccessToken = initialAccessToken
+    let currentAssistantSessionId = assistantSessionId
+
+    const runAssistantStream = async (streamAccessToken: string) => {
+      if (!currentAssistantSessionId) {
+        const session = await createAssistantSession(question)
+        currentAssistantSessionId = session.sessionId
+        updateConversationSession(targetConversationId, currentAssistantSessionId)
+      }
+
+      await streamAssistantChat(
+        {
+          sessionId: currentAssistantSessionId,
+          message: question,
+          toolMode: 'KB_SEARCH',
+          groupId: targetGroupId,
+        },
+        streamAccessToken,
+        (event) => {
+          if (event.event === 'delta' && event.delta) {
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                content: `${message.content}${event.delta}`,
+                isStreaming: true,
+                isResponseComplete: false,
+              })
+            )
+            return
+          }
+
+          if (event.event === 'done') {
+            receivedTerminalEvent = true
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                content: event.reply || message.content,
+                isStreaming: false,
+                isResponseComplete: true,
+                citations: event.citations ?? [],
+              })
+            )
+            return
+          }
+
+          if (event.event === 'error') {
+            receivedTerminalEvent = true
+            const errorMessage = event.error || '助手流式响应失败'
+            toast.error(errorMessage)
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                isStreaming: false,
+                isResponseComplete: true,
+                content: `请求失败：${errorMessage}`,
+                citations: [],
+              })
+            )
+          }
+        },
+        abortController.signal
+      )
+    }
+
+    try {
+      try {
+        await runAssistantStream(currentAccessToken)
+      } catch (error) {
+        if (!isUnauthorizedError(error)) {
+          throw error
+        }
+
+        const refreshedAccessToken = await refreshSession()
+        if (!refreshedAccessToken) throw error
+        currentAccessToken = refreshedAccessToken
+        await runAssistantStream(currentAccessToken)
+      }
+
+      if (!receivedTerminalEvent) {
+        updateConversationMessage(
+          targetConversationId,
+          assistantMessageId,
+          (message) => ({
+            ...message,
+            isStreaming: false,
+            isResponseComplete: true,
+          })
+        )
+      }
+    } catch (error) {
+      if (isAbortError(error)) return
+
+      const isUnauthorized = isUnauthorizedError(error)
+      const errorMessage = isUnauthorized
+        ? '登录状态已失效，请重新登录后再试'
+        : extractApiError(error, '提问失败')
+      toast.error(errorMessage)
+      updateConversationMessage(
+        targetConversationId,
+        assistantMessageId,
+        (message) => ({
+          ...message,
+          isStreaming: false,
+          isResponseComplete: true,
+          content: `请求失败：${errorMessage}`,
+          citations: [],
+        })
+      )
+    } finally {
+      if (streamAbortControllerRef.current === abortController) {
+        streamAbortControllerRef.current = null
+      }
+    }
+  }
+
+  async function handleCopyMessage(content: string) {
+    try {
+      await navigator.clipboard.writeText(content)
+      toast.success('消息已复制')
+    } catch {
+      toast.error('复制失败，请检查浏览器剪贴板权限')
+    }
+  }
+
+  function handleEditUserMessage(content: string) {
+    setInput(content)
+    setFiles([])
+  }
+
+  async function handleRegenerateMessage(messageId: number) {
+    if (isStreaming || !activeConversation) return
+
+    const targetMessageIndex = activeConversation.messages.findIndex(
+      (message) => message.id === messageId
+    )
+    const targetMessage = activeConversation.messages[targetMessageIndex]
+
+    if (!targetMessage || targetMessage.role !== 'assistant') return
+
+    const previousUserMessage = [...activeConversation.messages]
+      .slice(0, targetMessageIndex)
+      .reverse()
+      .find((message) => message.role === 'user')
+    const question = (targetMessage.query ?? previousUserMessage?.content ?? '').trim()
+
+    if (!question) {
+      toast.error('找不到可重新生成的问题')
+      return
+    }
+
+    if (!activeGroupId) {
+      toast.error('请先在管理后台创建知识库并上传文档')
+      return
+    }
+
+    const currentAccessToken = await getStreamAccessToken()
+    if (!currentAccessToken) return
+
+    const assistantMessageId = createNextMessageId()
+    const nextAssistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      variant: targetMessage.variant ?? 'rag',
+      isLive: true,
+      isStreaming: true,
+      isResponseComplete: false,
+      query: question,
+      citations: [],
+      content: '',
+    }
+
     setConversations((prev) =>
       orderConversations(
         prev.map((conversation) =>
-          conversation.id === activeConversationId
+          conversation.id === activeConversation.id
             ? touchConversation({
                 ...conversation,
                 messages: conversation.messages.map((message) =>
-                  message.id === messageId && message.role === 'assistant'
-                    ? {
-                        ...message,
-                        id: createNextMessageId(),
-                        isStreaming: true,
-                        content: createAssistantMessage(
-                          message.content,
-                          message.id
-                        ).content,
-                      }
-                    : message
+                  message.id === messageId ? nextAssistantMessage : message
                 ),
               })
             : conversation
         )
       )
     )
-    toast.success('已重新生成回答')
+    setScrollToLatestRequest((current) => current + 1)
+
+    await streamAssistantReply({
+      targetConversationId: activeConversation.id,
+      assistantMessageId,
+      question,
+      assistantSessionId: activeConversation.assistantSessionId ?? null,
+      initialAccessToken: currentAccessToken,
+    })
   }
 
-  function handleSubmit(nextInput = input) {
+  async function handleSubmit(nextInput = input, nextFiles = files) {
     const trimmedInput = nextInput.trim()
-    if ((!trimmedInput && files.length === 0) || isStreaming) return
+    if ((!trimmedInput && nextFiles.length === 0) || isStreaming) return
+    if (!activeGroupId) {
+      toast.error('请先在管理后台创建知识库并上传文档')
+      return
+    }
+
+    const currentAccessToken = await getStreamAccessToken()
+    if (!currentAccessToken) return
 
     const baseId = createNextMessageId()
     const userMessage: ChatMessage = {
       id: baseId,
       role: 'user',
       content: trimmedInput || '请分析我上传的文件。',
-      files: files.map((file) => file.name),
+      files: nextFiles.map((file) => file.name),
     }
-    const assistantMessage = createAssistantMessage(
-      userMessage.content,
-      createNextMessageId()
-    )
+    const assistantMessageId = createNextMessageId()
+    const assistantMessage: ChatMessage = {
+      id: assistantMessageId,
+      role: 'assistant',
+      variant: 'rag',
+      isLive: true,
+      isStreaming: true,
+      isResponseComplete: false,
+      query: userMessage.content,
+      content: '',
+    }
+    let targetConversationId = activeConversation?.id ?? null
+    const assistantSessionId = activeConversation?.assistantSessionId ?? null
 
     if (!activeConversation) {
       const nextConversation = touchConversation({
         ...createEmptyConversation(),
         title: userMessage.content.slice(0, 24),
-        description: 'mock 对话，后续接后端历史',
+        description: selectedGroup?.groupName ?? '知识库问答',
         messages: [userMessage, assistantMessage],
       })
+      targetConversationId = nextConversation.id
       setConversations((prev) => orderConversations([nextConversation, ...prev]))
       setActiveConversationId(nextConversation.id)
     } else {
@@ -1300,6 +1618,17 @@ export function ChatHome() {
     }
     setInput('')
     setFiles([])
+    setScrollToLatestRequest((current) => current + 1)
+
+    if (!targetConversationId) return
+
+    await streamAssistantReply({
+      targetConversationId,
+      assistantMessageId,
+      question: userMessage.content,
+      assistantSessionId,
+      initialAccessToken: currentAccessToken,
+    })
   }
 
   function renderPromptComposer({
@@ -1416,7 +1745,7 @@ export function ChatHome() {
             placeholder='询问知识库、粘贴材料，或描述要分析的问题...'
             disabled={isStreaming}
             disableAutosize
-            className='h-30 min-h-30 max-h-30 overflow-y-auto [field-sizing:fixed]'
+            className='h-26 min-h-26 max-h-26 overflow-y-auto md:text-[15px] [field-sizing:fixed]'
           />
 
           <PromptInputActions className='flex items-center justify-between gap-2 pt-2'>
@@ -1446,7 +1775,7 @@ export function ChatHome() {
                 aria-label={isStreaming ? 'Stop generation' : 'Send message'}
               >
                 {isStreaming ? (
-                  <Square className='fill-current' />
+                  <Square className='size-3.5 fill-current' />
                 ) : (
                   <ArrowUpIcon className='size-5' />
                 )}
@@ -1527,15 +1856,14 @@ export function ChatHome() {
                   <>
                     <div className='relative min-h-0 flex-1'>
                       <ChatContainerRoot className='h-full'>
+                        <ChatContainerScrollToBottom
+                          trigger={scrollToLatestRequest}
+                        />
                         <ChatContainerContent
-                          className='mx-auto flex w-full max-w-(--breakpoint-md) flex-col gap-5 px-4 pt-24 pb-6'
+                          className='mx-auto flex w-full max-w-(--breakpoint-md) flex-col gap-5 px-4 pt-24 pb-14'
                           scrollClassName='no-scrollbar overflow-y-auto'
                           onScroll={handleChatScroll}
                         >
-                          <SystemMessage fill className='mx-auto w-full'>
-                            默认进入 Chat UI。左侧可新建对话、切换历史会话，当前数据先使用 mock。
-                          </SystemMessage>
-
                           <AnimatePresence initial={false}>
                             {messages.map((message) => (
                               <motion.div
@@ -1564,7 +1892,13 @@ export function ChatHome() {
                               >
                                 <ChatMessageItem
                                   message={message}
-                                  onRegenerate={() => handleRegenerateAnswer(message.id)}
+                                  canRegenerate={
+                                    message.id === lastAssistantMessageId &&
+                                    !message.isStreaming
+                                  }
+                                  onCopyMessage={handleCopyMessage}
+                                  onEditUserMessage={handleEditUserMessage}
+                                  onRegenerateMessage={handleRegenerateMessage}
                                   onStreamingComplete={() => markMessageComplete(message.id)}
                                 />
                               </motion.div>
@@ -2218,7 +2552,7 @@ function ChatHistorySidebar({
             </AlertDialogMedia>
             <AlertDialogTitle>恢复演示数据？</AlertDialogTitle>
             <AlertDialogDescription>
-              当前本地历史会话会被替换为默认 mock 数据。
+              当前本地历史会话会被替换为默认演示数据。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2240,11 +2574,17 @@ function ChatHistorySidebar({
 
 function ChatMessageItem({
   message,
-  onRegenerate,
+  canRegenerate,
+  onCopyMessage,
+  onEditUserMessage,
+  onRegenerateMessage,
   onStreamingComplete,
 }: {
   message: ChatMessage
-  onRegenerate: () => void
+  canRegenerate: boolean
+  onCopyMessage: (content: string) => void
+  onEditUserMessage: (content: string) => void
+  onRegenerateMessage: (messageId: number) => void
   onStreamingComplete: () => void
 }) {
   const isAssistant = message.role === 'assistant'
@@ -2260,18 +2600,60 @@ function ChatMessageItem({
         {isAssistant ? (
           <AssistantMessage
             message={message}
-            onRegenerate={onRegenerate}
+            canRegenerate={canRegenerate}
+            onCopy={() => onCopyMessage(message.content)}
+            onRegenerate={() => onRegenerateMessage(message.id)}
             onStreamingComplete={onStreamingComplete}
           />
         ) : (
-          <UserMessage message={message} />
+          <UserMessage
+            message={message}
+            onCopy={() => onCopyMessage(message.content)}
+            onEdit={() => onEditUserMessage(message.content)}
+          />
         )}
       </div>
     </Message>
   )
 }
 
-function UserMessage({ message }: { message: ChatMessage }) {
+function MessageActionIconButton({
+  tooltip,
+  onClick,
+  disabled,
+  children,
+}: {
+  tooltip: string
+  onClick: () => void
+  disabled?: boolean
+  children: ReactNode
+}) {
+  return (
+    <MessageAction tooltip={tooltip}>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon-sm'
+        disabled={disabled}
+        onClick={onClick}
+        aria-label={tooltip}
+        className='text-muted-foreground'
+      >
+        {children}
+      </Button>
+    </MessageAction>
+  )
+}
+
+function UserMessage({
+  message,
+  onCopy,
+  onEdit,
+}: {
+  message: ChatMessage
+  onCopy: () => void
+  onEdit: () => void
+}) {
   return (
     <div className='flex flex-col items-end gap-2'>
       <MessageContent className='bg-primary text-sm leading-5 text-primary-foreground'>
@@ -2290,63 +2672,202 @@ function UserMessage({ message }: { message: ChatMessage }) {
           ))}
         </div>
       ) : null}
+      <MessageActions className='justify-end'>
+        <MessageActionIconButton tooltip='编辑消息' onClick={onEdit}>
+          <Edit3 />
+        </MessageActionIconButton>
+        <MessageActionIconButton tooltip='复制消息' onClick={onCopy}>
+          <Copy />
+        </MessageActionIconButton>
+      </MessageActions>
     </div>
+  )
+}
+
+function isPlainTextAnswer(content: string) {
+  const trimmedContent = content.trim()
+  if (!trimmedContent) return true
+
+  const tokens = marked.lexer(trimmedContent)
+
+  return tokens.every((token) => {
+    if (token.type === 'space') return true
+    if (token.type !== 'paragraph' && token.type !== 'text') return false
+
+    const inlineTokens = 'tokens' in token ? token.tokens : undefined
+    return !inlineTokens?.some(
+      (inlineToken) =>
+        inlineToken.type !== 'text' && inlineToken.type !== 'escape'
+    )
+  })
+}
+
+function getAssistantContentClassName(content: string) {
+  return cn(
+    'bg-transparent p-0 text-[15px]',
+    isPlainTextAnswer(content) ? 'leading-7' : 'leading-6'
+  )
+}
+
+function StreamingMarkdownContent({
+  content,
+  isComplete,
+  onComplete,
+}: {
+  content: string
+  isComplete: boolean
+  onComplete: () => void
+}) {
+  const reduceMotion = useReducedMotion()
+  const [displayedText, setDisplayedText] = useState('')
+  const targetRef = useRef(content)
+  const displayedRef = useRef('')
+  const isCompleteRef = useRef(isComplete)
+  const onCompleteRef = useRef(onComplete)
+  const didCompleteRef = useRef(false)
+
+  useEffect(() => {
+    targetRef.current = content
+
+    if (content.length < displayedRef.current.length) {
+      displayedRef.current = content
+      setDisplayedText(content)
+    }
+  }, [content])
+
+  useEffect(() => {
+    isCompleteRef.current = isComplete
+    if (!isComplete) didCompleteRef.current = false
+  }, [isComplete])
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete
+  }, [onComplete])
+
+  useEffect(() => {
+    if (reduceMotion) {
+      displayedRef.current = content
+      setDisplayedText(content)
+
+      if (isComplete && !didCompleteRef.current) {
+        didCompleteRef.current = true
+        onCompleteRef.current()
+      }
+
+      return
+    }
+
+    let frame: number | null = null
+    let lastFrameTime = 0
+
+    const tick = (timestamp: number) => {
+      const target = targetRef.current
+      const current = displayedRef.current
+
+      if (current.length < target.length) {
+        if (timestamp - lastFrameTime >= 18) {
+          const remaining = target.length - current.length
+          const chunkSize = remaining > 80 ? 6 : remaining > 24 ? 4 : 2
+          const nextText = target.slice(0, current.length + chunkSize)
+
+          displayedRef.current = nextText
+          setDisplayedText(nextText)
+          lastFrameTime = timestamp
+        }
+
+        frame = requestAnimationFrame(tick)
+        return
+      }
+
+      if (isCompleteRef.current && !didCompleteRef.current) {
+        didCompleteRef.current = true
+        onCompleteRef.current()
+        return
+      }
+
+      frame = requestAnimationFrame(tick)
+    }
+
+    frame = requestAnimationFrame(tick)
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame)
+    }
+  }, [content, isComplete, reduceMotion])
+  const contentClassName = useMemo(
+    () => getAssistantContentClassName(displayedText),
+    [displayedText]
+  )
+
+  return (
+    <MessageContent markdown className={contentClassName}>
+      {displayedText}
+    </MessageContent>
   )
 }
 
 function AssistantMessage({
   message,
+  canRegenerate,
+  onCopy,
   onRegenerate,
   onStreamingComplete,
 }: {
   message: ChatMessage
+  canRegenerate: boolean
+  onCopy: () => void
   onRegenerate: () => void
   onStreamingComplete: () => void
 }) {
+  const showActions = !message.isStreaming && Boolean(message.content)
+
   return (
     <div className='flex flex-col gap-3'>
-      {message.isStreaming ? (
-        <div className='rounded-lg border bg-background p-3'>
-          <ThinkingBar
-            text='Retrieving and composing'
-            stopLabel='显示完整回答'
-            onStop={onStreamingComplete}
-          />
-          <div className='mt-3 flex items-center gap-2 text-sm text-muted-foreground'>
-            <Loader variant='typing' size='sm' />
-            <TextShimmer>正在读取 mock 知识库证据</TextShimmer>
-          </div>
+      {message.isStreaming && !message.content ? (
+        <div className='flex items-center gap-2 text-sm text-muted-foreground'>
+          <Loader variant='typing' size='sm' />
+          <TextShimmer>正在生成回答</TextShimmer>
         </div>
       ) : null}
 
-      {message.isStreaming ? (
-        <div className='prose text-sm leading-6 text-foreground dark:prose-invert'>
-          <ResponseStream
-            textStream={message.content}
-            speed={38}
-            characterChunkSize={3}
-            onComplete={onStreamingComplete}
-          />
-        </div>
-      ) : (
+      {message.isStreaming && message.content ? (
+        <StreamingMarkdownContent
+          content={message.content}
+          isComplete={!message.isLive || Boolean(message.isResponseComplete)}
+          onComplete={onStreamingComplete}
+        />
+      ) : message.content ? (
         <MessageContent
           markdown
-          className='bg-transparent p-0 text-sm leading-6'
+          className={getAssistantContentClassName(message.content)}
           children={message.content}
         />
-      )}
-
-      <RetrievalTrace />
-      <ToolCall />
-      {message.variant === 'code' ? <CodeAnswer /> : null}
-      {message.variant === 'document' ? <ArtifactPreview /> : null}
-      {message.variant === 'rag' ? (
-        <>
-          <SourceList />
-          <GeneratedFlowImage />
-        </>
       ) : null}
-      <AnswerActions content={message.content} onRegenerate={onRegenerate} />
+
+      {showActions ? (
+        <MessageActions>
+          <MessageActionIconButton tooltip='复制回答' onClick={onCopy}>
+            <Copy />
+          </MessageActionIconButton>
+          {canRegenerate ? (
+            <MessageActionIconButton
+              tooltip='重新生成'
+              onClick={onRegenerate}
+            >
+              <RotateCcw />
+            </MessageActionIconButton>
+          ) : null}
+        </MessageActions>
+      ) : null}
+
+      {message.isLive ? null : <RetrievalTrace />}
+      {!message.isLive && message.variant === 'code' ? <CodeAnswer /> : null}
+      {!message.isLive && message.variant === 'document' ? (
+        <ArtifactPreview />
+      ) : null}
+      {message.variant === 'rag' && !message.isStreaming ? (
+        !message.isLive ? <GeneratedFlowImage /> : null
+      ) : null}
     </div>
   )
 }
@@ -2391,57 +2912,6 @@ function RetrievalTrace() {
   )
 }
 
-function ToolCall() {
-  return (
-    <Tool
-      defaultOpen={false}
-      toolPart={{
-        type: 'knowledgeBase.search',
-        state: 'output-available',
-        toolCallId: 'mock-rag-001',
-        input: {
-          query: '知识库问答链路 引用来源',
-          topK: 6,
-          rerank: true,
-        },
-        output: {
-          matches: 6,
-          topScore: 0.91,
-          collections: ['产品文档', '接口说明'],
-        },
-      }}
-    />
-  )
-}
-
-function SourceList() {
-  return (
-    <div className='flex flex-wrap items-center gap-2'>
-      <Source href='https://www.prompt-kit.com/docs'>
-        <SourceTrigger label='prompt-kit docs' showFavicon />
-        <SourceContent
-          title='prompt-kit documentation'
-          description='Prompt-kit 官方组件文档，用于 Chat UI 组件组合。'
-        />
-      </Source>
-      <Source href='https://tanstack.com/router/latest'>
-        <SourceTrigger label='tanstack router' showFavicon />
-        <SourceContent
-          title='TanStack Router'
-          description='当前前端项目使用的文件路由系统。'
-        />
-      </Source>
-      <Source href='mock://know-studio/product-doc'>
-        <SourceTrigger label='产品需求.md' />
-        <SourceContent
-          title='产品需求.md'
-          description='本地 mock 来源，后续替换为后端返回的文档片段。'
-        />
-      </Source>
-    </div>
-  )
-}
-
 function GeneratedFlowImage() {
   return (
     <div className='overflow-hidden rounded-lg border bg-background p-2'>
@@ -2463,7 +2933,7 @@ function CodeAnswer() {
           <Database />
           search-knowledge-base.ts
         </div>
-        <span className='text-xs text-muted-foreground'>mock adapter</span>
+        <span className='text-xs text-muted-foreground'>adapter</span>
       </CodeBlockGroup>
       <CodeBlockCode code={codeSample} language='ts' />
     </CodeBlock>
@@ -2478,57 +2948,6 @@ function ArtifactPreview() {
         文档处理产物预览
       </div>
       <JSXPreview jsx={artifactJsx} />
-    </div>
-  )
-}
-
-function AnswerActions({
-  content,
-  onRegenerate,
-}: {
-  content: string
-  onRegenerate: () => void
-}) {
-  const [isFeedbackVisible, setIsFeedbackVisible] = useState(true)
-
-  async function handleCopyAnswer() {
-    try {
-      await navigator.clipboard.writeText(content)
-      toast.success('回答已复制')
-    } catch {
-      toast.error('复制失败，请检查浏览器剪贴板权限')
-    }
-  }
-
-  function handleFeedback(type: 'helpful' | 'not-helpful') {
-    toast.success(type === 'helpful' ? '已标记有帮助' : '已记录反馈')
-    setIsFeedbackVisible(false)
-  }
-
-  return (
-    <div className='flex flex-col gap-2'>
-      <MessageActions>
-        <MessageAction tooltip='Copy answer'>
-          <Button type='button' variant='ghost' size='sm' onClick={handleCopyAnswer}>
-            <Clipboard data-icon='inline-start' />
-            复制
-          </Button>
-        </MessageAction>
-        <MessageAction tooltip='Regenerate answer'>
-          <Button type='button' variant='ghost' size='sm' onClick={onRegenerate}>
-            <RotateCcw data-icon='inline-start' />
-            重试
-          </Button>
-        </MessageAction>
-      </MessageActions>
-      {isFeedbackVisible ? (
-        <FeedbackBar
-          title='这条回答有帮助吗？'
-          onHelpful={() => handleFeedback('helpful')}
-          onNotHelpful={() => handleFeedback('not-helpful')}
-          onClose={() => setIsFeedbackVisible(false)}
-        />
-      ) : null}
     </div>
   )
 }

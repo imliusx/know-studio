@@ -61,12 +61,20 @@ public class AssistantConversationService {
 
     @Transactional
     public AssistantMessageVO saveUserMessage(Long currentUserId, AssistantMessageCreateDTO dto) {
-        return saveMessage(currentUserId, dto, AssistantMessageRole.USER);
+        return saveMessage(currentUserId, dto, AssistantMessageRole.USER, true);
     }
 
     @Transactional
     public AssistantMessageVO saveAssistantMessage(Long currentUserId, AssistantMessageCreateDTO dto) {
-        return saveMessage(currentUserId, dto, AssistantMessageRole.ASSISTANT);
+        return saveMessage(currentUserId, dto, AssistantMessageRole.ASSISTANT, true);
+    }
+
+    @Transactional
+    public AssistantMessageVO saveAssistantMessageWithoutMemoryMaintenance(
+            Long currentUserId,
+            AssistantMessageCreateDTO dto
+    ) {
+        return saveMessage(currentUserId, dto, AssistantMessageRole.ASSISTANT, false);
     }
 
     public List<AssistantMessageVO> loadRecentMessages(Long currentUserId, Long sessionId, int limit) {
@@ -120,7 +128,8 @@ public class AssistantConversationService {
     private AssistantMessageVO saveMessage(
             Long currentUserId,
             AssistantMessageCreateDTO dto,
-            AssistantMessageRole role
+            AssistantMessageRole role,
+            boolean shouldMaintainShortTermMemory
     ) {
         Long userId = requireUserId(currentUserId);
         AssistantMessageCreateDTO safeDto = requireCreateDTO(dto);
@@ -142,7 +151,9 @@ public class AssistantConversationService {
             }
         }
         // 消息持久化完成后再维护短期记忆，这样短期摘要看到的是数据库里的真实会话状态。
-        maintainShortTermMemory(userId, safeDto, role, entity.getId());
+        if (shouldMaintainShortTermMemory) {
+            maintainShortTermMemory(userId, safeDto, role, entity.getId());
+        }
         return toMessageVO(entity);
     }
 

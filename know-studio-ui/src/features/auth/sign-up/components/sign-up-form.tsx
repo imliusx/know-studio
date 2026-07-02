@@ -15,6 +15,7 @@ import {
   FieldLabel,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '../../components/password-input'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -203,10 +204,9 @@ export function SignUpForm({
               <FieldGroup className='grid gap-4 md:grid-cols-2'>
                 <Field data-invalid={Boolean(fieldError('password'))}>
                   <FieldLabel htmlFor='password'>密码</FieldLabel>
-                  <Input
+                  <PasswordInput
                     id='password'
                     name='password'
-                    type='password'
                     autoComplete='new-password'
                     value={values.password}
                     onChange={(event) =>
@@ -222,10 +222,9 @@ export function SignUpForm({
                 </Field>
                 <Field data-invalid={Boolean(fieldError('confirmPassword'))}>
                   <FieldLabel htmlFor='confirmPassword'>确认密码</FieldLabel>
-                  <Input
+                  <PasswordInput
                     id='confirmPassword'
                     name='confirmPassword'
-                    type='password'
                     autoComplete='new-password'
                     value={values.confirmPassword}
                     onChange={(event) =>

@@ -132,7 +132,7 @@ public class AssistantService {
                 streamExecutor
         );
         // 保存助手回复
-        AssistantMessageVO assistantMessage = saveAssistantMessage(
+        AssistantMessageVO assistantMessage = saveStreamingAssistantMessage(
                 currentUser.userId(),
                 safeRequest,
                 executionResult
@@ -215,6 +215,23 @@ public class AssistantService {
             AssistantExecutionResult executionResult
     ) {
         return assistantConversationService.saveAssistantMessage(
+                userId,
+                new AssistantMessageCreateDTO(
+                        safeRequest.sessionId(),
+                        safeRequest.toolMode(),
+                        safeRequest.groupId(),
+                        executionResult.reply(),
+                        executionResult.structuredPayload()
+                )
+        );
+    }
+
+    private AssistantMessageVO saveStreamingAssistantMessage(
+            Long userId,
+            AssistantChatRequest safeRequest,
+            AssistantExecutionResult executionResult
+    ) {
+        return assistantConversationService.saveAssistantMessageWithoutMemoryMaintenance(
                 userId,
                 new AssistantMessageCreateDTO(
                         safeRequest.sessionId(),

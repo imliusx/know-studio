@@ -1,4 +1,8 @@
-import http, { unwrapApiResponse, unwrapBareResponse } from './http'
+import http, {
+  HttpStatusError,
+  unwrapApiResponse,
+  unwrapBareResponse,
+} from './http'
 import type { Citation } from './qa'
 
 export type AssistantToolMode = 'CHAT' | 'KB_SEARCH'
@@ -116,19 +120,27 @@ export async function streamAssistantChat(
   onEvent: (event: AssistantStreamEvent) => void,
   signal?: AbortSignal
 ) {
-  const response = await fetch('/api/assistant/chat/stream', {
-    method: 'POST',
-    credentials: 'include',
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(request),
-  })
+  const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
+  const response = await fetch(
+    `${apiBaseUrl.replace(/\/$/, '')}/assistant/chat/stream`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(request),
+    }
+  )
 
   if (!response.ok || !response.body) {
-    throw new Error(`助手流式响应失败：${response.status}`)
+    const errorMessage = await readStreamErrorMessage(response)
+    throw new HttpStatusError(
+      response.status,
+      errorMessage || `助手流式响应失败：${response.status}`
+    )
   }
 
   const reader = response.body.getReader()
@@ -151,6 +163,30 @@ export async function streamAssistantChat(
 
   const tail = parseSseEvent(buffer)
   if (tail) onEvent(tail)
+}
+
+async function readStreamErrorMessage(response: Response) {
+  try {
+    const payload = (await response.clone().json()) as {
+      message?: unknown
+      title?: unknown
+    }
+    if (typeof payload.message === 'string' && payload.message.trim()) {
+      return payload.message
+    }
+    if (typeof payload.title === 'string' && payload.title.trim()) {
+      return payload.title
+    }
+  } catch {
+    // Some server errors may not be JSON. Fall back to text below.
+  }
+
+  try {
+    const text = await response.text()
+    return text.trim()
+  } catch {
+    return ''
+  }
 }
 
 function parseSseEvent(rawEvent: string): AssistantStreamEvent | null {

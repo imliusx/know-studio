@@ -110,16 +110,16 @@ public class AssistantAgentFacade {
         );
         AssistantKnowledgeBaseToolResultHolder resultHolder = new AssistantKnowledgeBaseToolResultHolder();
         ReactAgent agent = assistantReactAgentFactory.createAgent(instruction, toolMode, groupId, resultHolder);
-        StringBuilder finalReply = new StringBuilder();
+        StreamingReplyAccumulator replyAccumulator = new StreamingReplyAccumulator(toolMode, deltaConsumer);
         try {
             // stream() 返回的是图执行过程中的节点输出，这里只抽取模型实际产出的文本 delta。
             Flux<NodeOutput> stream = agent.stream(userMessage, runnableConfig);
-            stream.doOnNext(output -> handleStreamingOutput(output, deltaConsumer, finalReply))
+            stream.doOnNext(output -> handleStreamingOutput(output, replyAccumulator))
                     .blockLast();
         } catch (GraphRunnerException exception) {
             throw new BusinessException("助手调用失败", exception);
         }
-        String reply = finalReply.toString().trim();
+        String reply = replyAccumulator.reply().trim();
         if (log.isDebugEnabled()) {
             log.debug(
                     "AssistantAgentFacade.streamChat result. userId={}, sessionId={}, toolMode={}, groupId={}, reply={}, citationCount={}",
@@ -139,8 +139,7 @@ public class AssistantAgentFacade {
 
     private void handleStreamingOutput(
             NodeOutput output,
-            Consumer<String> deltaConsumer,
-            StringBuilder finalReply
+            StreamingReplyAccumulator replyAccumulator
     ) {
         if (!(output instanceof StreamingOutput streamingOutput)) {
             return;
@@ -151,29 +150,15 @@ public class AssistantAgentFacade {
             return;
         }
         if (type == OutputType.AGENT_MODEL_STREAMING) {
-            // 正常流式路径下，模型边生成边向前端透传文本。
-            String delta = normalizeStreamingDelta(assistantMessage.getText(), finalReply.toString());
-            if (delta.isBlank()) {
-                return;
-            }
-            finalReply.append(delta);
-            deltaConsumer.accept(delta);
+            replyAccumulator.onModelStreaming(assistantMessage.getText());
             return;
         }
-        if (type == OutputType.AGENT_MODEL_FINISHED
-                && !assistantMessage.hasToolCalls()
-                && finalReply.isEmpty()) {
-            // 某些情况下模型不会走 streaming delta，而是一次性在 finished 节点返回完整文本，这里兜底补发。
-            String fullText = assistantMessage.getText();
-            if (fullText == null || fullText.isBlank()) {
-                return;
-            }
-            finalReply.append(fullText);
-            deltaConsumer.accept(fullText);
+        if (type == OutputType.AGENT_MODEL_FINISHED) {
+            replyAccumulator.onModelFinished(assistantMessage);
         }
     }
 
-    private String normalizeStreamingDelta(String candidateText, String accumulatedReply) {
+    private static String normalizeStreamingDelta(String candidateText, String accumulatedReply) {
         if (candidateText == null || candidateText.isBlank()) {
             return "";
         }
@@ -186,6 +171,76 @@ public class AssistantAgentFacade {
             return candidateText.substring(accumulatedReply.length());
         }
         return candidateText;
+    }
+
+    private static String firstNonBlank(String primaryText, String fallbackText) {
+        if (primaryText != null && !primaryText.isBlank()) {
+            return primaryText;
+        }
+        return fallbackText == null ? "" : fallbackText;
+    }
+
+    private static final class StreamingReplyAccumulator {
+
+        private final AssistantToolMode toolMode;
+        private final Consumer<String> deltaConsumer;
+        private final StringBuilder emittedReply = new StringBuilder();
+        private final StringBuilder currentModelPass = new StringBuilder();
+        private boolean hasCompletedToolCallPass;
+
+        private StreamingReplyAccumulator(AssistantToolMode toolMode, Consumer<String> deltaConsumer) {
+            this.toolMode = toolMode;
+            this.deltaConsumer = deltaConsumer;
+        }
+
+        private void onModelStreaming(String candidateText) {
+            if (shouldBufferCurrentModelPass()) {
+                appendCurrentModelPass(candidateText);
+                return;
+            }
+            emitDelta(candidateText);
+        }
+
+        private void onModelFinished(AssistantMessage assistantMessage) {
+            if (assistantMessage.hasToolCalls()) {
+                currentModelPass.setLength(0);
+                hasCompletedToolCallPass = true;
+                return;
+            }
+            if (shouldBufferCurrentModelPass()) {
+                String finalText = firstNonBlank(assistantMessage.getText(), currentModelPass.toString());
+                currentModelPass.setLength(0);
+                emitDelta(finalText);
+                return;
+            }
+            if (emittedReply.isEmpty()) {
+                emitDelta(assistantMessage.getText());
+            }
+        }
+
+        private void appendCurrentModelPass(String candidateText) {
+            String delta = normalizeStreamingDelta(candidateText, currentModelPass.toString());
+            if (!delta.isBlank()) {
+                currentModelPass.append(delta);
+            }
+        }
+
+        private void emitDelta(String candidateText) {
+            String delta = normalizeStreamingDelta(candidateText, emittedReply.toString());
+            if (delta.isBlank()) {
+                return;
+            }
+            emittedReply.append(delta);
+            deltaConsumer.accept(delta);
+        }
+
+        private boolean shouldBufferCurrentModelPass() {
+            return toolMode == AssistantToolMode.KB_SEARCH && !hasCompletedToolCallPass;
+        }
+
+        private String reply() {
+            return emittedReply.toString();
+        }
     }
 
     private String abbreviate(String text) {

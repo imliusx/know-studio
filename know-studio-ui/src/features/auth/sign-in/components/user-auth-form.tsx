@@ -17,6 +17,7 @@ import {
   FieldSeparator,
 } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { PasswordInput } from '../../components/password-input'
 
 type FieldKey = 'loginId' | 'password'
 type FieldErrors = Partial<Record<FieldKey, string>>
@@ -148,10 +149,9 @@ export function UserAuthForm({
                     忘记密码？
                   </Link>
                 </div>
-                <Input
+                <PasswordInput
                   id='password'
                   name='password'
-                  type='password'
                   autoComplete='current-password'
                   value={values.password}
                   onChange={(event) =>

@@ -1,6 +1,12 @@
-import { useMemo, useState } from "react"
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type ChangeEvent,
+  type FormEvent,
+} from "react"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { Link } from "@tanstack/react-router"
+import { Link, useNavigate } from "@tanstack/react-router"
 import {
   type ColumnDef,
   type ColumnFiltersState,
@@ -45,6 +51,7 @@ import {
   type DocumentListItem,
   type DocumentPreview,
 } from "@/api/documents"
+import { createGroup, getMyGroups } from "@/api/groups"
 import { extractApiError } from "@/api/http"
 import { Header } from "@/components/layout/header"
 import { HeaderActions } from "@/components/layout/header-actions"
@@ -64,6 +71,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -82,6 +90,22 @@ import {
   DataTableToolbar,
 } from "@/components/data-table"
 import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field"
+import { Input } from "@/components/ui/input"
+import { Loader } from "@/components/ui/loader"
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {
   Table,
   TableBody,
   TableCell,
@@ -90,20 +114,32 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
+import {
+  uploadDocumentWithResume,
+  type UploadProgressPayload,
+} from "./document-upload"
 import { DocumentStatusBadge } from "./document-status-badge"
-import { formatDateTime, formatFileSize } from "./shared"
+import { formatDateTime, formatFileSize, mergeGroups } from "./shared"
 
 export function DocumentsPage() {
   const documentManager = useDocumentManagement()
+  const groupsQuery = useQuery({
+    queryKey: ["groups", "my"],
+    queryFn: getMyGroups,
+  })
+  const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
+  const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
   const [activeView, setActiveView] = useState("knowledge-bases")
   const stats = useMemo(
-    () => getKnowledgeBaseStats(documentManager.documents),
-    [documentManager.documents]
+    () => getKnowledgeBaseStats(groups, documentManager.documents),
+    [groups, documentManager.documents]
   )
   const knowledgeBases = useMemo(
-    () => getKnowledgeBases(documentManager.documents),
-    [documentManager.documents]
+    () => getKnowledgeBases(groups, documentManager.documents),
+    [groups, documentManager.documents]
   )
+  const isLoading = documentManager.isLoading || groupsQuery.isPending
 
   return (
     <>
@@ -117,7 +153,7 @@ export function DocumentsPage() {
             <KnowledgeBaseBreadcrumb />
             <h2 className="text-2xl font-bold tracking-tight">知识库管理</h2>
           </div>
-          <KnowledgeBasePrimaryButtons />
+          <KnowledgeBasePrimaryButtons groups={groups} />
         </div>
 
         <KnowledgeBaseStats stats={stats} />
@@ -134,13 +170,14 @@ export function DocumentsPage() {
           <TabsContent value="knowledge-bases" className="m-0 flex flex-col">
             <KnowledgeBaseList
               data={knowledgeBases}
-              isLoading={documentManager.isLoading}
+              isLoading={isLoading}
             />
           </TabsContent>
           <TabsContent value="documents" className="m-0 flex flex-1 flex-col">
             <KnowledgeBaseTable
               data={documentManager.documents}
-              isLoading={documentManager.isLoading}
+              isLoading={isLoading}
+              groupNameById={groupNameById}
               isActionPending={documentManager.isActionPending}
               isPreviewPending={documentManager.isPreviewPending}
               onPreview={documentManager.handlePreview}
@@ -164,13 +201,15 @@ export function DocumentsPage() {
 
 export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
   const documentManager = useDocumentManagement()
-  const knowledgeBases = useMemo(
-    () => getKnowledgeBases(documentManager.documents),
-    [documentManager.documents]
-  )
-  const knowledgeBase = knowledgeBases.find((item) => item.groupId === groupId)
+  const groupsQuery = useQuery({
+    queryKey: ["groups", "my"],
+    queryFn: getMyGroups,
+  })
+  const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
+  const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
+  const knowledgeBase = groups.find((item) => item.groupId === groupId)
   const knowledgeBaseName =
-    knowledgeBase?.name ?? formatKnowledgeBaseName(groupId)
+    knowledgeBase?.groupName ?? formatKnowledgeBaseName(groupId)
   const documents = useMemo(
     () =>
       documentManager.documents.filter(
@@ -178,6 +217,8 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
       ),
     [documentManager.documents, groupId]
   )
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
+  const isLoading = documentManager.isLoading || groupsQuery.isPending
 
   return (
     <>
@@ -200,7 +241,7 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
                 返回知识库
               </Link>
             </Button>
-            <Button onClick={() => toast.info("文档上传流程稍后接入")}>
+            <Button onClick={() => setIsUploadDialogOpen(true)}>
               上传文档
               <Upload data-icon="inline-end" />
             </Button>
@@ -209,8 +250,9 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
 
         <KnowledgeBaseTable
           data={documents}
-          isLoading={documentManager.isLoading}
+          isLoading={isLoading}
           knowledgeBaseName={knowledgeBaseName}
+          groupNameById={groupNameById}
           searchPlaceholder="按文档名称、格式或上传人搜索"
           isActionPending={documentManager.isActionPending}
           isPreviewPending={documentManager.isPreviewPending}
@@ -226,6 +268,12 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
         onOpenChange={(open) => {
           if (!open) documentManager.closePreview()
         }}
+      />
+      <UploadDocumentDialog
+        open={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
+        groups={groups}
+        defaultGroupId={groupId}
       />
     </>
   )
@@ -297,10 +345,7 @@ function useDocumentManagement() {
   })
 
   const backendDocuments = documentsQuery.data ?? []
-  const isUsingMockDocuments = backendDocuments.length === 0
-  const documents = isUsingMockDocuments
-    ? mockKnowledgeDocuments
-    : backendDocuments
+  const documents = backendDocuments
 
   function handlePreview(document: DocumentListItem) {
     if (document.previewText) {
@@ -355,7 +400,7 @@ function useDocumentManagement() {
   return {
     documents,
     preview,
-    isLoading: documentsQuery.isPending && !isUsingMockDocuments,
+    isLoading: documentsQuery.isPending,
     isActionPending: actionMutation.isPending,
     isPreviewPending: previewMutation.isPending,
     handlePreview,
@@ -383,9 +428,11 @@ type KnowledgeBaseItem = {
   processingCount: number
   failedCount: number
   totalSize: number
-  updatedAt: string
+  updatedAt: string | null
   uploaderNames: string[]
 }
+
+type ManagedGroup = ReturnType<typeof mergeGroups>[number]
 
 const knowledgeBaseNameByGroupId = new Map<number, string>([
   [1, "销售作战知识库"],
@@ -413,8 +460,37 @@ function formatKnowledgeBaseEmbeddingModel(groupId: number) {
   return knowledgeBaseEmbeddingModelByGroupId.get(groupId) ?? "bge-m3"
 }
 
-function getKnowledgeBases(documents: DocumentListItem[]) {
+function getKnowledgeBaseDisplayName(
+  groupId: number,
+  groupNameById?: Map<number, string>
+) {
+  return groupNameById?.get(groupId) ?? formatKnowledgeBaseName(groupId)
+}
+
+function getGroupNameById(groups: ManagedGroup[]) {
+  return new Map(groups.map((group) => [group.groupId, group.groupName]))
+}
+
+function getKnowledgeBases(
+  groups: ManagedGroup[],
+  documents: DocumentListItem[]
+) {
   const byGroupId = new Map<number, KnowledgeBaseItem>()
+
+  for (const group of groups) {
+    byGroupId.set(group.groupId, {
+      groupId: group.groupId,
+      name: group.groupName,
+      embeddingModel: formatKnowledgeBaseEmbeddingModel(group.groupId),
+      documentCount: 0,
+      readyCount: 0,
+      processingCount: 0,
+      failedCount: 0,
+      totalSize: 0,
+      updatedAt: null,
+      uploaderNames: [],
+    })
+  }
 
   for (const document of documents) {
     const item = byGroupId.get(document.groupId) ?? {
@@ -426,14 +502,14 @@ function getKnowledgeBases(documents: DocumentListItem[]) {
       processingCount: 0,
       failedCount: 0,
       totalSize: 0,
-      updatedAt: document.uploadedAt,
+      updatedAt: null,
       uploaderNames: [],
     }
 
     item.documentCount += 1
     item.totalSize += document.fileSize
     item.updatedAt =
-      new Date(document.uploadedAt) > new Date(item.updatedAt)
+      !item.updatedAt || new Date(document.uploadedAt) > new Date(item.updatedAt)
         ? document.uploadedAt
         : item.updatedAt
 
@@ -449,12 +525,18 @@ function getKnowledgeBases(documents: DocumentListItem[]) {
   }
 
   return Array.from(byGroupId.values()).sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    (a, b) =>
+      new Date(b.updatedAt ?? 0).getTime() -
+        new Date(a.updatedAt ?? 0).getTime() || b.groupId - a.groupId
   )
 }
 
-function getKnowledgeBaseStats(documents: DocumentListItem[]) {
-  const knowledgeBaseCount = new Set(documents.map((item) => item.groupId)).size
+function getKnowledgeBaseStats(
+  groups: ManagedGroup[],
+  documents: DocumentListItem[]
+) {
+  const knowledgeBaseCount =
+    groups.length || new Set(documents.map((item) => item.groupId)).size
   const processingCount = documents.filter(
     (item) => item.status === "PROCESSING"
   ).length
@@ -526,22 +608,326 @@ function KnowledgeBaseStats({ stats }: { stats: KnowledgeBaseStat[] }) {
   )
 }
 
-function KnowledgeBasePrimaryButtons() {
+function KnowledgeBasePrimaryButtons({ groups }: { groups: ManagedGroup[] }) {
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
+
   return (
-    <div className="flex gap-2">
-      <Button
-        variant="outline"
-        onClick={() => toast.info("文档导入流程稍后接入")}
-      >
-        导入文档
-        <Upload data-icon="inline-end" />
-      </Button>
-      <Button onClick={() => toast.info("知识库创建流程稍后接入")}>
-        新建
-        <Plus data-icon="inline-end" />
-      </Button>
+    <>
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          disabled={groups.length === 0}
+          onClick={() => setIsUploadDialogOpen(true)}
+        >
+          导入文档
+          <Upload data-icon="inline-end" />
+        </Button>
+        <Button onClick={() => setIsCreateDialogOpen(true)}>
+          新建
+          <Plus data-icon="inline-end" />
+        </Button>
+      </div>
+      <CreateKnowledgeBaseDialog
+        open={isCreateDialogOpen}
+        onOpenChange={setIsCreateDialogOpen}
+      />
+      <UploadDocumentDialog
+        open={isUploadDialogOpen}
+        onOpenChange={setIsUploadDialogOpen}
+        groups={groups}
+      />
+    </>
+  )
+}
+
+type CreateKnowledgeBaseDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+function CreateKnowledgeBaseDialog({
+  open,
+  onOpenChange,
+}: CreateKnowledgeBaseDialogProps) {
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+  const [values, setValues] = useState({ name: "", description: "" })
+
+  const createMutation = useMutation({
+    mutationFn: createGroup,
+    onSuccess: (groupId) => {
+      toast.success("知识库已创建")
+      setValues({ name: "", description: "" })
+      onOpenChange(false)
+      queryClient.invalidateQueries({ queryKey: ["groups"] })
+      queryClient.invalidateQueries({ queryKey: ["documents"] })
+      navigate({
+        to: "/admin/documents/$groupId",
+        params: { groupId: String(groupId) },
+      })
+    },
+    onError: (error) => toast.error(extractApiError(error, "创建知识库失败")),
+  })
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const name = values.name.trim()
+    if (!name) return
+
+    createMutation.mutate({
+      name,
+      description: values.description.trim() || undefined,
+    })
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>新建知识库</DialogTitle>
+          <DialogDescription>
+            创建企业知识空间后，可以继续上传文档并用于问答检索。
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <FieldGroup>
+            <Field>
+              <FieldLabel htmlFor="knowledgeBaseName">知识库名称</FieldLabel>
+              <Input
+                id="knowledgeBaseName"
+                value={values.name}
+                maxLength={128}
+                disabled={createMutation.isPending}
+                onChange={(event) =>
+                  setValues((prev) => ({ ...prev, name: event.target.value }))
+                }
+              />
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="knowledgeBaseDescription">描述</FieldLabel>
+              <Textarea
+                id="knowledgeBaseDescription"
+                value={values.description}
+                maxLength={512}
+                disabled={createMutation.isPending}
+                className="min-h-20"
+                onChange={(event) =>
+                  setValues((prev) => ({
+                    ...prev,
+                    description: event.target.value,
+                  }))
+                }
+              />
+              <FieldDescription>
+                可填写资料范围、适用团队或检索场景。
+              </FieldDescription>
+            </Field>
+          </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={createMutation.isPending}
+              onClick={() => onOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="submit"
+              disabled={createMutation.isPending || !values.name.trim()}
+            >
+              {createMutation.isPending ? (
+                <Loader variant="classic" size="sm" />
+              ) : null}
+              创建
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+type UploadDocumentDialogProps = {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  groups: ManagedGroup[]
+  defaultGroupId?: number
+}
+
+function UploadDocumentDialog({
+  open,
+  onOpenChange,
+  groups,
+  defaultGroupId,
+}: UploadDocumentDialogProps) {
+  const queryClient = useQueryClient()
+  const [selectedGroupId, setSelectedGroupId] = useState("")
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [progress, setProgress] = useState<UploadProgressPayload | null>(null)
+
+  useEffect(() => {
+    if (!open) return
+
+    setSelectedGroupId((current) => {
+      if (defaultGroupId) return String(defaultGroupId)
+      if (current) return current
+      return groups[0] ? String(groups[0].groupId) : ""
+    })
+  }, [defaultGroupId, groups, open])
+
+  const uploadMutation = useMutation({
+    mutationFn: async () => {
+      const groupId = Number(selectedGroupId)
+      if (!Number.isFinite(groupId) || groupId <= 0) {
+        throw new Error("请选择知识库")
+      }
+      if (!selectedFile) {
+        throw new Error("请选择要上传的文档")
+      }
+
+      return uploadDocumentWithResume(groupId, selectedFile, setProgress)
+    },
+    onSuccess: () => {
+      toast.success("文档已上传，正在解析入库")
+      queryClient.invalidateQueries({ queryKey: ["documents"] })
+      onOpenChange(false)
+      setSelectedFile(null)
+      setProgress(null)
+    },
+    onError: (error) => toast.error(extractApiError(error, "上传文档失败")),
+  })
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setSelectedFile(event.target.files?.[0] ?? null)
+    setProgress(null)
+  }
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    uploadMutation.mutate()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-lg">
+        <DialogHeader>
+          <DialogTitle>上传文档</DialogTitle>
+          <DialogDescription>
+            文档上传完成后会自动进入解析、切片和向量化流程。
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <FieldGroup>
+            <Field>
+              <FieldLabel>知识库</FieldLabel>
+              <Select
+                value={selectedGroupId}
+                disabled={Boolean(defaultGroupId) || uploadMutation.isPending}
+                onValueChange={setSelectedGroupId}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="选择知识库" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectGroup>
+                    {groups.map((group) => (
+                      <SelectItem
+                        key={group.groupId}
+                        value={String(group.groupId)}
+                      >
+                        {group.groupName}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="knowledgeBaseDocument">文档文件</FieldLabel>
+              <Input
+                id="knowledgeBaseDocument"
+                type="file"
+                disabled={uploadMutation.isPending}
+                onChange={handleFileChange}
+              />
+              <FieldDescription>
+                小文件直传，大文件自动使用分片续传。
+              </FieldDescription>
+            </Field>
+            {selectedFile ? (
+              <div className="flex items-center justify-between gap-3 rounded-lg border bg-muted/30 px-3 py-2 text-sm">
+                <span className="truncate">{selectedFile.name}</span>
+                <span className="shrink-0 text-muted-foreground">
+                  {formatFileSize(selectedFile.size)}
+                </span>
+              </div>
+            ) : null}
+            {progress ? <UploadProgressLine progress={progress} /> : null}
+          </FieldGroup>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={uploadMutation.isPending}
+              onClick={() => onOpenChange(false)}
+            >
+              取消
+            </Button>
+            <Button
+              type="submit"
+              disabled={
+                uploadMutation.isPending ||
+                !selectedGroupId ||
+                !selectedFile ||
+                groups.length === 0
+              }
+            >
+              {uploadMutation.isPending ? (
+                <Loader variant="classic" size="sm" />
+              ) : null}
+              上传
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function UploadProgressLine({
+  progress,
+}: {
+  progress: UploadProgressPayload
+}) {
+  return (
+    <div className="flex flex-col gap-2 text-sm">
+      <div className="flex items-center justify-between gap-3">
+        <span className="text-muted-foreground">
+          {formatUploadStage(progress.stage)}
+        </span>
+        <span>{progress.percent}%</span>
+      </div>
+      <div className="h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${progress.percent}%` }}
+        />
+      </div>
     </div>
   )
+}
+
+function formatUploadStage(stage: UploadProgressPayload["stage"]) {
+  const stageText = {
+    hashing: "计算文件指纹",
+    checking: "检查上传状态",
+    uploading: "上传文档",
+    completing: "完成入库",
+  }
+
+  return stageText[stage]
 }
 
 type KnowledgeBaseListProps = {
@@ -971,6 +1357,7 @@ type KnowledgeBaseTableProps = {
   data: DocumentListItem[]
   isLoading: boolean
   knowledgeBaseName?: string | null
+  groupNameById?: Map<number, string>
   searchPlaceholder?: string
   isActionPending: boolean
   isPreviewPending: boolean
@@ -1001,206 +1388,6 @@ const documentStatusFilters = [
   },
 ]
 
-const mockKnowledgeDocuments: DocumentListItem[] = [
-  {
-    documentId: -1001,
-    groupId: 1,
-    fileName: "销售团队季度作战手册.pdf",
-    fileExt: "pdf",
-    contentType: "application/pdf",
-    fileSize: 8_742_912,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-28T09:18:32+08:00",
-    uploaderUserId: 101,
-    uploaderUserCode: "U-KNOW-101",
-    uploaderDisplayName: "林知远",
-    previewText:
-      "本手册覆盖线索分层、商机推进节奏、客户异议处理、报价策略与季度复盘模板。重点强调企业知识库中可复用的话术、行业案例和赢单记录。",
-  },
-  {
-    documentId: -1002,
-    groupId: 1,
-    fileName: "研发效能度量指标说明.md",
-    fileExt: "md",
-    contentType: "text/markdown",
-    fileSize: 126_384,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-27T16:42:05+08:00",
-    uploaderUserId: 102,
-    uploaderUserCode: "U-KNOW-102",
-    uploaderDisplayName: "周眠",
-    previewText:
-      "指标包含需求吞吐、交付周期、缺陷逃逸率、构建稳定性和知识沉淀覆盖率。文档说明了每个指标的计算口径和使用边界。",
-  },
-  {
-    documentId: -1003,
-    groupId: 2,
-    fileName: "客户成功续约风险识别清单.xlsx",
-    fileExt: "xlsx",
-    contentType:
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    fileSize: 1_483_776,
-    status: "PROCESSING",
-    failureReason: null,
-    uploadedAt: "2026-06-26T11:07:44+08:00",
-    uploaderUserId: 103,
-    uploaderUserCode: "U-KNOW-103",
-    uploaderDisplayName: "陈一白",
-    previewText:
-      "该清单包含合同到期时间、产品使用频次、工单健康度、关键联系人变化、预算风险和竞品触达迹象等字段。",
-  },
-  {
-    documentId: -1004,
-    groupId: 2,
-    fileName: "数据安全分级与脱敏规范.docx",
-    fileExt: "docx",
-    contentType:
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    fileSize: 2_908_160,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-24T14:23:11+08:00",
-    uploaderUserId: 104,
-    uploaderUserCode: "U-KNOW-104",
-    uploaderDisplayName: "许若安",
-    previewText:
-      "规范将数据分为公开、内部、敏感和高敏四级，并定义了展示脱敏、导出审批、日志审计和访问权限控制要求。",
-  },
-  {
-    documentId: -1005,
-    groupId: 3,
-    fileName: "生产事故复盘-搜索服务超时.pdf",
-    fileExt: "pdf",
-    contentType: "application/pdf",
-    fileSize: 5_412_864,
-    status: "FAILED",
-    failureReason: "示例：文档包含扫描图片，OCR 质量不足",
-    uploadedAt: "2026-06-23T20:35:29+08:00",
-    uploaderUserId: 105,
-    uploaderUserCode: "U-KNOW-105",
-    uploaderDisplayName: "赵临川",
-    previewText:
-      "事故影响搜索接口 P95 延迟和问答召回稳定性。复盘内容包括告警时间线、根因、止血动作、长期治理项和责任人。",
-  },
-  {
-    documentId: -1006,
-    groupId: 3,
-    fileName: "新员工入职知识导航.html",
-    fileExt: "html",
-    contentType: "text/html",
-    fileSize: 342_512,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-22T10:12:50+08:00",
-    uploaderUserId: 106,
-    uploaderUserCode: "U-KNOW-106",
-    uploaderDisplayName: "何青棠",
-    previewText:
-      "导航汇总了账号开通、办公系统、研发流程、财务报销、行政支持和常用 FAQ，适合作为企业助手的入门知识源。",
-  },
-  {
-    documentId: -1007,
-    groupId: 4,
-    fileName: "法务合同审查常见条款库.docx",
-    fileExt: "docx",
-    contentType:
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    fileSize: 3_219_456,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-20T17:56:18+08:00",
-    uploaderUserId: 107,
-    uploaderUserCode: "U-KNOW-107",
-    uploaderDisplayName: "宋霁",
-    previewText:
-      "条款库覆盖保密义务、知识产权归属、违约责任、数据处理、服务可用性、终止条件和争议解决等审查要点。",
-  },
-  {
-    documentId: -1008,
-    groupId: 4,
-    fileName: "市场活动复盘与线索转化分析.pptx",
-    fileExt: "pptx",
-    contentType:
-      "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    fileSize: 12_684_288,
-    status: "PROCESSING",
-    failureReason: null,
-    uploadedAt: "2026-06-19T13:04:27+08:00",
-    uploaderUserId: 108,
-    uploaderUserCode: "U-KNOW-108",
-    uploaderDisplayName: "孟知夏",
-    previewText:
-      "复盘材料包含活动主题、渠道投放、报名转化、现场互动、销售跟进和 ROI 评估，可用于回答市场投放相关问题。",
-  },
-  {
-    documentId: -1009,
-    groupId: 5,
-    fileName: "财务报销制度与审批口径.pdf",
-    fileExt: "pdf",
-    contentType: "application/pdf",
-    fileSize: 2_146_304,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-18T08:45:13+08:00",
-    uploaderUserId: 109,
-    uploaderUserCode: "U-KNOW-109",
-    uploaderDisplayName: "唐予",
-    previewText:
-      "制度说明差旅、招待、采购、培训和日常办公费用的报销标准、凭证要求、审批层级和异常处理方式。",
-  },
-  {
-    documentId: -1010,
-    groupId: 5,
-    fileName: "客服知识库-账号登录问题.csv",
-    fileExt: "csv",
-    contentType: "text/csv",
-    fileSize: 684_032,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-17T19:28:09+08:00",
-    uploaderUserId: 110,
-    uploaderUserCode: "U-KNOW-110",
-    uploaderDisplayName: "梁栖",
-    previewText:
-      "CSV 包含登录失败、验证码收不到、账号锁定、组织切换、单点登录配置和密码重置等高频客服问答。",
-  },
-  {
-    documentId: -1011,
-    groupId: 6,
-    fileName: "供应商准入评分表.xlsx",
-    fileExt: "xlsx",
-    contentType:
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    fileSize: 958_464,
-    status: "FAILED",
-    failureReason: "示例：表格存在合并单元格，解析结构需要人工确认",
-    uploadedAt: "2026-06-16T15:17:36+08:00",
-    uploaderUserId: 111,
-    uploaderUserCode: "U-KNOW-111",
-    uploaderDisplayName: "陆宁",
-    previewText:
-      "评分表包含资质、交付能力、价格、服务响应、安全合规和历史合作记录等维度，用于采购准入评估。",
-  },
-  {
-    documentId: -1012,
-    groupId: 6,
-    fileName: "RAG 问答效果评测样本集.json",
-    fileExt: "json",
-    contentType: "application/json",
-    fileSize: 512_768,
-    status: "READY",
-    failureReason: null,
-    uploadedAt: "2026-06-15T21:09:02+08:00",
-    uploaderUserId: 112,
-    uploaderUserCode: "U-KNOW-112",
-    uploaderDisplayName: "顾北辰",
-    previewText:
-      "样本集包含问题、标准答案、参考文档、召回片段和评分维度，可用于验证知识库问答链路的准确性与稳定性。",
-  },
-]
-
 function isMockDocument(document: DocumentListItem) {
   return document.documentId < 0
 }
@@ -1209,6 +1396,7 @@ function KnowledgeBaseTable({
   data,
   isLoading,
   knowledgeBaseName = null,
+  groupNameById,
   searchPlaceholder = "按文档名称、知识库或上传人搜索",
   isActionPending,
   isPreviewPending,
@@ -1294,7 +1482,8 @@ function KnowledgeBaseTable({
                 className: "ps-1",
                 tdClassName: "ps-4",
               },
-              cell: ({ row }) => formatKnowledgeBaseName(row.original.groupId),
+              cell: ({ row }) =>
+                getKnowledgeBaseDisplayName(row.original.groupId, groupNameById),
             } satisfies ColumnDef<DocumentListItem>,
           ]),
       {
@@ -1353,6 +1542,7 @@ function KnowledgeBaseTable({
     [
       isSelectionMode,
       knowledgeBaseName,
+      groupNameById,
       isActionPending,
       isPreviewPending,
       onDelete,
@@ -1384,7 +1574,7 @@ function KnowledgeBaseTable({
       const document = row.original
       const text = [
         document.fileName,
-        formatKnowledgeBaseName(document.groupId),
+        getKnowledgeBaseDisplayName(document.groupId, groupNameById),
         document.fileExt,
         document.contentType,
         document.failureReason,

@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils"
+import { useEffect } from "react"
 import { StickToBottom, useStickToBottomContext } from "use-stick-to-bottom"
 
 export type ChatContainerRootProps = {
@@ -17,6 +18,12 @@ export type ChatContainerScrollAnchorProps = {
   className?: string
   ref?: React.RefObject<HTMLDivElement>
 } & React.HTMLAttributes<HTMLDivElement>
+
+export type ChatContainerScrollToBottomProps = {
+  trigger: number
+  behavior?: ScrollBehavior
+  duration?: number
+}
 
 function ChatContainerRoot({
   children,
@@ -81,4 +88,29 @@ function ChatContainerScrollAnchor({
   )
 }
 
-export { ChatContainerRoot, ChatContainerContent, ChatContainerScrollAnchor }
+function ChatContainerScrollToBottom({
+  trigger,
+  behavior = "smooth",
+  duration = 300,
+}: ChatContainerScrollToBottomProps) {
+  const { scrollToBottom } = useStickToBottomContext()
+
+  useEffect(() => {
+    if (trigger <= 0) return
+
+    void scrollToBottom({
+      animation: behavior,
+      duration,
+      ignoreEscapes: true,
+    })
+  }, [behavior, duration, scrollToBottom, trigger])
+
+  return null
+}
+
+export {
+  ChatContainerRoot,
+  ChatContainerContent,
+  ChatContainerScrollAnchor,
+  ChatContainerScrollToBottom,
+}

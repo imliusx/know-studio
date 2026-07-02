@@ -62,17 +62,11 @@ public class AssistantKnowledgeBaseTool {
         Long groupId = readGroupId(toolContext);
         AssistantKnowledgeBaseToolResultHolder resultHolder = readResultHolder(toolContext);
 
-        // 防重复调用守卫：本轮已检索过就不再检索，直接让模型用上一次的结果。
+        // 防重复调用守卫：本轮已检索过就不再检索，回放首次检索结果供模型完成最终回答。
         if (resultHolder.hasCompletedSearch()) {
-            return new KnowledgeBaseSearchToolResponse(
-                    false,
-                    "DUPLICATE_TOOL_CALL",
-                    "本轮已经完成过一次知识库检索，请基于上一条工具返回的 evidences 直接给出最终回答，不要再次调用工具。",
-                    null,
-                    "本轮知识库检索结果已经返回，必须停止继续调用工具并生成最终回答。",
-                    List.of(),
-                    resultHolder.currentCitations()
-            );
+            return resultHolder.currentSearchResponse()
+                    .map(this::duplicateSearchResponse)
+                    .orElseGet(this::emptyDuplicateSearchResponse);
         }
 
         String safeQuery = requireQuery(query);
@@ -81,8 +75,7 @@ public class AssistantKnowledgeBaseTool {
         List<Document> documents = evidenceBundle.documents();
         if (documents == null || documents.isEmpty()) {
             // 没召回到证据：记录空引用，返回"证据不足"让模型拒答（与 QA 链路一致的防幻觉策略）。
-            resultHolder.recordCitations(List.of());
-            return new KnowledgeBaseSearchToolResponse(
+            KnowledgeBaseSearchToolResponse response = new KnowledgeBaseSearchToolResponse(
                     false,
                     INSUFFICIENT_CODE,
                     INSUFFICIENT_MESSAGE,
@@ -91,11 +84,12 @@ public class AssistantKnowledgeBaseTool {
                     List.of(),
                     List.of()
             );
+            resultHolder.recordSearchResponse(response);
+            return response;
         }
         // 组装引用清单并记录到 holder，供本轮后续/防重复判断使用。
         List<AskQuestionResponse.Citation> citations = citationAssembler.assembleDocuments(documents);
-        resultHolder.recordCitations(citations);
-        return new KnowledgeBaseSearchToolResponse(
+        KnowledgeBaseSearchToolResponse response = new KnowledgeBaseSearchToolResponse(
                 true,
                 null,
                 null,
@@ -103,6 +97,35 @@ public class AssistantKnowledgeBaseTool {
                 evidenceBundle.evidenceGuidance(),
                 documents.stream().map(this::toEvidence).toList(),
                 citations
+        );
+        resultHolder.recordSearchResponse(response);
+        return response;
+    }
+
+    private KnowledgeBaseSearchToolResponse duplicateSearchResponse(KnowledgeBaseSearchToolResponse previousResponse) {
+        if (!previousResponse.found()) {
+            return previousResponse;
+        }
+        return new KnowledgeBaseSearchToolResponse(
+                previousResponse.found(),
+                "DUPLICATE_TOOL_CALL",
+                "本轮已经完成过一次知识库检索，下面重复返回首次检索结果。请立即基于 evidences 生成最终回答，不要再次调用工具。",
+                previousResponse.evidenceLevel(),
+                previousResponse.evidenceGuidance(),
+                previousResponse.evidences(),
+                previousResponse.citations()
+        );
+    }
+
+    private KnowledgeBaseSearchToolResponse emptyDuplicateSearchResponse() {
+        return new KnowledgeBaseSearchToolResponse(
+                false,
+                "DUPLICATE_TOOL_CALL",
+                "本轮已经完成过一次知识库检索，请停止继续调用工具并生成最终回答。",
+                null,
+                "本轮知识库检索结果已经返回，必须停止继续调用工具并生成最终回答。",
+                List.of(),
+                List.of()
         );
     }
 

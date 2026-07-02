@@ -42,6 +42,7 @@ public class AssistantShortTermMemoryHook extends MessagesModelHook {
     private static final Logger log = LoggerFactory.getLogger(AssistantShortTermMemoryHook.class);
     private static final int RECENT_MESSAGE_LIMIT = 10;        // 从库里取最近 10 条历史注入上下文
     private static final int RUNTIME_TOKEN_THRESHOLD = 50000;  // 运行时上下文 token 超过该阈值则触发压缩
+    private static final String LEGACY_RECENT_MESSAGE_PREFIX = "[历史消息 | 模式：";
 
     private final AssistantConversationService assistantConversationService;
 
@@ -190,8 +191,8 @@ public class AssistantShortTermMemoryHook extends MessagesModelHook {
                 continue;
             }
             switch (recentMessage.role()) {
-                case USER -> messages.add(new UserMessage(formatRecentMessage(recentMessage)));
-                case ASSISTANT -> messages.add(new AssistantMessage(formatRecentMessage(recentMessage)));
+                case USER -> messages.add(new UserMessage(normalizeRecentMessageContent(recentMessage)));
+                case ASSISTANT -> messages.add(new AssistantMessage(normalizeRecentMessageContent(recentMessage)));
                 case TOOL -> messages.add(new AssistantMessage(formatToolMessage(recentMessage.content())));
             }
         }
@@ -217,9 +218,19 @@ public class AssistantShortTermMemoryHook extends MessagesModelHook {
         }
     }
 
-    private String formatRecentMessage(AssistantMessageVO message) {
-        String mode = message.toolMode() == null ? "UNKNOWN" : message.toolMode().name();
-        return ("[历史消息 | 模式：" + mode + "]" + System.lineSeparator() + message.content()).trim();
+    private String normalizeRecentMessageContent(AssistantMessageVO message) {
+        String content = message.content().trim();
+        if (!content.startsWith(LEGACY_RECENT_MESSAGE_PREFIX)) {
+            return content;
+        }
+        int lineBreakIndex = content.indexOf(System.lineSeparator());
+        if (lineBreakIndex < 0) {
+            lineBreakIndex = content.indexOf('\n');
+        }
+        if (lineBreakIndex < 0 || lineBreakIndex + 1 >= content.length()) {
+            return content;
+        }
+        return content.substring(lineBreakIndex + 1).trim();
     }
 
     private String formatToolMessage(String content) {
