@@ -49,6 +49,14 @@ import { extractApiError } from "@/api/http"
 import { Header } from "@/components/layout/header"
 import { HeaderActions } from "@/components/layout/header-actions"
 import { Main } from "@/components/layout/main"
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -105,7 +113,8 @@ export function DocumentsPage() {
 
       <Main className="flex flex-1 flex-col gap-4 pt-4 sm:gap-6">
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <div>
+          <div className="flex flex-col gap-2">
+            <KnowledgeBaseBreadcrumb />
             <h2 className="text-2xl font-bold tracking-tight">知识库管理</h2>
           </div>
           <KnowledgeBasePrimaryButtons />
@@ -178,7 +187,8 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
 
       <Main className="flex flex-1 flex-col gap-4 pt-4 sm:gap-6">
         <div className="flex flex-wrap items-end justify-between gap-2">
-          <div className="min-w-0">
+          <div className="flex min-w-0 flex-col gap-2">
+            <KnowledgeBaseBreadcrumb knowledgeBaseName={knowledgeBaseName} />
             <h2 className="truncate text-2xl font-bold tracking-tight">
               {knowledgeBaseName}
             </h2>
@@ -218,6 +228,46 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
         }}
       />
     </>
+  )
+}
+
+type KnowledgeBaseBreadcrumbProps = {
+  knowledgeBaseName?: string
+}
+
+function KnowledgeBaseBreadcrumb({
+  knowledgeBaseName,
+}: KnowledgeBaseBreadcrumbProps) {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link to="/admin">管理后台</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        {knowledgeBaseName ? (
+          <>
+            <BreadcrumbItem>
+              <BreadcrumbLink asChild>
+                <Link to="/admin/documents">知识库</Link>
+              </BreadcrumbLink>
+            </BreadcrumbItem>
+            <BreadcrumbSeparator />
+            <BreadcrumbItem>
+              <BreadcrumbPage className="max-w-64 truncate">
+                {knowledgeBaseName}
+              </BreadcrumbPage>
+            </BreadcrumbItem>
+          </>
+        ) : (
+          <BreadcrumbItem>
+            <BreadcrumbPage>知识库</BreadcrumbPage>
+          </BreadcrumbItem>
+        )}
+      </BreadcrumbList>
+    </Breadcrumb>
   )
 }
 
@@ -543,6 +593,10 @@ function KnowledgeBaseList({ data, isLoading }: KnowledgeBaseListProps) {
               ),
               enableSorting: false,
               enableHiding: false,
+              meta: {
+                className: "w-10",
+                tdClassName: "w-10 ps-4",
+              },
             } satisfies ColumnDef<KnowledgeBaseItem>,
           ]
         : []),
@@ -600,9 +654,13 @@ function KnowledgeBaseList({ data, isLoading }: KnowledgeBaseListProps) {
         header: ({ column }) => (
           <DataTableColumnHeader column={column} title="状态分布" />
         ),
-        meta: { label: "状态分布", className: "ps-1", tdClassName: "ps-4" },
+        meta: {
+          label: "状态分布",
+          className: "ps-1 w-48",
+          tdClassName: "ps-4",
+        },
         cell: ({ row }) => (
-          <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+          <div className="flex flex-nowrap items-center gap-2 text-xs text-muted-foreground">
             <span>可用 {row.original.readyCount}</span>
             <span>处理中 {row.original.processingCount}</span>
             <span>失败 {row.original.failedCount}</span>
@@ -1202,6 +1260,10 @@ function KnowledgeBaseTable({
               ),
               enableSorting: false,
               enableHiding: false,
+              meta: {
+                className: "w-10",
+                tdClassName: "w-10 ps-4",
+              },
             } satisfies ColumnDef<DocumentListItem>,
           ]
         : []),
