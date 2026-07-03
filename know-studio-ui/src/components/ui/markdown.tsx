@@ -18,9 +18,16 @@ function parseMarkdownIntoBlocks(markdown: string): string[] {
   return tokens.map((token) => token.raw)
 }
 
+function normalizeMarkdownCodeFences(markdown: string): string {
+  return markdown
+    .replace(/([^\n])```([A-Za-z][\w-]*)(?=\s|$)/g, "$1\n\n```$2")
+    .replace(/(^|\n)(```[A-Za-z][\w-]*)[ \t]+(\S)/g, "$1$2\n$3")
+    .replace(/([^\n`])```(?=\s*(?:\n|$))/g, "$1\n```")
+}
+
 function extractLanguage(className?: string): string {
   if (!className) return "plaintext"
-  const match = className.match(/language-(\w+)/)
+  const match = className.match(/language-([\w-]+)/)
   return match ? match[1] : "plaintext"
 }
 
@@ -32,15 +39,15 @@ const INITIAL_COMPONENTS: Partial<Components> = {
 
     if (isInline) {
       return (
-        <span
+        <code
           className={cn(
-            "bg-primary-foreground rounded-sm px-1 font-mono text-sm",
+            "rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground",
             className
           )}
           {...props}
         >
           {children}
-        </span>
+        </code>
       )
     }
 
@@ -89,7 +96,14 @@ function MarkdownComponent({
 }: MarkdownProps) {
   const generatedId = useId()
   const blockId = id ?? generatedId
-  const blocks = useMemo(() => parseMarkdownIntoBlocks(children), [children])
+  const normalizedChildren = useMemo(
+    () => normalizeMarkdownCodeFences(children),
+    [children]
+  )
+  const blocks = useMemo(
+    () => parseMarkdownIntoBlocks(normalizedChildren),
+    [normalizedChildren]
+  )
 
   return (
     <div className={className}>

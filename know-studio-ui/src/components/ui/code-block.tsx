@@ -1,24 +1,44 @@
 import { cn } from "@/lib/utils"
-import React, { useEffect, useState } from "react"
+import { CheckIcon, CopyIcon } from "lucide-react"
+import React, { useEffect, useMemo, useState } from "react"
 import { codeToHtml } from "shiki"
-import githubDark from "shiki/themes/github-dark.mjs"
-import githubLight from "shiki/themes/github-light.mjs"
+import ayuDark from "shiki/themes/ayu-dark.mjs"
+import ayuLight from "shiki/themes/ayu-light.mjs"
 import { useTheme } from "@/context/theme-provider"
+import { Button } from "@/components/ui/button"
 
-const githubLightTokenBackground = {
-  ...githubLight,
-  colors: {
-    ...githubLight.colors,
-    "editor.background": "transparent",
+const ayuLightTokenBackground = {
+  ...ayuLight,
+  colorReplacements: {
+    "#f8f9fa": "transparent",
   },
 }
 
-const githubDarkTokenBackground = {
-  ...githubDark,
-  colors: {
-    ...githubDark.colors,
-    "editor.background": "transparent",
+const ayuDarkTokenBackground = {
+  ...ayuDark,
+  colorReplacements: {
+    "#0d1017": "transparent",
   },
+}
+
+function normalizeCodeIndent(code: string) {
+  let lines = code.replace(/\r\n?/g, "\n").split("\n")
+
+  while (lines[0]?.trim() === "") lines = lines.slice(1)
+  while (lines.at(-1)?.trim() === "") lines = lines.slice(0, -1)
+
+  const indents = lines
+    .filter((line) => line.trim() !== "")
+    .map((line) => line.match(/^[ \t]*/)?.[0].length ?? 0)
+
+  if (indents.length === 0) return ""
+
+  const minIndent = Math.min(...indents)
+  if (minIndent === 0) return lines.join("\n")
+
+  return lines
+    .map((line) => (line.trim() === "" ? "" : line.slice(minIndent)))
+    .join("\n")
 }
 
 export type CodeBlockProps = {
@@ -56,44 +76,97 @@ function CodeBlockCode({
   ...props
 }: CodeBlockCodeProps) {
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const { resolvedTheme } = useTheme()
+  const normalizedCode = useMemo(() => normalizeCodeIndent(code), [code])
   const shikiTheme =
     theme ??
     (resolvedTheme === "dark"
-      ? githubDarkTokenBackground
-      : githubLightTokenBackground)
+      ? ayuDarkTokenBackground
+      : ayuLightTokenBackground)
 
   useEffect(() => {
     async function highlight() {
-      if (!code) {
+      if (!normalizedCode) {
         setHighlightedHtml("<pre><code></code></pre>")
         return
       }
 
-      const html = await codeToHtml(code, { lang: language, theme: shikiTheme })
+      const html = await codeToHtml(normalizedCode, {
+        lang: language,
+        theme: shikiTheme,
+      })
       setHighlightedHtml(html)
     }
     highlight()
-  }, [code, language, shikiTheme])
+  }, [normalizedCode, language, shikiTheme])
+
+  useEffect(() => {
+    setCopied(false)
+  }, [normalizedCode])
+
+  async function handleCopyCode(event: React.MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation()
+
+    if (!normalizedCode) return
+
+    await navigator.clipboard.writeText(normalizedCode)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1200)
+  }
 
   const classNames = cn(
-    "w-full overflow-x-auto text-[13px] [&>pre]:px-4 [&>pre]:py-4",
+    "relative w-full overflow-x-auto text-[13px] [&_pre]:pt-10 [&_pre]:pr-14 [&_pre]:pb-4 [&_pre]:pl-6",
     className
   )
 
   // SSR fallback: render plain code if not hydrated yet
   return highlightedHtml ? (
-    <div
-      className={classNames}
-      dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-      {...props}
-    />
+    <div className={classNames} {...props}>
+      <CodeLanguageBadge language={language} />
+      <CopyCodeButton copied={copied} onClick={handleCopyCode} />
+      <div dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+    </div>
   ) : (
     <div className={classNames} {...props}>
+      <CodeLanguageBadge language={language} />
+      <CopyCodeButton copied={copied} onClick={handleCopyCode} />
       <pre>
-        <code>{code}</code>
+        <code>{normalizedCode}</code>
       </pre>
     </div>
+  )
+}
+
+function CodeLanguageBadge({ language }: { language: string }) {
+  return (
+    <span
+      className="absolute top-2 left-4 z-10 font-mono text-[11px] text-muted-foreground uppercase"
+    >
+      {language || "text"}
+    </span>
+  )
+}
+
+function CopyCodeButton({
+  copied,
+  onClick,
+}: {
+  copied: boolean
+  onClick: React.MouseEventHandler<HTMLButtonElement>
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      className="absolute top-2 right-2 z-10 text-muted-foreground"
+      onClick={onClick}
+      aria-label={copied ? "已复制代码" : "复制代码"}
+      title={copied ? "已复制代码" : "复制代码"}
+    >
+      {copied ? <CheckIcon /> : <CopyIcon />}
+    </Button>
   )
 }
 

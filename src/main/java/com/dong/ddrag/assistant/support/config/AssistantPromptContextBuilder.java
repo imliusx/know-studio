@@ -40,9 +40,14 @@ public class AssistantPromptContextBuilder {
                 2. 简短回答可以使用自然段。
                 3. 涉及规则、步骤、清单、对比、多个要点时，必须使用列表。
                 4. 代码、类名、方法名、字段名、常量、命令、路径使用行内代码。
-                5. 多行代码必须使用 fenced code block。
+                5. 多行代码、配置片段、JSON、SQL、Shell 命令块必须使用 fenced code block，并且必须标注语言。
                 6. 表格类内容使用 GitHub Flavored Markdown 表格。
                 7. 不要输出 JSON、XML、HTML 或伪协议格式，除非用户明确要求。
+                8. fenced code block 的语言标识使用常见小写名称，例如 ```java、```json、```bash、```sql、```typescript；不确定语言时使用最接近的语言标识，确实无法判断时才使用 ```text。
+                9. 不要使用缩进代码块代替 fenced code block。
+                10. fenced code block 的开始围栏和结束围栏必须独占一行，围栏前后必须保留换行。
+                11. 不要把 ```java、```json 等围栏接在正文、列表项或标点后面。
+                12. 不要在一个 fenced code block 内再输出新的 fenced code block。
 
                 ## 信息不足与不确定性处理
                 1. 如果缺少关键信息，不能假装确定。

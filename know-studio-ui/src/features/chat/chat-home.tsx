@@ -28,7 +28,7 @@ import {
 } from '@/api/assistant'
 import { getMyGroups } from '@/api/groups'
 import { extractApiError, isUnauthorizedError } from '@/api/http'
-import type { Citation } from '@/api/qa'
+import { askQuestion, type Citation } from '@/api/qa'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
 import { mergeGroups } from '@/features/ddrag/shared'
@@ -183,8 +183,10 @@ import { toast } from 'sonner'
 
 type ChatMessage = {
   id: number
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'event'
   content: string
+  eventType?: 'mode_changed'
+  mode?: ChatAssistantMode
   files?: string[]
   variant?: 'rag' | 'code' | 'document'
   isStreaming?: boolean
@@ -1099,7 +1101,7 @@ export function ChatHome() {
   const [files, setFiles] = useState<File[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [assistantMode, setAssistantMode] =
-    useState<ChatAssistantMode>('KB_SEARCH')
+    useState<ChatAssistantMode>('CHAT')
   const [isHeaderGlass, setIsHeaderGlass] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const messageIdRef = useRef(DEMO_NOW)
@@ -1191,7 +1193,6 @@ export function ChatHome() {
     setActiveConversationId(null)
     setInput('')
     setFiles([])
-    toast.success('已准备新对话')
   }
 
   function handleSelectConversation(conversationId: string) {
@@ -1390,6 +1391,80 @@ export function ChatHome() {
     )
   }
 
+  function handleAssistantModeChange(value: string) {
+    const nextMode = value as ChatAssistantMode
+    if (nextMode === assistantMode) return
+
+    setAssistantMode(nextMode)
+
+    if (!activeConversation || activeConversation.messages.length === 0) {
+      return
+    }
+
+    const nextModeLabel =
+      CHAT_ASSISTANT_MODE_OPTIONS.find((mode) => mode.value === nextMode)?.label ??
+      '当前模式'
+    const eventContent = `已切换到 ${nextModeLabel}`
+
+    setConversations((prev) =>
+      orderConversations(
+        prev.map((conversation) =>
+          conversation.id === activeConversation.id
+            ? touchConversation((() => {
+                const messages = conversation.messages
+                const lastMessage = messages[messages.length - 1]
+
+                if (lastMessage?.role === 'event') {
+                  const previousMessage = [...messages]
+                    .slice(0, -1)
+                    .reverse()
+                    .find((message) => message.role !== 'event')
+
+                  if (previousMessage?.mode === nextMode) {
+                    return {
+                      ...conversation,
+                      description: nextModeLabel,
+                      messages: messages.slice(0, -1),
+                    }
+                  }
+
+                  return {
+                    ...conversation,
+                    description: nextModeLabel,
+                    messages: messages.map((message) =>
+                      message.id === lastMessage.id
+                        ? {
+                            ...message,
+                            mode: nextMode,
+                            content: eventContent,
+                          }
+                        : message
+                    ),
+                  }
+                }
+
+                return {
+                ...conversation,
+                description: nextModeLabel,
+                  messages: [
+                    ...messages,
+                    {
+                      id: createNextMessageId(),
+                      role: 'event',
+                      eventType: 'mode_changed',
+                      mode: nextMode,
+                      content: eventContent,
+                    },
+                  ],
+                }
+              })())
+            : conversation
+        )
+      )
+    )
+    setScrollToLatestRequest((current) => current + 1)
+  }
+
   function updateConversationMessage(
     conversationId: string,
     messageId: number,
@@ -1450,6 +1525,86 @@ export function ChatHome() {
 
     toast.error('登录状态已失效，请重新登录')
     return null
+  }
+
+  async function askKnowledgeBaseReply({
+    targetConversationId,
+    assistantMessageId,
+    question,
+  }: {
+    targetConversationId: string
+    assistantMessageId: number
+    question: string
+  }) {
+    if (!activeGroupId) {
+      const errorMessage = '请先在管理后台创建知识库并上传文档'
+      toast.error(errorMessage)
+      updateConversationMessage(
+        targetConversationId,
+        assistantMessageId,
+        (message) => ({
+          ...message,
+          isStreaming: false,
+          isResponseComplete: true,
+          content: `请求失败：${errorMessage}`,
+          citations: [],
+        })
+      )
+      return
+    }
+    const targetGroupId = activeGroupId
+
+    const runAskQuestion = async () =>
+      askQuestion({
+        groupId: targetGroupId,
+        question,
+      })
+
+    try {
+      let response: Awaited<ReturnType<typeof askQuestion>>
+      try {
+        response = await runAskQuestion()
+      } catch (error) {
+        if (!isUnauthorizedError(error)) {
+          throw error
+        }
+
+        await refreshSession()
+        response = await runAskQuestion()
+      }
+
+      updateConversationMessage(
+        targetConversationId,
+        assistantMessageId,
+        (message) => ({
+          ...message,
+          isStreaming: false,
+          isResponseComplete: true,
+          content:
+            response.answer ??
+            response.reasonMessage ??
+            '知识库暂时没有返回可用回答。',
+          citations: response.citations ?? [],
+        })
+      )
+    } catch (error) {
+      const isUnauthorized = isUnauthorizedError(error)
+      const errorMessage = isUnauthorized
+        ? '登录状态已失效，请重新登录后再试'
+        : extractApiError(error, '提问失败')
+      toast.error(errorMessage)
+      updateConversationMessage(
+        targetConversationId,
+        assistantMessageId,
+        (message) => ({
+          ...message,
+          isStreaming: false,
+          isResponseComplete: true,
+          content: `请求失败：${errorMessage}`,
+          citations: [],
+        })
+      )
+    }
   }
 
   async function streamAssistantReply({
@@ -1645,7 +1800,7 @@ export function ChatHome() {
     }
 
     const requestMode = assistantMode
-    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
+    if (!activeGroupId) {
       toast.error('请先在管理后台创建知识库并上传文档')
       return
     }
@@ -1657,6 +1812,7 @@ export function ChatHome() {
     const nextAssistantMessage: ChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
+      mode: requestMode,
       variant: requestMode === 'KB_SEARCH' ? 'rag' : 'code',
       isLive: true,
       isStreaming: true,
@@ -1682,13 +1838,22 @@ export function ChatHome() {
     )
     setScrollToLatestRequest((current) => current + 1)
 
+    if (requestMode === 'KB_SEARCH') {
+      await askKnowledgeBaseReply({
+        targetConversationId: activeConversation.id,
+        assistantMessageId,
+        question,
+      })
+      return
+    }
+
     await streamAssistantReply({
       targetConversationId: activeConversation.id,
       assistantMessageId,
       question,
       assistantSessionId: activeConversation.assistantSessionId ?? null,
       initialAccessToken: currentAccessToken,
-      toolMode: requestMode,
+      toolMode: 'KB_SEARCH',
     })
   }
 
@@ -1696,7 +1861,7 @@ export function ChatHome() {
     const trimmedInput = nextInput.trim()
     if ((!trimmedInput && nextFiles.length === 0) || isStreaming) return
     const requestMode = assistantMode
-    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
+    if (!activeGroupId) {
       toast.error('请先在管理后台创建知识库并上传文档')
       return
     }
@@ -1708,6 +1873,7 @@ export function ChatHome() {
     const userMessage: ChatMessage = {
       id: baseId,
       role: 'user',
+      mode: requestMode,
       content: trimmedInput || '请分析我上传的文件。',
       files: nextFiles.map((file) => file.name),
     }
@@ -1715,6 +1881,7 @@ export function ChatHome() {
     const assistantMessage: ChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
+      mode: requestMode,
       variant: requestMode === 'KB_SEARCH' ? 'rag' : 'code',
       isLive: true,
       isStreaming: true,
@@ -1751,13 +1918,22 @@ export function ChatHome() {
 
     if (!targetConversationId) return
 
+    if (requestMode === 'KB_SEARCH') {
+      await askKnowledgeBaseReply({
+        targetConversationId,
+        assistantMessageId,
+        question: userMessage.content,
+      })
+      return
+    }
+
     await streamAssistantReply({
       targetConversationId,
       assistantMessageId,
       question: userMessage.content,
       assistantSessionId,
       initialAccessToken: currentAccessToken,
-      toolMode: requestMode,
+      toolMode: 'KB_SEARCH',
     })
   }
 
@@ -1852,7 +2028,6 @@ export function ChatHome() {
 
           <PromptInputTextarea
             placeholder='询问知识库、粘贴材料，或描述要分析的问题...'
-            disabled={isStreaming}
             disableAutosize
             className='h-22 min-h-22 max-h-22 overflow-y-auto px-5 pt-4 text-sm md:text-[15px] [field-sizing:fixed]'
           />
@@ -1894,9 +2069,7 @@ export function ChatHome() {
                     <DropdownMenuLabel>选择问答模式</DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                       value={assistantMode}
-                      onValueChange={(value) =>
-                        setAssistantMode(value as ChatAssistantMode)
-                      }
+                      onValueChange={handleAssistantModeChange}
                     >
                       {CHAT_ASSISTANT_MODE_OPTIONS.map((mode) => {
                         const ModeIcon = mode.icon
@@ -2130,7 +2303,10 @@ export function ChatHome() {
                           scrollClassName='no-scrollbar overflow-y-auto'
                           onScroll={handleChatScroll}
                         >
-                          <AnimatePresence initial={false}>
+                          <AnimatePresence
+                            key={activeConversationId ?? 'empty-conversation'}
+                            initial={false}
+                          >
                             {messages.map((message) => (
                               <motion.div
                                 key={message.id}
@@ -2356,18 +2532,18 @@ function ChatHistorySidebar({
           isActive={isActive}
           tooltip={conversation.title}
           onClick={() => onSelectConversation(conversation.id)}
-          className='relative min-h-8 [--sidebar-menu-icon-size:1rem] pl-4 pr-10 font-normal leading-5 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-focus-within/menu-item:bg-sidebar-accent group-focus-within/menu-item:text-sidebar-accent-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-foreground dark:data-active:bg-primary/15 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-0'
+          className='relative min-h-8 [--sidebar-menu-icon-size:1rem] pl-4 pr-10 font-normal leading-5 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-focus-within/menu-item:bg-sidebar-accent group-focus-within/menu-item:text-sidebar-accent-foreground data-active:bg-primary/10 data-active:font-normal data-active:text-foreground dark:data-active:bg-primary/15 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-0'
         >
           {isActive ? (
             <span
               aria-hidden='true'
-              className='absolute top-1/2 left-0 h-4 w-1 -translate-y-1/2 rounded-full bg-primary'
+              className='absolute top-1/2 left-1 h-4 w-1 -translate-y-1/2 rounded-full bg-primary'
             />
           ) : null}
           {conversation.isPinned && !conversation.isArchived ? (
             <Pin data-icon='inline-start' />
           ) : null}
-          <span className='block min-w-0 flex-1 truncate text-sm leading-5 group-data-[collapsible=icon]:hidden'>
+          <span className='block min-w-0 max-w-full flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm leading-5 group-data-[collapsible=icon]:hidden'>
             {conversation.title}
           </span>
         </SidebarMenuButton>
@@ -2839,6 +3015,10 @@ function ChatMessageItem({
   onRegenerateMessage: (messageId: number) => void
   onStreamingComplete: () => void
 }) {
+  if (message.role === 'event') {
+    return <ChatModeEvent message={message} />
+  }
+
   const isAssistant = message.role === 'assistant'
 
   return (
@@ -2866,6 +3046,18 @@ function ChatMessageItem({
         )}
       </div>
     </Message>
+  )
+}
+
+function ChatModeEvent({ message }: { message: ChatMessage }) {
+  return (
+    <div className='flex w-full justify-center py-1'>
+      <div className='flex w-full max-w-sm items-center gap-3 text-xs text-muted-foreground'>
+        <span aria-hidden='true' className='h-px flex-1 bg-border' />
+        <span className='shrink-0 whitespace-nowrap'>{message.content}</span>
+        <span aria-hidden='true' className='h-px flex-1 bg-border' />
+      </div>
+    </div>
   )
 }
 
