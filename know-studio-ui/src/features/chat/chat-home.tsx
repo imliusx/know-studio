@@ -10,7 +10,6 @@ import {
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { marked } from 'marked'
 import Typed from 'typed.js'
 import {
   AnimatePresence,
@@ -3113,7 +3112,7 @@ function UserMessage({
 }) {
   return (
     <div className='flex flex-col items-end gap-2'>
-      <MessageContent className='text-sm leading-5'>
+      <MessageContent className='text-[15px] leading-7'>
         {message.content}
       </MessageContent>
       {message.files?.length ? (
@@ -3141,30 +3140,7 @@ function UserMessage({
   )
 }
 
-function isPlainTextAnswer(content: string) {
-  const trimmedContent = content.trim()
-  if (!trimmedContent) return true
-
-  const tokens = marked.lexer(trimmedContent)
-
-  return tokens.every((token) => {
-    if (token.type === 'space') return true
-    if (token.type !== 'paragraph' && token.type !== 'text') return false
-
-    const inlineTokens = 'tokens' in token ? token.tokens : undefined
-    return !inlineTokens?.some(
-      (inlineToken) =>
-        inlineToken.type !== 'text' && inlineToken.type !== 'escape'
-    )
-  })
-}
-
-function getAssistantContentClassName(content: string) {
-  return cn(
-    'bg-transparent p-0 text-[15px]',
-    isPlainTextAnswer(content) ? 'leading-7' : 'leading-6'
-  )
-}
+const ASSISTANT_CONTENT_CLASS_NAME = 'bg-transparent p-0 text-[15px] leading-7'
 
 function StreamingMarkdownContent({
   content,
@@ -3251,13 +3227,8 @@ function StreamingMarkdownContent({
       if (frame) cancelAnimationFrame(frame)
     }
   }, [content, isComplete, reduceMotion])
-  const contentClassName = useMemo(
-    () => getAssistantContentClassName(displayedText),
-    [displayedText]
-  )
-
   return (
-    <MessageContent markdown className={contentClassName}>
+    <MessageContent markdown className={ASSISTANT_CONTENT_CLASS_NAME}>
       {displayedText}
     </MessageContent>
   )
@@ -3296,7 +3267,7 @@ function AssistantMessage({
       ) : message.content ? (
         <MessageContent
           markdown
-          className={getAssistantContentClassName(message.content)}
+          className={ASSISTANT_CONTENT_CLASS_NAME}
           children={message.content}
         />
       ) : null}
