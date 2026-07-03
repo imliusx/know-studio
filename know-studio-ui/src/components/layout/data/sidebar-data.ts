@@ -19,13 +19,13 @@ import { type SidebarData } from '../types'
 
 export const sidebarData: SidebarData = {
   user: {
-    name: 'Know Studio Admin',
+    name: 'KnowStudio Admin',
     email: 'admin',
     avatar: '/avatars/shadcn.jpg',
   },
   teams: [
     {
-      name: 'Know Studio Admin',
+      name: 'KnowStudio Admin',
       logo: LuDraftingCompass,
       plan: 'Knowledge Admin',
     },

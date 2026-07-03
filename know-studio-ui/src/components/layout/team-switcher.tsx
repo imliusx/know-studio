@@ -1,5 +1,5 @@
 import type { ElementType } from "react"
-import { Link } from "@tanstack/react-router"
+import { Link, type LinkProps } from "@tanstack/react-router"
 import {
   SidebarMenu,
   SidebarMenuItem,
@@ -12,9 +12,15 @@ type TeamSwitcherProps = {
     logo: ElementType
     plan: string
   }[]
+  homeHref?: LinkProps["to"]
+  onHomeClick?: () => void
 }
 
-export function TeamSwitcher({ teams }: TeamSwitcherProps) {
+export function TeamSwitcher({
+  teams,
+  homeHref = "/",
+  onHomeClick,
+}: TeamSwitcherProps) {
   const activeTeam = teams[0]
   const { setOpenMobile } = useSidebar()
 
@@ -22,9 +28,12 @@ export function TeamSwitcher({ teams }: TeamSwitcherProps) {
     <SidebarMenu>
       <SidebarMenuItem>
         <Link
-          to="/"
-          aria-label="Go to dashboard"
-          onClick={() => setOpenMobile(false)}
+          to={homeHref}
+          aria-label="Go to home"
+          onClick={() => {
+            onHomeClick?.()
+            setOpenMobile(false)
+          }}
           className="flex h-11 w-full select-none items-center gap-1.5 overflow-hidden rounded-lg p-0 text-sidebar-foreground outline-hidden ring-sidebar-ring transition-colors hover:text-sidebar-accent-foreground focus-visible:ring-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:justify-center"
         >
           <div className="flex aspect-square size-8 shrink-0 items-center justify-center text-primary">

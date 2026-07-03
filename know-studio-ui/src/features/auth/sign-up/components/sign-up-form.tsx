@@ -143,7 +143,7 @@ export function SignUpForm({
                   创建账号
                 </h1>
                 <p className='text-sm text-balance text-muted-foreground'>
-                  注册 Know Studio 账号
+                  注册 KnowStudio 账号
                 </p>
               </div>
               <Field data-invalid={Boolean(fieldError('username'))}>

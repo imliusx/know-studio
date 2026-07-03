@@ -163,7 +163,7 @@ export const en = {
     sessionExpired: "Session expired. Please sign in again.",
     signIn: {
       title: "Welcome back",
-      description: "Login to your Know Studio account",
+      description: "Login to your KnowStudio account",
       email: "Email",
       password: "Password",
       forgotPassword: "Forgot your password?",
@@ -701,7 +701,7 @@ export const zhCN = {
     sessionExpired: "登录状态已失效，请重新登录。",
     signIn: {
       title: "欢迎回来",
-      description: "登录你的 Know Studio 账号",
+      description: "登录你的 KnowStudio 账号",
       email: "邮箱",
       password: "密码",
       forgotPassword: "忘记密码？",

@@ -31,6 +31,27 @@ function extractLanguage(className?: string): string {
   return match ? match[1] : "plaintext"
 }
 
+function getTextContent(children: React.ReactNode): string | null {
+  if (typeof children === "string" || typeof children === "number") {
+    return String(children)
+  }
+
+  if (Array.isArray(children)) {
+    const parts = children.map(getTextContent)
+    return parts.every((part) => part !== null) ? parts.join("") : null
+  }
+
+  return null
+}
+
+function normalizeInlineCode(children: React.ReactNode) {
+  const text = getTextContent(children)
+  if (!text) return children
+
+  const match = text.trim().match(/^(`+)([\s\S]*?)\1$/)
+  return match?.[2] ? match[2] : children
+}
+
 const INITIAL_COMPONENTS: Partial<Components> = {
   code: function CodeComponent({ className, children, ...props }) {
     const isInline =
@@ -41,12 +62,12 @@ const INITIAL_COMPONENTS: Partial<Components> = {
       return (
         <code
           className={cn(
-            "rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm text-foreground",
+            "rounded-md bg-muted px-1.5 py-0.5 font-mono text-sm font-normal text-foreground before:content-none after:content-none",
             className
           )}
           {...props}
         >
-          {children}
+          {normalizeInlineCode(children)}
         </code>
       )
     }

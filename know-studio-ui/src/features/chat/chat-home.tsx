@@ -226,7 +226,7 @@ const CHAT_ASSISTANT_MODE_OPTIONS: {
 }[] = [
   {
     value: 'KB_SEARCH',
-    label: '知识问答',
+    label: '本地知识',
     icon: Database,
   },
   {
@@ -256,7 +256,7 @@ const DEMO_NOW = Date.now()
 const CHAT_SIDEBAR_TEAMS = [
   {
     ...sidebarData.teams[0],
-    name: 'Know Studio',
+    name: 'KnowStudio',
     plan: 'Chat Workspace',
   },
 ]
@@ -754,7 +754,7 @@ const initialConversations: ChatConversation[] = [
   },
   {
     id: 'migration-plan',
-    title: '旧库迁移到 Know Studio 前的检查清单',
+    title: '旧库迁移到 KnowStudio 前的检查清单',
     description: '字段映射、批量导入',
     updatedAt: '上周',
     createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 10,
@@ -1799,8 +1799,8 @@ export function ChatHome() {
       return
     }
 
-    const requestMode = assistantMode
-    if (!activeGroupId) {
+    const requestMode = targetMessage.mode ?? assistantMode
+    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
       toast.error('请先在管理后台创建知识库并上传文档')
       return
     }
@@ -1853,7 +1853,7 @@ export function ChatHome() {
       question,
       assistantSessionId: activeConversation.assistantSessionId ?? null,
       initialAccessToken: currentAccessToken,
-      toolMode: 'KB_SEARCH',
+      toolMode: requestMode,
     })
   }
 
@@ -1861,7 +1861,7 @@ export function ChatHome() {
     const trimmedInput = nextInput.trim()
     if ((!trimmedInput && nextFiles.length === 0) || isStreaming) return
     const requestMode = assistantMode
-    if (!activeGroupId) {
+    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
       toast.error('请先在管理后台创建知识库并上传文档')
       return
     }
@@ -1933,7 +1933,7 @@ export function ChatHome() {
       question: userMessage.content,
       assistantSessionId,
       initialAccessToken: currentAccessToken,
-      toolMode: 'KB_SEARCH',
+      toolMode: requestMode,
     })
   }
 
@@ -1954,7 +1954,7 @@ export function ChatHome() {
       <motion.div
         layout={!reduceMotion}
         layoutId={reduceMotion ? undefined : 'chat-prompt-composer'}
-        className={cn('relative mx-auto w-full px-4', className)}
+        className={cn('w-full px-3 md:px-5', className)}
         initial={reduceMotion ? false : { opacity: 0, y: 8, scale: 0.99 }}
         animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
         transition={
@@ -1967,261 +1967,263 @@ export function ChatHome() {
               }
         }
       >
-        <PromptInput
-          className={cn(
-            'border-input rounded-2xl border bg-popover p-0 pt-1 shadow-xs',
-            inputClassName
-          )}
-          value={input}
-          onValueChange={setInput}
-          isLoading={isStreaming}
-          onSubmit={() => handleSubmit()}
-        >
-          <AnimatePresence initial={false}>
-            {files.length > 0 ? (
-              <motion.div
-                className='flex flex-wrap gap-2 pb-2'
-                initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-                animate={reduceMotion ? undefined : { opacity: 1, height: 'auto' }}
-                exit={reduceMotion ? undefined : { opacity: 0, height: 0 }}
-                transition={
-                  reduceMotion
-                    ? undefined
-                    : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
-                }
-              >
-                {files.map((file, index) => (
-                  <motion.div
-                    key={`${file.name}-${index}`}
-                    layout={!reduceMotion}
-                    initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
-                    animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }}
-                    exit={reduceMotion ? undefined : { opacity: 0, scale: 0.96 }}
-                    transition={
-                      reduceMotion
-                        ? undefined
-                        : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
-                    }
-                  >
-                    <Badge
-                      variant='secondary'
-                      className='h-auto py-1.5 pr-1 text-sm'
+        <div className='relative mx-auto w-full max-w-3xl'>
+          <PromptInput
+            className={cn(
+              'border-input rounded-2xl border bg-popover p-0 pt-1 shadow-xs',
+              inputClassName
+            )}
+            value={input}
+            onValueChange={setInput}
+            isLoading={isStreaming}
+            onSubmit={() => handleSubmit()}
+          >
+            <AnimatePresence initial={false}>
+              {files.length > 0 ? (
+                <motion.div
+                  className='flex flex-wrap gap-2 pb-2'
+                  initial={reduceMotion ? false : { opacity: 0, height: 0 }}
+                  animate={reduceMotion ? undefined : { opacity: 1, height: 'auto' }}
+                  exit={reduceMotion ? undefined : { opacity: 0, height: 0 }}
+                  transition={
+                    reduceMotion
+                      ? undefined
+                      : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
+                  }
+                >
+                  {files.map((file, index) => (
+                    <motion.div
+                      key={`${file.name}-${index}`}
+                      layout={!reduceMotion}
+                      initial={reduceMotion ? false : { opacity: 0, scale: 0.96 }}
+                      animate={reduceMotion ? undefined : { opacity: 1, scale: 1 }}
+                      exit={reduceMotion ? undefined : { opacity: 0, scale: 0.96 }}
+                      transition={
+                        reduceMotion
+                          ? undefined
+                          : { duration: 0.18, ease: [0.22, 1, 0.36, 1] }
+                      }
+                    >
+                      <Badge
+                        variant='secondary'
+                        className='h-auto py-1.5 pr-1 text-sm'
+                        onClick={(event) => event.stopPropagation()}
+                      >
+                        <Paperclip data-icon='inline-start' />
+                        <span className='max-w-[140px] truncate'>{file.name}</span>
+                        <Button
+                          type='button'
+                          variant='ghost'
+                          size='icon-xs'
+                          onClick={() => handleRemoveFile(index)}
+                        >
+                          <X />
+                          <span className='sr-only'>Remove file</span>
+                        </Button>
+                      </Badge>
+                    </motion.div>
+                  ))}
+                </motion.div>
+              ) : null}
+            </AnimatePresence>
+
+            <PromptInputTextarea
+              placeholder='询问知识库、粘贴材料，或描述要分析的问题...'
+              disableAutosize
+              className='h-22 min-h-22 max-h-22 overflow-y-auto px-5 pt-4 text-sm md:text-[15px] [field-sizing:fixed]'
+            />
+
+            <PromptInputActions className='mt-5 flex w-full items-center justify-between gap-2 px-3 pb-3'>
+              <div className='flex min-w-0 items-center gap-2'>
+                <PromptInputAction tooltip='Attach files'>
+                  <FileUploadTrigger asChild>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='icon-lg'
+                      className='rounded-full'
+                      disabled={isStreaming}
+                    >
+                      <Plus />
+                      <span className='sr-only'>Attach files</span>
+                    </Button>
+                  </FileUploadTrigger>
+                </PromptInputAction>
+
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='lg'
+                      className='rounded-full'
+                      disabled={isStreaming}
                       onClick={(event) => event.stopPropagation()}
                     >
-                      <Paperclip data-icon='inline-start' />
-                      <span className='max-w-[140px] truncate'>{file.name}</span>
-                      <Button
-                        type='button'
-                        variant='ghost'
-                        size='icon-xs'
-                        onClick={() => handleRemoveFile(index)}
+                      <ActiveModeIcon />
+                      {activeMode.label}
+                      <ChevronDown data-icon='inline-end' />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='start' className='min-w-44'>
+                    <DropdownMenuGroup>
+                      <DropdownMenuLabel>选择问答模式</DropdownMenuLabel>
+                      <DropdownMenuRadioGroup
+                        value={assistantMode}
+                        onValueChange={handleAssistantModeChange}
                       >
-                        <X />
-                        <span className='sr-only'>Remove file</span>
-                      </Button>
-                    </Badge>
-                  </motion.div>
-                ))}
-              </motion.div>
-            ) : null}
-          </AnimatePresence>
+                        {CHAT_ASSISTANT_MODE_OPTIONS.map((mode) => {
+                          const ModeIcon = mode.icon
 
-          <PromptInputTextarea
-            placeholder='询问知识库、粘贴材料，或描述要分析的问题...'
-            disableAutosize
-            className='h-22 min-h-22 max-h-22 overflow-y-auto px-5 pt-4 text-sm md:text-[15px] [field-sizing:fixed]'
-          />
+                          return (
+                            <DropdownMenuRadioItem
+                              key={mode.value}
+                              value={mode.value}
+                            >
+                              <ModeIcon />
+                              {mode.label}
+                            </DropdownMenuRadioItem>
+                          )
+                        })}
+                      </DropdownMenuRadioGroup>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
-          <PromptInputActions className='mt-5 flex w-full items-center justify-between gap-2 px-3 pb-3'>
-            <div className='flex min-w-0 items-center gap-2'>
-              <PromptInputAction tooltip='Attach files'>
-                <FileUploadTrigger asChild>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='icon-lg'
-                    className='rounded-full'
-                    disabled={isStreaming}
-                  >
-                    <Plus />
-                    <span className='sr-only'>Attach files</span>
-                  </Button>
-                </FileUploadTrigger>
-              </PromptInputAction>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    size='lg'
-                    className='rounded-full'
-                    disabled={isStreaming}
-                    onClick={(event) => event.stopPropagation()}
-                  >
-                    <ActiveModeIcon />
-                    {activeMode.label}
-                    <ChevronDown data-icon='inline-end' />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' className='min-w-44'>
-                  <DropdownMenuGroup>
-                    <DropdownMenuLabel>选择问答模式</DropdownMenuLabel>
-                    <DropdownMenuRadioGroup
-                      value={assistantMode}
-                      onValueChange={handleAssistantModeChange}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      size='icon-lg'
+                      className='rounded-full'
+                      disabled={isStreaming}
+                      aria-label='更多输入操作'
+                      onClick={(event) => event.stopPropagation()}
                     >
-                      {CHAT_ASSISTANT_MODE_OPTIONS.map((mode) => {
-                        const ModeIcon = mode.icon
+                      <MoreHorizontal />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align='start' className='min-w-44'>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={handleNewConversation}>
+                        <SquarePen />
+                        新建对话
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleResetDemo}>
+                        <RotateCcw />
+                        恢复示例数据
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-                        return (
-                          <DropdownMenuRadioItem
-                            key={mode.value}
-                            value={mode.value}
-                          >
-                            <ModeIcon />
-                            {mode.label}
-                          </DropdownMenuRadioItem>
-                        )
-                      })}
-                    </DropdownMenuRadioGroup>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
-
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+              <div className='flex items-center gap-2'>
+                <PromptInputAction tooltip='语音输入'>
                   <Button
                     type='button'
                     variant='outline'
                     size='icon-lg'
                     className='rounded-full'
                     disabled={isStreaming}
-                    aria-label='更多输入操作'
-                    onClick={(event) => event.stopPropagation()}
+                    onClick={() => toast.info('语音输入暂未接入')}
+                    aria-label='语音输入'
                   >
-                    <MoreHorizontal />
+                    <Mic />
                   </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='start' className='min-w-44'>
-                  <DropdownMenuGroup>
-                    <DropdownMenuItem onClick={handleNewConversation}>
-                      <SquarePen />
-                      新建对话
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={handleResetDemo}>
-                      <RotateCcw />
-                      恢复示例数据
-                    </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                </PromptInputAction>
+
+                <PromptInputAction
+                  tooltip={isStreaming ? 'Stop generation' : 'Send message'}
+                >
+                  <Button
+                    type='button'
+                    size='icon-lg'
+                    className='rounded-2xl'
+                    onClick={() => (isStreaming ? stopStreaming() : handleSubmit())}
+                    disabled={!isStreaming && !input.trim() && files.length === 0}
+                    aria-label={isStreaming ? 'Stop generation' : 'Send message'}
+                  >
+                    {isStreaming ? (
+                      <Square className='size-3.5 fill-current' />
+                    ) : (
+                      <ArrowUpIcon className='size-5' />
+                    )}
+                  </Button>
+                </PromptInputAction>
+              </div>
+            </PromptInputActions>
+          </PromptInput>
+
+          {showSuggestions && activeSuggestion ? (
+            <motion.div
+              key={activeSuggestion.label}
+              className='absolute top-full right-4 left-4 z-10 mt-5 flex flex-col gap-1.5'
+              initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+              animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+              exit={reduceMotion ? undefined : { opacity: 0, y: 6 }}
+              transition={
+                reduceMotion
+                  ? undefined
+                  : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
+              }
+            >
+              {activeSuggestion.prompts.map((prompt, index) => (
+                <motion.div
+                  key={prompt}
+                  initial={reduceMotion ? false : { opacity: 0, y: 4 }}
+                  animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  transition={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          delay: index * 0.04,
+                          duration: 0.2,
+                          ease: [0.22, 1, 0.36, 1],
+                        }
+                  }
+                >
+                  <PromptSuggestion
+                    highlight={activeSuggestion.label}
+                    onClick={() => setInput(prompt)}
+                    className='h-auto min-h-9 rounded-lg px-3 py-2 text-left text-[15px] leading-6'
+                  >
+                    {prompt}
+                  </PromptSuggestion>
+                </motion.div>
+              ))}
+            </motion.div>
+          ) : showSuggestions ? (
+            <div className='absolute top-full right-4 left-4 z-10 mt-5 flex flex-wrap justify-center gap-2.5'>
+              {suggestions.map((suggestion, index) => (
+                <motion.div
+                  key={suggestion.label}
+                  initial={reduceMotion ? false : { opacity: 0, y: 6 }}
+                  animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
+                  transition={
+                    reduceMotion
+                      ? undefined
+                      : {
+                          delay: 0.08 + index * 0.04,
+                          duration: 0.24,
+                          ease: [0.22, 1, 0.36, 1],
+                        }
+                  }
+                >
+                  <PromptSuggestion
+                    size='lg'
+                    onClick={() => setInput(suggestion.label)}
+                    className='rounded-full px-5 shadow-xs has-data-[icon=inline-start]:px-5'
+                  >
+                    <suggestion.icon data-icon='inline-start' />
+                    <span>{suggestion.label}</span>
+                  </PromptSuggestion>
+                </motion.div>
+              ))}
             </div>
-
-            <div className='flex items-center gap-2'>
-              <PromptInputAction tooltip='语音输入'>
-                <Button
-                  type='button'
-                  variant='outline'
-                  size='icon-lg'
-                  className='rounded-full'
-                  disabled={isStreaming}
-                  onClick={() => toast.info('语音输入暂未接入')}
-                  aria-label='语音输入'
-                >
-                  <Mic />
-                </Button>
-              </PromptInputAction>
-
-              <PromptInputAction
-                tooltip={isStreaming ? 'Stop generation' : 'Send message'}
-              >
-                <Button
-                  type='button'
-                  size='icon-lg'
-                  className='rounded-2xl'
-                  onClick={() => (isStreaming ? stopStreaming() : handleSubmit())}
-                  disabled={!isStreaming && !input.trim() && files.length === 0}
-                  aria-label={isStreaming ? 'Stop generation' : 'Send message'}
-                >
-                  {isStreaming ? (
-                    <Square className='size-3.5 fill-current' />
-                  ) : (
-                    <ArrowUpIcon className='size-5' />
-                  )}
-                </Button>
-              </PromptInputAction>
-            </div>
-          </PromptInputActions>
-        </PromptInput>
-
-        {showSuggestions && activeSuggestion ? (
-          <motion.div
-            key={activeSuggestion.label}
-            className='absolute top-full right-4 left-4 z-10 mt-5 flex flex-col gap-1.5'
-            initial={reduceMotion ? false : { opacity: 0, y: 8 }}
-            animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-            exit={reduceMotion ? undefined : { opacity: 0, y: 6 }}
-            transition={
-              reduceMotion
-                ? undefined
-                : { duration: 0.22, ease: [0.22, 1, 0.36, 1] }
-            }
-          >
-            {activeSuggestion.prompts.map((prompt, index) => (
-              <motion.div
-                key={prompt}
-                initial={reduceMotion ? false : { opacity: 0, y: 4 }}
-                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                transition={
-                  reduceMotion
-                    ? undefined
-                    : {
-                        delay: index * 0.04,
-                        duration: 0.2,
-                        ease: [0.22, 1, 0.36, 1],
-                      }
-                }
-              >
-                <PromptSuggestion
-                  highlight={activeSuggestion.label}
-                  onClick={() => setInput(prompt)}
-                  className='h-auto min-h-9 rounded-lg px-3 py-2 text-left text-[15px] leading-6'
-                >
-                  {prompt}
-                </PromptSuggestion>
-              </motion.div>
-            ))}
-          </motion.div>
-        ) : showSuggestions ? (
-          <div className='absolute top-full right-4 left-4 z-10 mt-5 flex flex-wrap justify-center gap-2.5'>
-            {suggestions.map((suggestion, index) => (
-              <motion.div
-                key={suggestion.label}
-                initial={reduceMotion ? false : { opacity: 0, y: 6 }}
-                animate={reduceMotion ? undefined : { opacity: 1, y: 0 }}
-                transition={
-                  reduceMotion
-                    ? undefined
-                    : {
-                        delay: 0.08 + index * 0.04,
-                        duration: 0.24,
-                        ease: [0.22, 1, 0.36, 1],
-                      }
-                }
-              >
-                <PromptSuggestion
-                  size='lg'
-                  onClick={() => setInput(suggestion.label)}
-                  className='rounded-full px-5 shadow-xs has-data-[icon=inline-start]:px-5'
-                >
-                  <suggestion.icon data-icon='inline-start' />
-                  <span>{suggestion.label}</span>
-                </PromptSuggestion>
-              </motion.div>
-            ))}
-          </div>
-        ) : null}
+          ) : null}
+        </div>
       </motion.div>
     )
   }
@@ -2240,6 +2242,7 @@ export function ChatHome() {
           variant={variant}
           conversations={conversations}
           activeConversationId={activeConversationId}
+          onGoHome={() => setActiveConversationId(null)}
           onNewConversation={handleNewConversation}
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
@@ -2299,8 +2302,8 @@ export function ChatHome() {
                           trigger={scrollToLatestRequest}
                         />
                         <ChatContainerContent
-                          className='mx-auto flex w-full max-w-(--breakpoint-md) flex-col gap-5 px-4 pt-24 pb-14'
-                          scrollClassName='no-scrollbar overflow-y-auto'
+                          className='flex w-full flex-col gap-5 px-5 pt-24 pb-14'
+                          scrollClassName='overflow-y-auto [scrollbar-gutter:stable]'
                           onScroll={handleChatScroll}
                         >
                           <AnimatePresence
@@ -2310,6 +2313,7 @@ export function ChatHome() {
                             {messages.map((message) => (
                               <motion.div
                                 key={message.id}
+                                className='mx-auto flex w-full max-w-3xl flex-col px-6'
                                 layout={!reduceMotion}
                                 initial={
                                   reduceMotion
@@ -2356,16 +2360,16 @@ export function ChatHome() {
                     </div>
 
                     {renderPromptComposer({
-                      className: 'max-w-(--breakpoint-md) pt-1 pb-4',
+                      className: 'pt-1 pb-4',
                     })}
                   </>
                 ) : (
                   <div
-                    className='no-scrollbar min-h-0 flex-1 overflow-y-auto px-4 pt-20 pb-8'
+                    className='min-h-0 flex-1 overflow-y-auto px-4 pt-20 pb-8 [scrollbar-gutter:stable]'
                     onScroll={handleChatScroll}
                   >
                     <motion.div
-                      className='mx-auto flex min-h-full w-full max-w-4xl flex-col items-center justify-center gap-15 pt-4 pb-[14vh]'
+                      className='mx-auto flex min-h-full w-full max-w-3xl flex-col items-center justify-center gap-15 pt-4 pb-[14vh]'
                       initial={
                         reduceMotion ? false : { opacity: 0, y: 10, scale: 0.99 }
                       }
@@ -2378,14 +2382,13 @@ export function ChatHome() {
                           : { duration: 0.36, ease: [0.22, 1, 0.36, 1] }
                       }
                     >
-                      <div className='flex max-w-3xl flex-col items-center gap-3 text-center'>
+                      <div className='flex w-full max-w-3xl flex-col items-center gap-3 text-center'>
                         <div className='flex flex-col'>
                           <ChatHeroTitle />
                         </div>
                       </div>
 
                       {renderPromptComposer({
-                        className: 'max-w-(--breakpoint-md)',
                         showSuggestions: true,
                       })}
                     </motion.div>
@@ -2407,6 +2410,7 @@ function ChatHistorySidebar({
   variant,
   conversations,
   activeConversationId,
+  onGoHome,
   onNewConversation,
   onSelectConversation,
   onDeleteConversation,
@@ -2423,6 +2427,7 @@ function ChatHistorySidebar({
   variant: ChatSidebarVariant
   conversations: ChatConversation[]
   activeConversationId: string | null
+  onGoHome: () => void
   onNewConversation: () => void
   onSelectConversation: (conversationId: string) => void
   onDeleteConversation: (conversationId: string) => void
@@ -2532,7 +2537,7 @@ function ChatHistorySidebar({
           isActive={isActive}
           tooltip={conversation.title}
           onClick={() => onSelectConversation(conversation.id)}
-          className='relative min-h-8 [--sidebar-menu-icon-size:1rem] pl-4 pr-10 font-normal leading-5 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-focus-within/menu-item:bg-sidebar-accent group-focus-within/menu-item:text-sidebar-accent-foreground data-active:bg-primary/10 data-active:font-normal data-active:text-foreground dark:data-active:bg-primary/15 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-0'
+          className='relative min-h-8 [--sidebar-menu-icon-size:1rem] pl-5 pr-10 font-normal leading-5 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-focus-within/menu-item:bg-sidebar-accent group-focus-within/menu-item:text-sidebar-accent-foreground data-active:bg-primary/10 data-active:font-normal data-active:text-foreground dark:data-active:bg-primary/15 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-0'
         >
           {isActive ? (
             <span
@@ -2626,7 +2631,15 @@ function ChatHistorySidebar({
     <>
       <Sidebar collapsible={collapsible} variant={variant}>
         <SidebarHeader>
-          <TeamSwitcher teams={CHAT_SIDEBAR_TEAMS} />
+          <TeamSwitcher
+            teams={CHAT_SIDEBAR_TEAMS}
+            homeHref='/'
+            onHomeClick={() => {
+              setQuery('')
+              setView('active')
+              onGoHome()
+            }}
+          />
           <div className='flex items-center gap-2 group-data-[collapsible=icon]:hidden'>
             <div className='relative min-w-0 flex-1'>
               <Search className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
@@ -2745,7 +2758,7 @@ function ChatHistorySidebar({
               className='flex h-full min-h-0 flex-col overflow-hidden'
             >
               {visibleConversations.length > 0 ? (
-                <div className='no-scrollbar min-h-0 flex-1 overflow-x-hidden overflow-y-auto'>
+                <div className='mr-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-gutter:stable]'>
                   {view === 'active' ? (
                     <>
                       {pinnedVisibleConversations.length > 0 ? (
@@ -3100,7 +3113,7 @@ function UserMessage({
 }) {
   return (
     <div className='flex flex-col items-end gap-2'>
-      <MessageContent className='bg-primary text-sm leading-5 text-primary-foreground'>
+      <MessageContent className='text-sm leading-5'>
         {message.content}
       </MessageContent>
       {message.files?.length ? (

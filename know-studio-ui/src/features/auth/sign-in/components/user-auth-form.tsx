@@ -87,7 +87,6 @@ export function UserAuthForm({
       const tokens = await login({ loginId, password: values.password })
       auth.setAccessToken(tokens.accessToken)
       auth.setUser(tokens.currentUser)
-      toast.success('登录成功')
       const target = redirectTo && redirectTo !== '/500' ? redirectTo : '/'
       navigate({ to: target, replace: true })
     } catch (error) {
@@ -113,7 +112,7 @@ export function UserAuthForm({
                     className='size-7 text-primary'
                     aria-hidden='true'
                   />
-                  Know Studio
+                  KnowStudio
                 </h1>
                 <p className='text-balance text-muted-foreground'>
                   登录账号继续访问工作台
