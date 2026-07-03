@@ -24,6 +24,7 @@ import { TeamSwitcher } from '@/components/layout/team-switcher'
 import {
   createAssistantSession,
   streamAssistantChat,
+  type AssistantToolMode,
 } from '@/api/assistant'
 import { getMyGroups } from '@/api/groups'
 import { extractApiError, isUnauthorizedError } from '@/api/http'
@@ -39,6 +40,7 @@ import {
   BookOpenText,
   Brain,
   CheckCircle,
+  ChevronDown,
   Circle,
   Clipboard,
   ClipboardList,
@@ -50,10 +52,12 @@ import {
   FileUp,
   Inbox,
   MessageSquare,
+  Mic,
   MoreHorizontal,
   Paperclip,
   Pin,
   PinOff,
+  Plus,
   RotateCcw,
   Search,
   Settings,
@@ -129,6 +133,9 @@ import {
   DropdownMenuContent,
   DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
@@ -208,6 +215,24 @@ type ChatState = {
 
 type ChatSidebarView = 'active' | 'favorites' | 'archived'
 type ChatSidebarVariant = 'inset' | 'sidebar' | 'floating'
+type ChatAssistantMode = Extract<AssistantToolMode, 'CHAT' | 'KB_SEARCH'>
+
+const CHAT_ASSISTANT_MODE_OPTIONS: {
+  value: ChatAssistantMode
+  label: string
+  icon: LucideIcon
+}[] = [
+  {
+    value: 'KB_SEARCH',
+    label: '知识问答',
+    icon: Database,
+  },
+  {
+    value: 'CHAT',
+    label: '通用助手',
+    icon: MessageSquare,
+  },
+]
 
 const CHAT_STORAGE_KEY = 'know-studio.chat-ui.conversations'
 const DEFAULT_CONVERSATION_TITLE = '新的对话'
@@ -1073,6 +1098,8 @@ export function ChatHome() {
   const [input, setInput] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
+  const [assistantMode, setAssistantMode] =
+    useState<ChatAssistantMode>('KB_SEARCH')
   const [isHeaderGlass, setIsHeaderGlass] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const messageIdRef = useRef(DEMO_NOW)
@@ -1105,6 +1132,11 @@ export function ChatHome() {
     (group) => String(group.groupId) === selectedGroupId
   )
   const activeGroupId = selectedGroup?.groupId ?? groups[0]?.groupId ?? null
+  const activeMode =
+    CHAT_ASSISTANT_MODE_OPTIONS.find((mode) => mode.value === assistantMode) ??
+    CHAT_ASSISTANT_MODE_OPTIONS[0]
+  const activeModeLabel = activeMode.label
+  const ActiveModeIcon = activeMode.icon
 
   useEffect(() => {
     window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(conversations))
@@ -1349,7 +1381,7 @@ export function ChatHome() {
                   isDefaultConversationTitle(conversation.title) && input.trim()
                     ? input.trim().slice(0, 24)
                     : conversation.title,
-                description: '知识库问答',
+                description: activeModeLabel,
                 messages: messagesUpdater(conversation.messages),
               })
             : conversation
@@ -1426,15 +1458,17 @@ export function ChatHome() {
     question,
     assistantSessionId,
     initialAccessToken,
+    toolMode,
   }: {
     targetConversationId: string
     assistantMessageId: number
     question: string
     assistantSessionId: number | null
     initialAccessToken: string
+    toolMode: ChatAssistantMode
   }) {
-    const targetGroupId = activeGroupId
-    if (!targetGroupId) {
+    const targetGroupId = toolMode === 'KB_SEARCH' ? activeGroupId : null
+    if (toolMode === 'KB_SEARCH' && !targetGroupId) {
       const errorMessage = '请先在管理后台创建知识库并上传文档'
       toast.error(errorMessage)
       updateConversationMessage(
@@ -1468,8 +1502,8 @@ export function ChatHome() {
         {
           sessionId: currentAssistantSessionId,
           message: question,
-          toolMode: 'KB_SEARCH',
-          groupId: targetGroupId,
+          toolMode,
+          ...(targetGroupId ? { groupId: targetGroupId } : {}),
         },
         streamAccessToken,
         (event) => {
@@ -1610,7 +1644,8 @@ export function ChatHome() {
       return
     }
 
-    if (!activeGroupId) {
+    const requestMode = assistantMode
+    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
       toast.error('请先在管理后台创建知识库并上传文档')
       return
     }
@@ -1622,7 +1657,7 @@ export function ChatHome() {
     const nextAssistantMessage: ChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
-      variant: targetMessage.variant ?? 'rag',
+      variant: requestMode === 'KB_SEARCH' ? 'rag' : 'code',
       isLive: true,
       isStreaming: true,
       isResponseComplete: false,
@@ -1653,13 +1688,15 @@ export function ChatHome() {
       question,
       assistantSessionId: activeConversation.assistantSessionId ?? null,
       initialAccessToken: currentAccessToken,
+      toolMode: requestMode,
     })
   }
 
   async function handleSubmit(nextInput = input, nextFiles = files) {
     const trimmedInput = nextInput.trim()
     if ((!trimmedInput && nextFiles.length === 0) || isStreaming) return
-    if (!activeGroupId) {
+    const requestMode = assistantMode
+    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
       toast.error('请先在管理后台创建知识库并上传文档')
       return
     }
@@ -1678,7 +1715,7 @@ export function ChatHome() {
     const assistantMessage: ChatMessage = {
       id: assistantMessageId,
       role: 'assistant',
-      variant: 'rag',
+      variant: requestMode === 'KB_SEARCH' ? 'rag' : 'code',
       isLive: true,
       isStreaming: true,
       isResponseComplete: false,
@@ -1692,7 +1729,10 @@ export function ChatHome() {
       const nextConversation = touchConversation({
         ...createEmptyConversation(),
         title: userMessage.content.slice(0, 24),
-        description: selectedGroup?.groupName ?? '知识库问答',
+        description:
+          requestMode === 'KB_SEARCH'
+            ? selectedGroup?.groupName ?? '知识问答'
+            : '通用助手',
         messages: [userMessage, assistantMessage],
       })
       targetConversationId = nextConversation.id
@@ -1717,6 +1757,7 @@ export function ChatHome() {
       question: userMessage.content,
       assistantSessionId,
       initialAccessToken: currentAccessToken,
+      toolMode: requestMode,
     })
   }
 
@@ -1752,7 +1793,7 @@ export function ChatHome() {
       >
         <PromptInput
           className={cn(
-            'border-input rounded-xl border bg-background shadow-xs',
+            'border-input rounded-2xl border bg-popover p-0 pt-1 shadow-xs',
             inputClassName
           )}
           value={input}
@@ -1813,42 +1854,131 @@ export function ChatHome() {
             placeholder='询问知识库、粘贴材料，或描述要分析的问题...'
             disabled={isStreaming}
             disableAutosize
-            className='h-22 min-h-22 max-h-22 overflow-y-auto md:text-[15px] [field-sizing:fixed]'
+            className='h-22 min-h-22 max-h-22 overflow-y-auto px-5 pt-4 text-sm md:text-[15px] [field-sizing:fixed]'
           />
 
-          <PromptInputActions className='flex items-center justify-between gap-2 pt-1'>
-            <PromptInputAction tooltip='Attach files'>
-              <FileUploadTrigger asChild>
+          <PromptInputActions className='mt-5 flex w-full items-center justify-between gap-2 px-3 pb-3'>
+            <div className='flex min-w-0 items-center gap-2'>
+              <PromptInputAction tooltip='Attach files'>
+                <FileUploadTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon-lg'
+                    className='rounded-full'
+                    disabled={isStreaming}
+                  >
+                    <Plus />
+                    <span className='sr-only'>Attach files</span>
+                  </Button>
+                </FileUploadTrigger>
+              </PromptInputAction>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='lg'
+                    className='rounded-full'
+                    disabled={isStreaming}
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <ActiveModeIcon />
+                    {activeMode.label}
+                    <ChevronDown data-icon='inline-end' />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='start' className='min-w-44'>
+                  <DropdownMenuGroup>
+                    <DropdownMenuLabel>选择问答模式</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup
+                      value={assistantMode}
+                      onValueChange={(value) =>
+                        setAssistantMode(value as ChatAssistantMode)
+                      }
+                    >
+                      {CHAT_ASSISTANT_MODE_OPTIONS.map((mode) => {
+                        const ModeIcon = mode.icon
+
+                        return (
+                          <DropdownMenuRadioItem
+                            key={mode.value}
+                            value={mode.value}
+                          >
+                            <ModeIcon />
+                            {mode.label}
+                          </DropdownMenuRadioItem>
+                        )
+                      })}
+                    </DropdownMenuRadioGroup>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon-lg'
+                    className='rounded-full'
+                    disabled={isStreaming}
+                    aria-label='更多输入操作'
+                    onClick={(event) => event.stopPropagation()}
+                  >
+                    <MoreHorizontal />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='start' className='min-w-44'>
+                  <DropdownMenuGroup>
+                    <DropdownMenuItem onClick={handleNewConversation}>
+                      <SquarePen />
+                      新建对话
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={handleResetDemo}>
+                      <RotateCcw />
+                      恢复示例数据
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <PromptInputAction tooltip='语音输入'>
                 <Button
                   type='button'
-                  variant='ghost'
-                  size='icon'
+                  variant='outline'
+                  size='icon-lg'
+                  className='rounded-full'
                   disabled={isStreaming}
+                  onClick={() => toast.info('语音输入暂未接入')}
+                  aria-label='语音输入'
                 >
-                  <Paperclip />
-                  <span className='sr-only'>Attach files</span>
+                  <Mic />
                 </Button>
-              </FileUploadTrigger>
-            </PromptInputAction>
+              </PromptInputAction>
 
-            <PromptInputAction
-              tooltip={isStreaming ? 'Stop generation' : 'Send message'}
-            >
-              <Button
-                type='button'
-                size='icon-lg'
-                className='rounded-2xl'
-                onClick={() => (isStreaming ? stopStreaming() : handleSubmit())}
-                disabled={!isStreaming && !input.trim() && files.length === 0}
-                aria-label={isStreaming ? 'Stop generation' : 'Send message'}
+              <PromptInputAction
+                tooltip={isStreaming ? 'Stop generation' : 'Send message'}
               >
-                {isStreaming ? (
-                  <Square className='size-3.5 fill-current' />
-                ) : (
-                  <ArrowUpIcon className='size-5' />
-                )}
-              </Button>
-            </PromptInputAction>
+                <Button
+                  type='button'
+                  size='icon-lg'
+                  className='rounded-2xl'
+                  onClick={() => (isStreaming ? stopStreaming() : handleSubmit())}
+                  disabled={!isStreaming && !input.trim() && files.length === 0}
+                  aria-label={isStreaming ? 'Stop generation' : 'Send message'}
+                >
+                  {isStreaming ? (
+                    <Square className='size-3.5 fill-current' />
+                  ) : (
+                    <ArrowUpIcon className='size-5' />
+                  )}
+                </Button>
+              </PromptInputAction>
+            </div>
           </PromptInputActions>
         </PromptInput>
 
@@ -1969,7 +2099,7 @@ export function ChatHome() {
 
             <header
               className={cn(
-                'pointer-events-none absolute inset-x-0 top-0 z-30 flex h-16 items-center justify-between bg-background/95 px-4 transition-all duration-200',
+                'pointer-events-none absolute inset-x-0 top-0 z-30 grid h-16 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 bg-background/95 px-4 transition-all duration-200',
                 isHeaderGlass &&
                   'bg-background/80 shadow-sm backdrop-blur-xl supports-[backdrop-filter]:bg-background/70'
               )}
@@ -1977,10 +2107,10 @@ export function ChatHome() {
               <div className='pointer-events-auto flex items-center gap-2'>
                 <SidebarTrigger />
               </div>
-              <div className='pointer-events-auto absolute left-1/2 flex max-w-[min(32rem,calc(100%-12rem))] -translate-x-1/2 items-center justify-center gap-2 text-sm font-medium'>
+              <div className='pointer-events-auto flex min-w-0 items-center justify-center gap-2 text-sm font-medium'>
                 <span className='truncate'>{activeConversationTitle}</span>
               </div>
-              <div className='pointer-events-auto flex items-center'>
+              <div className='pointer-events-auto flex min-w-0 items-center justify-end'>
                 <HeaderActions showSearch={false} showAdminLink />
               </div>
             </header>
