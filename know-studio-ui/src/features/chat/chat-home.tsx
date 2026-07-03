@@ -2272,12 +2272,6 @@ function ChatHistorySidebar({
   const [isClearArchiveOpen, setIsClearArchiveOpen] = useState(false)
   const [isResetOpen, setIsResetOpen] = useState(false)
 
-  const activeCount = conversations.filter(
-    (conversation) => !conversation.isArchived
-  ).length
-  const favoriteCount = conversations.filter(
-    (conversation) => conversation.isFavorited && !conversation.isArchived
-  ).length
   const archivedCount = conversations.filter(
     (conversation) => conversation.isArchived
   ).length
@@ -2356,27 +2350,18 @@ function ChatHistorySidebar({
         key={conversation.id}
         data-slot='sidebar-menu-item'
         data-sidebar='menu-item'
-        layout={!reduceMotion}
-        initial={reduceMotion ? false : { opacity: 0, y: 6, scale: 0.98 }}
-        animate={reduceMotion ? undefined : { opacity: 1, y: 0, scale: 1 }}
-        exit={reduceMotion ? undefined : { opacity: 0, x: -8, scale: 0.98 }}
-        transition={
-          reduceMotion
-            ? undefined
-            : { duration: 0.2, ease: [0.22, 1, 0.36, 1] }
-        }
         className='group/menu-item relative'
       >
         <SidebarMenuButton
           isActive={isActive}
           tooltip={conversation.title}
           onClick={() => onSelectConversation(conversation.id)}
-          className='relative min-h-8 [--sidebar-menu-icon-size:1rem] px-3 pr-10 font-normal leading-5 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-focus-within/menu-item:bg-sidebar-accent group-focus-within/menu-item:text-sidebar-accent-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-foreground dark:data-active:bg-primary/15 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-0'
+          className='relative min-h-8 [--sidebar-menu-icon-size:1rem] pl-4 pr-10 font-normal leading-5 group-hover/menu-item:bg-sidebar-accent group-hover/menu-item:text-sidebar-accent-foreground group-focus-within/menu-item:bg-sidebar-accent group-focus-within/menu-item:text-sidebar-accent-foreground data-active:bg-primary/10 data-active:font-medium data-active:text-foreground dark:data-active:bg-primary/15 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:pr-0'
         >
           {isActive ? (
             <span
               aria-hidden='true'
-              className='absolute top-1/2 left-1 h-4 w-1 -translate-y-1/2 rounded-full bg-primary'
+              className='absolute top-1/2 left-0 h-4 w-1 -translate-y-1/2 rounded-full bg-primary'
             />
           ) : null}
           {conversation.isPinned && !conversation.isArchived ? (
@@ -2534,45 +2519,45 @@ function ChatHistorySidebar({
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip='搜索历史'
+                    tooltip='搜索'
                     onClick={() => openSidebarView('active', { search: true })}
                     className='justify-center'
                   >
                     <Search />
-                    <span className='sr-only'>搜索历史</span>
+                    <span className='sr-only'>搜索</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip={`全部历史 ${activeCount}`}
+                    tooltip='对话'
                     onClick={() => openSidebarView('active')}
                     isActive={view === 'active'}
                     className='justify-center'
                   >
-                    <Inbox />
-                    <span className='sr-only'>全部历史</span>
+                    <MessageSquare />
+                    <span className='sr-only'>对话</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip={`收藏对话 ${favoriteCount}`}
+                    tooltip='收藏'
                     onClick={() => openSidebarView('favorites')}
                     isActive={view === 'favorites'}
                     className='justify-center'
                   >
                     <Star />
-                    <span className='sr-only'>收藏对话</span>
+                    <span className='sr-only'>收藏</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton
-                    tooltip={`归档对话 ${archivedCount}`}
+                    tooltip='归档'
                     onClick={() => openSidebarView('archived')}
                     isActive={view === 'archived'}
                     className='justify-center'
                   >
                     <Archive />
-                    <span className='sr-only'>归档对话</span>
+                    <span className='sr-only'>归档</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>

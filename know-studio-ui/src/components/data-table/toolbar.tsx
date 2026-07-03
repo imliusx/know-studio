@@ -39,14 +39,15 @@ export function DataTableToolbar<TData>({
   const placeholder = searchPlaceholder ?? t("table.toolbar.filterPlaceholder")
 
   return (
-    <div className="flex items-center justify-between">
-      <div className="flex flex-1 flex-col-reverse items-start gap-2 sm:flex-row sm:items-center">
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex w-full flex-1 flex-col-reverse items-start gap-2 sm:flex-row sm:items-center">
         {searchKey ? (
-          <InputGroup className="w-37.5 lg:w-62.5">
+          <InputGroup className="w-full sm:w-62.5">
             <InputGroupAddon>
               <SearchIcon />
             </InputGroupAddon>
             <InputGroupInput
+              className="text-sm"
               placeholder={placeholder}
               value={
                 (table.getColumn(searchKey)?.getFilterValue() as string) ?? ""
@@ -57,11 +58,12 @@ export function DataTableToolbar<TData>({
             />
           </InputGroup>
         ) : (
-          <InputGroup className="w-37.5 lg:w-62.5">
+          <InputGroup className="w-full sm:w-62.5">
             <InputGroupAddon>
               <SearchIcon />
             </InputGroupAddon>
             <InputGroupInput
+              className="text-sm"
               placeholder={placeholder}
               value={table.getState().globalFilter ?? ""}
               onChange={(event) => table.setGlobalFilter(event.target.value)}

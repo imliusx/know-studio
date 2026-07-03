@@ -1192,7 +1192,7 @@ function KnowledgeBaseList({ data, isLoading }: KnowledgeBaseListProps) {
         }
         transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Table className="min-w-xl">
+        <Table className="min-w-[880px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
@@ -1647,7 +1647,7 @@ function KnowledgeBaseTable({
         }
         transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Table className="min-w-xl">
+        <Table className="min-w-[820px]">
           <TableHeader>
             {table.getHeaderGroups().map((headerGroup) => (
               <TableRow key={headerGroup.id}>
