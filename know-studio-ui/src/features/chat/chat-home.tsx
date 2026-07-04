@@ -22,12 +22,18 @@ import { sidebarData } from '@/components/layout/data/sidebar-data'
 import { TeamSwitcher } from '@/components/layout/team-switcher'
 import {
   createAssistantSession,
+  deleteAssistantSession,
+  getAssistantContext,
+  listAssistantSessions,
+  renameAssistantSession,
   streamAssistantChat,
+  type AssistantMessage as ApiAssistantMessage,
+  type AssistantSessionListItem,
   type AssistantToolMode,
 } from '@/api/assistant'
 import { getMyGroups } from '@/api/groups'
 import { extractApiError, isUnauthorizedError } from '@/api/http'
-import { askQuestion, type Citation } from '@/api/qa'
+import { type Citation } from '@/api/qa'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
 import { mergeGroups } from '@/features/ddrag/shared'
@@ -40,7 +46,6 @@ import {
   Brain,
   CheckCircle,
   ChevronDown,
-  Circle,
   Clipboard,
   ClipboardList,
   Copy,
@@ -69,27 +74,18 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
-  ChainOfThought,
-  ChainOfThoughtContent,
-  ChainOfThoughtItem,
-  ChainOfThoughtStep,
-  ChainOfThoughtTrigger,
-} from '@/components/ui/chain-of-thought'
-import {
   ChatContainerContent,
   ChatContainerRoot,
   ChatContainerScrollAnchor,
   ChatContainerScrollToBottom,
 } from '@/components/ui/chat-container'
-import { CodeBlock, CodeBlockCode, CodeBlockGroup } from '@/components/ui/code-block'
 import {
   FileUpload,
   FileUploadContent,
   FileUploadTrigger,
 } from '@/components/ui/file-upload'
-import { Image } from '@/components/ui/image'
-import { JSXPreview } from '@/components/ui/jsx-preview'
 import { Loader } from '@/components/ui/loader'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   Message,
   MessageAction,
@@ -104,7 +100,6 @@ import {
 } from '@/components/ui/prompt-input'
 import { PromptSuggestion } from '@/components/ui/prompt-suggestion'
 import { ScrollButton } from '@/components/ui/scroll-button'
-import { Steps, StepsContent, StepsItem, StepsTrigger } from '@/components/ui/steps'
 import { TextShimmer } from '@/components/ui/text-shimmer'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -167,6 +162,7 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSkeleton,
   SidebarProvider,
   SidebarRail,
   SidebarTrigger,
@@ -214,6 +210,11 @@ type ChatState = {
   activeConversationId: string | null
 }
 
+type ChatSessionMetadata = Record<
+  string,
+  Pick<ChatConversation, 'isPinned' | 'isFavorited' | 'isArchived'>
+>
+
 type ChatSidebarView = 'active' | 'favorites' | 'archived'
 type ChatSidebarVariant = 'inset' | 'sidebar' | 'floating'
 type ChatAssistantMode = Extract<AssistantToolMode, 'CHAT' | 'KB_SEARCH'>
@@ -235,7 +236,8 @@ const CHAT_ASSISTANT_MODE_OPTIONS: {
   },
 ]
 
-const CHAT_STORAGE_KEY = 'know-studio.chat-ui.conversations'
+const CHAT_SESSION_METADATA_KEY = 'know-studio.chat-ui.session-metadata'
+const LEGACY_CHAT_STORAGE_KEY = 'know-studio.chat-ui.conversations'
 const DEFAULT_CONVERSATION_TITLE = '新的对话'
 const LEGACY_DEFAULT_CONVERSATION_TITLE = '新对话'
 const CHAT_EMPTY_TITLES = [
@@ -251,7 +253,6 @@ const CHAT_EMPTY_TITLES = [
 const CHAT_EMPTY_TITLE_PLACEHOLDER = CHAT_EMPTY_TITLES.reduce((longest, title) =>
   title.length > longest.length ? title : longest
 )
-const DEMO_NOW = Date.now()
 const CHAT_SIDEBAR_TEAMS = [
   {
     ...sidebarData.teams[0],
@@ -423,547 +424,6 @@ function ChatHeroTitle() {
   )
 }
 
-const generatedDiagram =
-  'PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI5NjAiIGhlaWdodD0iNDgwIiB2aWV3Qm94PSIwIDAgOTYwIDQ4MCI+PHJlY3Qgd2lkdGg9Ijk2MCIgaGVpZ2h0PSI0ODAiIGZpbGw9IiNmOGZhZmMiLz48cmVjdCB4PSI5NiIgeT0iMTA0IiB3aWR0aD0iMTkyIiBoZWlnaHQ9IjEyOCIgcng9IjE4IiBmaWxsPSIjZmZmIiBzdHJva2U9IiNlMmU4ZjAiLz48cmVjdCB4PSIzODQiIHk9IjEwNCIgd2lkdGg9IjE5MiIgaGVpZ2h0PSIxMjgiIHJ4PSIxOCIgZmlsbD0iI2ZmZiIgc3Ryb2tlPSIjZTJlOGYwIi8+PHJlY3QgeD0iNjcyIiB5PSIxMDQiIHdpZHRoPSIxOTIiIGhlaWdodD0iMTI4IiByeD0iMTgiIGZpbGw9IiNmZmYiIHN0cm9rZT0iI2UyZThmMCIvPjxyZWN0IHg9IjI0MCIgeT0iMjkyIiB3aWR0aD0iMTkyIiBoZWlnaHQ9Ijg0IiByeD0iMTgiIGZpbGw9IiMxODE4MWIiLz48cmVjdCB4PSI1MjgiIHk9IjI5MiIgd2lkdGg9IjE5MiIgaGVpZ2h0PSI4NCIgcng9IjE4IiBmaWxsPSIjMTgxODFiIi8+PHRleHQgeD0iMTkyIiB5PSIxNTYiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyNCIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iIzE4MTgxYiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RG9jdW1lbnRzPC90ZXh0Pjx0ZXh0IHg9IjQ4MCIgeT0iMTU2IiBmb250LWZhbWlseT0iQXJpYWwsIHNhbnMtc2VyaWYiIGZvbnQtc2l6ZT0iMjQiIGZvbnQtd2VpZ2h0PSI3MDAiIGZpbGw9IiMxODE4MWIiIHRleHQtYW5jaG9yPSJtaWRkbGUiPlJldHJpZXZhbDwvdGV4dD48dGV4dCB4PSI3NjgiIHk9IjE1NiIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjI0IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjMTgxODFiIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BbnN3ZXI8L3RleHQ+PHRleHQgeD0iMzM2IiB5PSIzNDIiIGZvbnQtZmFtaWx5PSJBcmlhbCwgc2Fucy1zZXJpZiIgZm9udC1zaXplPSIyMiIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iI2ZmZiIgdGV4dC1hbmNob3I9Im1pZGRsZSI+U291cmNlczwvdGV4dD48dGV4dCB4PSI2MjQiIHk9IjM0MiIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjIyIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5GZWVkYmFjazwvdGV4dD48cGF0aCBkPSJNMjg4IDE2OGg5NiIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjOTRhM2IzIiBzdHJva2Utd2lkdGg9IjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Ik01NzYgMTY4aDk2IiBmaWxsPSJub25lIiBzdHJva2U9IiM5NGEzYjMiIHN0cm9rZS13aWR0aD0iNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PHBhdGggZD0iTTQ4MCAyMzJ2NjBNNDMyIDMzNGg5Nk02MjQgMjMydjYwIiBmaWxsPSJub25lIiBzdHJva2U9IiM5NGEzYjMiIHN0cm9rZS13aWR0aD0iNiIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+'
-
-const codeSample = `export async function searchKnowledgeBase(query: string) {
-  const response = await fetch('/api/v1/rag/query', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ query, topK: 6, rerank: true }),
-  })
-
-  if (!response.ok) {
-    throw new Error('Knowledge base search failed')
-  }
-
-  return response.json()
-}`
-
-const artifactJsx = `
-<div className="grid gap-3 rounded-lg border bg-background p-4 text-sm">
-  <div className="flex items-center justify-between">
-    <strong>文档解析队列</strong>
-    <span className="rounded-lg bg-secondary px-2 py-1 text-xs">demo</span>
-  </div>
-  <div className="grid grid-cols-3 gap-2">
-    <div className="rounded-lg border p-3">
-      <div className="text-2xl font-semibold">128</div>
-      <div className="text-muted-foreground">chunks</div>
-    </div>
-    <div className="rounded-lg border p-3">
-      <div className="text-2xl font-semibold">94%</div>
-      <div className="text-muted-foreground">indexed</div>
-    </div>
-    <div className="rounded-lg border p-3">
-      <div className="text-2xl font-semibold">6</div>
-      <div className="text-muted-foreground">sources</div>
-    </div>
-  </div>
-</div>`
-
-const initialMessages: ChatMessage[] = [
-  {
-    id: 1,
-    role: 'user',
-    content: '帮我总结知识库问答链路，并展示检索来源和执行过程。',
-    files: ['产品需求.md', '接口说明.pdf'],
-  },
-  {
-    id: 2,
-    role: 'assistant',
-    variant: 'rag',
-    isStreaming: true,
-    content:
-      '可以。当前 Chat UI 会围绕知识库问答的真实使用路径组织内容：上传资料、解析入库、混合检索、证据重排、基于来源生成回答，最后保留反馈入口。页面里的工具调用、引用来源、执行步骤、代码块和产物预览都直接嵌在对话消息中。',
-  },
-]
-
-const initialConversations: ChatConversation[] = [
-  {
-    id: 'rag-overview',
-    title: 'RAG 总览：从上传到回答',
-    description: '来源、工具、执行步骤',
-    updatedAt: '刚刚',
-    createdAt: DEMO_NOW - 1000 * 60 * 20,
-    updatedAtValue: DEMO_NOW,
-    isPinned: true,
-    isFavorited: true,
-    messages: initialMessages,
-  },
-  {
-    id: 'api-adapter',
-    title: '检索 API',
-    description: '前端调用模型',
-    updatedAt: '12 分钟前',
-    createdAt: DEMO_NOW - 1000 * 60 * 80,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 12,
-    isPinned: false,
-    isFavorited: true,
-    messages: [
-      {
-        id: 101,
-        role: 'user',
-        content: '写一段后端检索接口示例。',
-      },
-      {
-        id: 102,
-        role: 'assistant',
-        variant: 'code',
-        content:
-          '下面先给出前端可以直接对接的检索接口调用模型。真实接入时，建议后端返回 answer、sources、toolCalls 和 feedbackId，前端按当前消息结构渲染即可。',
-      },
-    ],
-  },
-  {
-    id: 'document-status',
-    title: '解析队列',
-    description: '队列、切分、索引进度',
-    updatedAt: '昨天',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 26,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 201,
-        role: 'user',
-        content: '生成一个文档解析状态面板。',
-        files: ['合同样例.docx'],
-      },
-      {
-        id: 202,
-        role: 'assistant',
-        variant: 'document',
-        content:
-          '文档解析页面可以展示队列状态、切分数量、索引进度和失败项，用产物预览承载解析结构。',
-      },
-    ],
-  },
-  {
-    id: 'contract-risk',
-    title: '合同里的风险',
-    description: '付款、违约、交付边界',
-    updatedAt: '2 小时前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 8,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 2,
-    isPinned: true,
-    isFavorited: false,
-    messages: [
-      {
-        id: 301,
-        role: 'user',
-        content: '帮我从合同知识库里找出付款、违约和交付相关风险。',
-        files: ['年度采购合同.pdf'],
-      },
-      {
-        id: 302,
-        role: 'assistant',
-        content:
-          '已按条款类型聚合风险点：付款节点需要补充验收口径，违约责任存在单边约束，交付范围建议增加附件版本号和变更流程。',
-      },
-    ],
-  },
-  {
-    id: 'customer-churn',
-    title: '近两季客户为什么流失',
-    description: '工单、回访、续费记录',
-    updatedAt: '3 小时前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 14,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 3,
-    isPinned: false,
-    isFavorited: true,
-    messages: [
-      {
-        id: 401,
-        role: 'user',
-        content: '从近两季度客户反馈里总结流失原因，按影响程度排序。',
-      },
-      {
-        id: 402,
-        role: 'assistant',
-        content:
-          '高频原因集中在响应时效、权限配置复杂、迁移成本和培训不足。建议先处理企业版客户的工单响应 SLA，并补齐迁移手册。',
-      },
-    ],
-  },
-  {
-    id: 'employee-onboarding',
-    title: '新人入职',
-    description: '权限、设备、流程',
-    updatedAt: '5 小时前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 28,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 5,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 501,
-        role: 'user',
-        content: '整理一份新人第一天需要完成的入职清单。',
-      },
-      {
-        id: 502,
-        role: 'assistant',
-        content:
-          '第一天建议按账号开通、设备验收、组织架构、信息安全培训和直属团队同步五个步骤推进，并在系统里确认每项负责人。',
-      },
-    ],
-  },
-  {
-    id: 'incident-review',
-    title: '登录故障复盘摘要',
-    description: '日志、影响面、改进项',
-    updatedAt: '昨天',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 42,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 30,
-    isPinned: false,
-    isFavorited: true,
-    messages: [
-      {
-        id: 601,
-        role: 'user',
-        content: '根据故障记录生成一份复盘摘要，重点写根因和改进项。',
-        files: ['gateway-error.log'],
-      },
-      {
-        id: 602,
-        role: 'assistant',
-        content:
-          '根因是网关连接池耗尽后重试放大流量，影响登录和文档上传。改进项包括熔断阈值、连接池告警、灰度压测和回滚演练。',
-      },
-    ],
-  },
-  {
-    id: 'sales-playbook',
-    title: '销售话术：竞品异议怎么答',
-    description: '竞品、异议、案例',
-    updatedAt: '2 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 72,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 48,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 701,
-        role: 'user',
-        content: '客户问我们和竞品的差异，帮我从销售知识库里整理回答。',
-      },
-      {
-        id: 702,
-        role: 'assistant',
-        content:
-          '可以围绕私有化部署、权限隔离、混合检索和证据引用展开。避免泛泛比较，优先引用已成交客户的业务场景。',
-      },
-    ],
-  },
-  {
-    id: 'policy-search',
-    title: '差旅报销',
-    description: '差旅、票据、审批',
-    updatedAt: '3 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 96,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 72,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 801,
-        role: 'user',
-        content: '出差期间打车和酒店发票分别需要哪些材料？',
-      },
-      {
-        id: 802,
-        role: 'assistant',
-        content:
-          '打车需行程单和发票，酒店需住宿发票、入住明细和审批单。跨城市行程建议补充会议邀请或客户拜访记录。',
-      },
-    ],
-  },
-  {
-    id: 'meeting-actions',
-    title: '项目例会待办拆解',
-    description: '决议、负责人、截止时间',
-    updatedAt: '4 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 120,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 96,
-    isPinned: false,
-    isFavorited: true,
-    messages: [
-      {
-        id: 901,
-        role: 'user',
-        content: '把这份会议记录整理成决议和待办。',
-        files: ['项目例会记录.md'],
-      },
-      {
-        id: 902,
-        role: 'assistant',
-        content:
-          '已拆成三项决议和六个待办：知识库权限方案本周确认，上传体验下周提测，问答评测集由产品和实施共同补充。',
-      },
-    ],
-  },
-  {
-    id: 'permission-design',
-    title: '跨部门知识库权限隔离方案',
-    description: '组织、成员、可见范围',
-    updatedAt: '5 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 144,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 120,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 1001,
-        role: 'user',
-        content: '如何设计知识库的组织权限，避免跨部门误检索？',
-      },
-      {
-        id: 1002,
-        role: 'assistant',
-        content:
-          '建议把系统角色和知识库成员角色拆开：管理员管平台，OWNER 管空间，MEMBER 只读检索。检索接口必须带 groupId 做硬隔离。',
-      },
-    ],
-  },
-  {
-    id: 'rag-evaluation',
-    title: '问答评测集',
-    description: '命中率、拒答、引用质量',
-    updatedAt: '上周',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 9,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 7,
-    isPinned: false,
-    isFavorited: false,
-    isArchived: true,
-    messages: [
-      {
-        id: 1101,
-        role: 'user',
-        content: '帮我设计一套 RAG 问答评测指标。',
-      },
-      {
-        id: 1102,
-        role: 'assistant',
-        content:
-          '建议评估检索命中、证据覆盖、引用准确、拒答合理性和回答可读性。每类准备正例、相似干扰和无答案问题。',
-      },
-    ],
-  },
-  {
-    id: 'migration-plan',
-    title: '旧库迁移到 KnowStudio 前的检查清单',
-    description: '字段映射、批量导入',
-    updatedAt: '上周',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 10,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 8,
-    isPinned: false,
-    isFavorited: true,
-    isArchived: true,
-    messages: [
-      {
-        id: 1201,
-        role: 'user',
-        content: '旧知识库迁移到新系统需要注意什么？',
-      },
-      {
-        id: 1202,
-        role: 'assistant',
-        content:
-          '迁移前先统一文档归属、权限、文件哈希和版本号。导入后抽样检查解析文本、chunk 数量、向量索引和关键词索引一致性。',
-      },
-    ],
-  },
-  {
-    id: 'pricing-faq',
-    title: '价格口径',
-    description: '套餐、折扣、续费',
-    updatedAt: '9 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 12,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 9,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 1301,
-        role: 'user',
-        content: '客户问企业版怎么收费，哪些信息可以直接对外说？',
-      },
-      {
-        id: 1302,
-        role: 'assistant',
-        content:
-          '可以直接说明按账号、知识库容量和私有化部署范围报价。折扣、赠送额度和定制条款需要销售负责人确认后再发出。',
-      },
-    ],
-  },
-  {
-    id: 'release-note',
-    title: '这周发版说明怎么写',
-    description: '更新点、风险、回滚',
-    updatedAt: '10 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 13,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 10,
-    isPinned: false,
-    isFavorited: true,
-    messages: [
-      {
-        id: 1401,
-        role: 'user',
-        content: '把本周更新整理成给客户看的发版说明，不要太技术化。',
-      },
-      {
-        id: 1402,
-        role: 'assistant',
-        content:
-          '本周重点可以写成三块：文档上传更稳定、问答来源更清晰、管理后台操作更顺手。技术细节放到内部变更记录。',
-      },
-    ],
-  },
-  {
-    id: 'security-check',
-    title: '安全检查项',
-    description: '账号、权限、审计',
-    updatedAt: '11 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 14,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 11,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 1501,
-        role: 'user',
-        content: '上线前帮我列一份安全检查清单。',
-      },
-      {
-        id: 1502,
-        role: 'assistant',
-        content:
-          '上线前重点检查默认密码、JWT 密钥、对象存储权限、跨组检索隔离、管理员操作审计和外部端口暴露范围。',
-      },
-    ],
-  },
-  {
-    id: 'support-reply',
-    title: '给客户的一封解释邮件',
-    description: '语气、原因、处理方案',
-    updatedAt: '12 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 15,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 12,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 1601,
-        role: 'user',
-        content: '客户反馈问答结果没引用来源，帮我写一封解释和处理邮件。',
-      },
-      {
-        id: 1602,
-        role: 'assistant',
-        content:
-          '邮件建议先承认影响，再说明原因是部分文档未完成索引，最后给出重建索引、补充引用展示和回访时间。',
-      },
-    ],
-  },
-  {
-    id: 'procurement-comparison',
-    title: '采购方案 A/B 对比表',
-    description: '成本、周期、风险',
-    updatedAt: '13 天前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 16,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 13,
-    isPinned: false,
-    isFavorited: true,
-    messages: [
-      {
-        id: 1701,
-        role: 'user',
-        content: '根据两份采购方案，总结成本、交付周期和主要风险。',
-        files: ['方案A.xlsx', '方案B.xlsx'],
-      },
-      {
-        id: 1702,
-        role: 'assistant',
-        content:
-          '方案 A 成本低但交付周期长，方案 B 交付快但后续维护成本更高。若项目窗口固定，建议优先评估方案 B 的维护条款。',
-      },
-    ],
-  },
-  {
-    id: 'data-retention',
-    title: '数据保留多久合适？',
-    description: '归档、删除、合规',
-    updatedAt: '两周前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 18,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 14,
-    isPinned: false,
-    isFavorited: false,
-    messages: [
-      {
-        id: 1801,
-        role: 'user',
-        content: '企业知识库里的历史会话和上传文档一般保留多久？',
-      },
-      {
-        id: 1802,
-        role: 'assistant',
-        content:
-          '建议分层设置：活跃知识长期保留，历史会话按 180 天归档，包含敏感信息的临时材料按项目周期自动清理。',
-      },
-    ],
-  },
-  {
-    id: 'okr-draft',
-    title: 'Q3 OKR 草稿',
-    description: '目标、关键结果',
-    updatedAt: '两周前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 20,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 15,
-    isPinned: false,
-    isFavorited: false,
-    isArchived: true,
-    messages: [
-      {
-        id: 1901,
-        role: 'user',
-        content: '结合产品路线图，帮我起草 Q3 的知识库产品 OKR。',
-      },
-      {
-        id: 1902,
-        role: 'assistant',
-        content:
-          '目标可以聚焦“让企业知识可验证、可治理、可持续运营”。关键结果围绕接入数量、检索质量、引用准确率和管理后台效率。',
-      },
-    ],
-  },
-  {
-    id: 'short-question',
-    title: '服务 SLA',
-    description: '响应时间',
-    updatedAt: '半个月前',
-    createdAt: DEMO_NOW - 1000 * 60 * 60 * 24 * 22,
-    updatedAtValue: DEMO_NOW - 1000 * 60 * 60 * 24 * 16,
-    isPinned: false,
-    isFavorited: false,
-    isArchived: true,
-    messages: [
-      {
-        id: 2001,
-        role: 'user',
-        content: '企业版 SLA 怎么定义比较合适？',
-      },
-      {
-        id: 2002,
-        role: 'assistant',
-        content:
-          '可以按故障等级拆分响应和恢复目标：P0 立即响应，P1 一小时内响应，普通问题按工作日 SLA 处理。',
-      },
-    ],
-  },
-]
-
 function createEmptyConversation(): ChatConversation {
   const now = Date.now()
   return {
@@ -995,39 +455,155 @@ function formatRelativeTime(value?: number, fallback = '刚刚') {
   return `${Math.floor(diff / day)} 天前`
 }
 
-function normalizeConversations(conversations: ChatConversation[]) {
-  if (conversations.length === 0) return []
-
-  const normalizedConversations = conversations
-    .map((conversation) => ({
-      ...conversation,
-      createdAt: conversation.createdAt ?? Date.now(),
-      updatedAtValue: conversation.updatedAtValue ?? Date.now(),
-      updatedAt: formatRelativeTime(
-        conversation.updatedAtValue,
-        conversation.updatedAt
-      ),
-      isPinned: Boolean(conversation.isPinned),
-      isFavorited: Boolean(conversation.isFavorited),
-      isArchived: Boolean(conversation.isArchived),
-    }))
-    .filter((conversation) => !isDraftConversation(conversation))
-
-  return normalizedConversations
+function parseTimeValue(value?: string | null) {
+  if (!value) return undefined
+  const parsed = Date.parse(value)
+  return Number.isNaN(parsed) ? undefined : parsed
 }
 
-function loadConversations() {
-  if (typeof window === 'undefined') return initialConversations
+function getConversationId(sessionId: number) {
+  return `session-${sessionId}`
+}
+
+function getSessionMetadataKey(conversation: ChatConversation) {
+  return String(conversation.assistantSessionId ?? conversation.id)
+}
+
+function loadSessionMetadata(): ChatSessionMetadata {
+  if (typeof window === 'undefined') return {}
 
   try {
-    const stored = window.localStorage.getItem(CHAT_STORAGE_KEY)
-    if (!stored) return initialConversations
-    const parsed = JSON.parse(stored) as ChatConversation[]
-    if (!Array.isArray(parsed)) return initialConversations
-    return normalizeConversations(parsed)
+    const stored = window.localStorage.getItem(CHAT_SESSION_METADATA_KEY)
+    if (!stored) return {}
+    const parsed = JSON.parse(stored) as ChatSessionMetadata
+    return parsed && typeof parsed === 'object' ? parsed : {}
   } catch {
-    return initialConversations
+    return {}
   }
+}
+
+function saveSessionMetadata(conversations: ChatConversation[]) {
+  if (typeof window === 'undefined') return
+
+  const metadata = conversations.reduce<ChatSessionMetadata>(
+    (result, conversation) => {
+      result[getSessionMetadataKey(conversation)] = {
+        isPinned: Boolean(conversation.isPinned),
+        isFavorited: Boolean(conversation.isFavorited),
+        isArchived: Boolean(conversation.isArchived),
+      }
+      return result
+    },
+    {}
+  )
+
+  window.localStorage.setItem(
+    CHAT_SESSION_METADATA_KEY,
+    JSON.stringify(metadata)
+  )
+}
+
+function getModeLabel(mode?: ChatAssistantMode | null) {
+  if (mode === 'KB_SEARCH') return '本地知识'
+  return '通用助手'
+}
+
+function buildConversationFromSession(
+  session: AssistantSessionListItem,
+  existingConversation?: ChatConversation,
+  metadata = loadSessionMetadata()
+): ChatConversation {
+  const updatedAtValue = parseTimeValue(session.lastMessageAt) ?? Date.now()
+  const sessionMetadata = metadata[String(session.sessionId)] ?? {}
+
+  return {
+    id: existingConversation?.id ?? getConversationId(session.sessionId),
+    title: session.title || DEFAULT_CONVERSATION_TITLE,
+    description: existingConversation?.description ?? '历史会话',
+    assistantSessionId: session.sessionId,
+    updatedAt: formatRelativeTime(updatedAtValue),
+    createdAt: existingConversation?.createdAt ?? updatedAtValue,
+    updatedAtValue,
+    messages: existingConversation?.messages ?? [],
+    isPinned: Boolean(sessionMetadata.isPinned),
+    isFavorited: Boolean(sessionMetadata.isFavorited),
+    isArchived: Boolean(sessionMetadata.isArchived),
+  }
+}
+
+function parseMessageCitations(structuredPayload: string | null): Citation[] {
+  if (!structuredPayload) return []
+
+  try {
+    const parsed = JSON.parse(structuredPayload) as {
+      citations?: unknown
+    }
+    if (!Array.isArray(parsed.citations)) return []
+
+    return parsed.citations.filter((citation): citation is Citation => {
+      if (!citation || typeof citation !== 'object') return false
+      const candidate = citation as Record<string, unknown>
+
+      return (
+        typeof candidate.documentId === 'number' &&
+        typeof candidate.chunkId === 'number' &&
+        typeof candidate.chunkIndex === 'number' &&
+        typeof candidate.fileName === 'string' &&
+        typeof candidate.score === 'number' &&
+        typeof candidate.snippet === 'string'
+      )
+    })
+  } catch {
+    return []
+  }
+}
+
+function buildMessageFromApiMessage(message: ApiAssistantMessage): ChatMessage {
+  const role = message.role === 'USER' ? 'user' : 'assistant'
+  const mode = message.toolMode ?? 'CHAT'
+
+  return {
+    id: message.messageId,
+    role,
+    mode,
+    variant: role === 'assistant' && mode === 'KB_SEARCH' ? 'rag' : undefined,
+    content: message.content,
+    citations: parseMessageCitations(message.structuredPayload),
+  }
+}
+
+function buildModeChangedMessage(mode: ChatAssistantMode, id: number): ChatMessage {
+  const modeLabel =
+    CHAT_ASSISTANT_MODE_OPTIONS.find((option) => option.value === mode)?.label ??
+    '当前模式'
+
+  return {
+    id,
+    role: 'event',
+    eventType: 'mode_changed',
+    mode,
+    content: `已切换到 ${modeLabel}`,
+  }
+}
+
+function insertModeChangeEvents(messages: ChatMessage[]) {
+  const nextMessages: ChatMessage[] = []
+  let previousMode: ChatAssistantMode | null = null
+
+  messages.forEach((message) => {
+    const messageMode = message.mode
+
+    if (message.role !== 'event' && messageMode) {
+      if (previousMode && previousMode !== messageMode) {
+        nextMessages.push(buildModeChangedMessage(messageMode, -message.id))
+      }
+      previousMode = messageMode
+    }
+
+    nextMessages.push(message)
+  })
+
+  return nextMessages
 }
 
 function getInitialActiveConversationId(conversations: ChatConversation[]) {
@@ -1043,10 +619,6 @@ function isDefaultConversationTitle(title: string) {
     title === DEFAULT_CONVERSATION_TITLE ||
     title === LEGACY_DEFAULT_CONVERSATION_TITLE
   )
-}
-
-function isDraftConversation(conversation: ChatConversation) {
-  return conversation.messages.length === 0
 }
 
 function orderConversations(conversations: ChatConversation[]) {
@@ -1072,10 +644,8 @@ function touchConversation<T extends ChatConversation>(conversation: T): T {
 }
 
 function createInitialChatState(): ChatState {
-  const conversations = orderConversations(loadConversations())
-
   return {
-    conversations,
+    conversations: [],
     activeConversationId: null,
   }
 }
@@ -1094,6 +664,10 @@ export function ChatHome() {
     queryKey: ['groups', 'my'],
     queryFn: getMyGroups,
   })
+  const sessionsQuery = useQuery({
+    queryKey: ['assistant', 'sessions'],
+    queryFn: listAssistantSessions,
+  })
   const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
   const [initialChatState] = useState(createInitialChatState)
   const [input, setInput] = useState('')
@@ -1103,7 +677,8 @@ export function ChatHome() {
     useState<ChatAssistantMode>('CHAT')
   const [isHeaderGlass, setIsHeaderGlass] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
-  const messageIdRef = useRef(DEMO_NOW)
+  const messageIdRef = useRef(Date.now())
+  const messageLoadRequestRef = useRef(0)
   const streamAbortControllerRef = useRef<AbortController | null>(null)
   const [conversations, setConversations] = useState<ChatConversation[]>(
     initialChatState.conversations
@@ -1111,12 +686,18 @@ export function ChatHome() {
   const [activeConversationId, setActiveConversationId] = useState(
     initialChatState.activeConversationId
   )
+  const [loadingConversationId, setLoadingConversationId] = useState<string | null>(
+    null
+  )
+  const [showConversationSkeleton, setShowConversationSkeleton] = useState(false)
 
   const activeConversation =
     conversations.find((conversation) => conversation.id === activeConversationId) ??
     null
   const messages = activeConversation?.messages ?? []
   const hasMessages = messages.length > 0
+  const isLoadingActiveConversation =
+    Boolean(activeConversationId) && loadingConversationId === activeConversationId
   const isStreaming = messages.some((message) => message.isStreaming)
   const lastAssistantMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -1140,8 +721,65 @@ export function ChatHome() {
   const ActiveModeIcon = activeMode.icon
 
   useEffect(() => {
-    window.localStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(conversations))
-  }, [conversations])
+    window.localStorage.removeItem(LEGACY_CHAT_STORAGE_KEY)
+  }, [])
+
+  useEffect(() => {
+    if (!sessionsQuery.data) return
+
+    const metadata = loadSessionMetadata()
+
+    setConversations((prev) => {
+      const backendConversations = sessionsQuery.data.map((session) => {
+        const existingConversation = prev.find(
+          (conversation) => conversation.assistantSessionId === session.sessionId
+        )
+
+        return buildConversationFromSession(
+          session,
+          existingConversation,
+          metadata
+        )
+      })
+
+      const localPendingConversations = prev.filter(
+        (conversation) =>
+          !conversation.assistantSessionId && conversation.messages.length > 0
+      )
+
+      return orderConversations([
+        ...localPendingConversations,
+        ...backendConversations,
+      ])
+    })
+  }, [sessionsQuery.data])
+
+  useEffect(() => {
+    if (!sessionsQuery.data) return
+    saveSessionMetadata(conversations)
+  }, [conversations, sessionsQuery.data])
+
+  useEffect(() => {
+    if (
+      activeConversationId &&
+      !conversations.some((conversation) => conversation.id === activeConversationId)
+    ) {
+      setActiveConversationId(null)
+    }
+  }, [activeConversationId, conversations])
+
+  useEffect(() => {
+    if (!isLoadingActiveConversation) {
+      setShowConversationSkeleton(false)
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setShowConversationSkeleton(true)
+    }, 150)
+
+    return () => window.clearTimeout(timer)
+  }, [isLoadingActiveConversation])
 
   useEffect(() => {
     if (!selectedGroupId && groups[0]) {
@@ -1189,22 +827,93 @@ export function ChatHome() {
   }
 
   function handleNewConversation() {
+    messageLoadRequestRef.current += 1
+    setLoadingConversationId(null)
     setActiveConversationId(null)
     setInput('')
     setFiles([])
   }
 
+  async function loadConversationMessages(conversationId: string) {
+    const requestId = messageLoadRequestRef.current + 1
+    messageLoadRequestRef.current = requestId
+    const targetConversation = conversations.find(
+      (conversation) => conversation.id === conversationId
+    )
+    const sessionId = targetConversation?.assistantSessionId
+
+    if (!sessionId) {
+      setLoadingConversationId(null)
+      return
+    }
+
+    setLoadingConversationId(conversationId)
+
+    try {
+      const context = await getAssistantContext(sessionId, 100)
+      if (messageLoadRequestRef.current !== requestId) return
+
+      const nextMessages = insertModeChangeEvents(
+        context.recentMessages.map(buildMessageFromApiMessage)
+      )
+      const nextMaxMessageId = Math.max(
+        messageIdRef.current,
+        ...nextMessages
+          .filter((message) => message.role !== 'event')
+          .map((message) => message.id)
+      )
+      messageIdRef.current = Number.isFinite(nextMaxMessageId)
+        ? nextMaxMessageId
+        : messageIdRef.current
+
+      setConversations((prev) =>
+        prev.map((conversation) =>
+          conversation.id === conversationId
+            ? {
+                ...conversation,
+                description: getModeLabel(
+                  nextMessages
+                    .slice()
+                    .reverse()
+                    .find((message) => message.mode)?.mode
+                ),
+                messages: nextMessages,
+              }
+            : conversation
+        )
+      )
+    } catch (error) {
+      if (messageLoadRequestRef.current !== requestId) return
+      toast.error(extractApiError(error, '加载会话失败'))
+    } finally {
+      if (messageLoadRequestRef.current === requestId) {
+        setLoadingConversationId(null)
+      }
+    }
+  }
+
   function handleSelectConversation(conversationId: string) {
+    if (conversationId === activeConversationId && !loadingConversationId) return
     setActiveConversationId(conversationId)
     setInput('')
     setFiles([])
+    void loadConversationMessages(conversationId)
   }
 
-  function handleDeleteConversation(conversationId: string) {
+  async function handleDeleteConversation(conversationId: string) {
     const deletedConversation = conversations.find(
       (conversation) => conversation.id === conversationId
     )
     if (!deletedConversation) return
+
+    try {
+      if (deletedConversation.assistantSessionId) {
+        await deleteAssistantSession(deletedConversation.assistantSessionId)
+      }
+    } catch (error) {
+      toast.error(extractApiError(error, '删除对话失败'))
+      return
+    }
 
     const nextConversations = conversations.filter(
       (conversation) => conversation.id !== conversationId
@@ -1223,10 +932,23 @@ export function ChatHome() {
     toast.success('已删除对话')
   }
 
-  function handleRenameConversation(conversationId: string, title: string) {
+  async function handleRenameConversation(conversationId: string, title: string) {
     const nextTitle = title.trim()
     if (!nextTitle) {
       toast.error('标题不能为空')
+      return
+    }
+    const target = conversations.find(
+      (conversation) => conversation.id === conversationId
+    )
+    const normalizedTitle = nextTitle.slice(0, 40)
+
+    try {
+      if (target?.assistantSessionId) {
+        await renameAssistantSession(target.assistantSessionId, normalizedTitle)
+      }
+    } catch (error) {
+      toast.error(extractApiError(error, '重命名对话失败'))
       return
     }
 
@@ -1235,7 +957,7 @@ export function ChatHome() {
         conversation.id === conversationId
           ? {
               ...conversation,
-              title: nextTitle.slice(0, 40),
+              title: normalizedTitle,
             }
           : conversation
       )
@@ -1320,6 +1042,7 @@ export function ChatHome() {
     const duplicatedConversation: ChatConversation = {
       ...source,
       id: `chat-${Date.now()}`,
+      assistantSessionId: undefined,
       title: `${source.title} 副本`.slice(0, 40),
       updatedAt: '刚刚',
       createdAt: Date.now(),
@@ -1350,9 +1073,25 @@ export function ChatHome() {
     }
   }
 
-  function handleClearArchived() {
+  async function handleClearArchived() {
     if (!conversations.some((conversation) => conversation.isArchived)) {
       toast.info('没有归档对话')
+      return
+    }
+
+    const archivedConversations = conversations.filter(
+      (conversation) => conversation.isArchived
+    )
+
+    try {
+      await Promise.all(
+        archivedConversations
+          .map((conversation) => conversation.assistantSessionId)
+          .filter((sessionId): sessionId is number => Boolean(sessionId))
+          .map((sessionId) => deleteAssistantSession(sessionId))
+      )
+    } catch (error) {
+      toast.error(extractApiError(error, '清空归档失败'))
       return
     }
 
@@ -1360,14 +1099,6 @@ export function ChatHome() {
       orderConversations(prev.filter((conversation) => !conversation.isArchived))
     )
     toast.success('已清空归档')
-  }
-
-  function handleResetDemo() {
-    setConversations(orderConversations(initialConversations))
-    setActiveConversationId(null)
-    setInput('')
-    setFiles([])
-    toast.success('已恢复默认演示数据')
   }
 
   function updateActiveConversation(messagesUpdater: (messages: ChatMessage[]) => ChatMessage[]) {
@@ -1403,7 +1134,6 @@ export function ChatHome() {
     const nextModeLabel =
       CHAT_ASSISTANT_MODE_OPTIONS.find((mode) => mode.value === nextMode)?.label ??
       '当前模式'
-    const eventContent = `已切换到 ${nextModeLabel}`
 
     setConversations((prev) =>
       orderConversations(
@@ -1435,7 +1165,8 @@ export function ChatHome() {
                         ? {
                             ...message,
                             mode: nextMode,
-                            content: eventContent,
+                            content: buildModeChangedMessage(nextMode, message.id)
+                              .content,
                           }
                         : message
                     ),
@@ -1448,11 +1179,7 @@ export function ChatHome() {
                   messages: [
                     ...messages,
                     {
-                      id: createNextMessageId(),
-                      role: 'event',
-                      eventType: 'mode_changed',
-                      mode: nextMode,
-                      content: eventContent,
+                      ...buildModeChangedMessage(nextMode, createNextMessageId()),
                     },
                   ],
                 }
@@ -1524,86 +1251,6 @@ export function ChatHome() {
 
     toast.error('登录状态已失效，请重新登录')
     return null
-  }
-
-  async function askKnowledgeBaseReply({
-    targetConversationId,
-    assistantMessageId,
-    question,
-  }: {
-    targetConversationId: string
-    assistantMessageId: number
-    question: string
-  }) {
-    if (!activeGroupId) {
-      const errorMessage = '请先在管理后台创建知识库并上传文档'
-      toast.error(errorMessage)
-      updateConversationMessage(
-        targetConversationId,
-        assistantMessageId,
-        (message) => ({
-          ...message,
-          isStreaming: false,
-          isResponseComplete: true,
-          content: `请求失败：${errorMessage}`,
-          citations: [],
-        })
-      )
-      return
-    }
-    const targetGroupId = activeGroupId
-
-    const runAskQuestion = async () =>
-      askQuestion({
-        groupId: targetGroupId,
-        question,
-      })
-
-    try {
-      let response: Awaited<ReturnType<typeof askQuestion>>
-      try {
-        response = await runAskQuestion()
-      } catch (error) {
-        if (!isUnauthorizedError(error)) {
-          throw error
-        }
-
-        await refreshSession()
-        response = await runAskQuestion()
-      }
-
-      updateConversationMessage(
-        targetConversationId,
-        assistantMessageId,
-        (message) => ({
-          ...message,
-          isStreaming: false,
-          isResponseComplete: true,
-          content:
-            response.answer ??
-            response.reasonMessage ??
-            '知识库暂时没有返回可用回答。',
-          citations: response.citations ?? [],
-        })
-      )
-    } catch (error) {
-      const isUnauthorized = isUnauthorizedError(error)
-      const errorMessage = isUnauthorized
-        ? '登录状态已失效，请重新登录后再试'
-        : extractApiError(error, '提问失败')
-      toast.error(errorMessage)
-      updateConversationMessage(
-        targetConversationId,
-        assistantMessageId,
-        (message) => ({
-          ...message,
-          isStreaming: false,
-          isResponseComplete: true,
-          content: `请求失败：${errorMessage}`,
-          citations: [],
-        })
-      )
-    }
   }
 
   async function streamAssistantReply({
@@ -1737,6 +1384,8 @@ export function ChatHome() {
           })
         )
       }
+
+      void sessionsQuery.refetch()
     } catch (error) {
       if (isAbortError(error)) return
 
@@ -1837,15 +1486,6 @@ export function ChatHome() {
     )
     setScrollToLatestRequest((current) => current + 1)
 
-    if (requestMode === 'KB_SEARCH') {
-      await askKnowledgeBaseReply({
-        targetConversationId: activeConversation.id,
-        assistantMessageId,
-        question,
-      })
-      return
-    }
-
     await streamAssistantReply({
       targetConversationId: activeConversation.id,
       assistantMessageId,
@@ -1916,15 +1556,6 @@ export function ChatHome() {
     setScrollToLatestRequest((current) => current + 1)
 
     if (!targetConversationId) return
-
-    if (requestMode === 'KB_SEARCH') {
-      await askKnowledgeBaseReply({
-        targetConversationId,
-        assistantMessageId,
-        question: userMessage.content,
-      })
-      return
-    }
 
     await streamAssistantReply({
       targetConversationId,
@@ -2109,10 +1740,6 @@ export function ChatHome() {
                         <SquarePen />
                         新建对话
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={handleResetDemo}>
-                        <RotateCcw />
-                        恢复示例数据
-                      </DropdownMenuItem>
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -2241,7 +1868,8 @@ export function ChatHome() {
           variant={variant}
           conversations={conversations}
           activeConversationId={activeConversationId}
-          onGoHome={() => setActiveConversationId(null)}
+          isLoadingConversations={sessionsQuery.isLoading}
+          onGoHome={handleNewConversation}
           onNewConversation={handleNewConversation}
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
@@ -2252,7 +1880,6 @@ export function ChatHome() {
           onDuplicateConversation={handleDuplicateConversation}
           onExportConversation={handleExportConversation}
           onClearArchived={handleClearArchived}
-          onResetDemo={handleResetDemo}
         />
 
         <SidebarInset
@@ -2293,7 +1920,29 @@ export function ChatHome() {
             <main className='flex min-h-0 flex-1'>
               <LayoutGroup id='chat-thread-layout'>
                 <div className='flex min-w-0 flex-1 flex-col'>
-                {hasMessages ? (
+                {showConversationSkeleton ? (
+                  <>
+                    <div className='relative min-h-0 flex-1'>
+                      <motion.div
+                        key='conversation-skeleton'
+                        className='h-full'
+                        initial={reduceMotion ? false : { opacity: 0 }}
+                        animate={reduceMotion ? undefined : { opacity: 1 }}
+                        transition={
+                          reduceMotion
+                            ? undefined
+                            : { duration: 0.16, ease: 'easeOut' }
+                        }
+                      >
+                        <ChatConversationSkeleton />
+                      </motion.div>
+                    </div>
+
+                    {renderPromptComposer({
+                      className: 'pt-1 pb-4',
+                    })}
+                  </>
+                ) : hasMessages ? (
                   <>
                     <div className='relative min-h-0 flex-1'>
                       <ChatContainerRoot className='h-full'>
@@ -2305,50 +1954,59 @@ export function ChatHome() {
                           scrollClassName='overflow-y-auto [scrollbar-gutter:stable]'
                           onScroll={handleChatScroll}
                         >
-                          <AnimatePresence
+                          <motion.div
                             key={activeConversationId ?? 'empty-conversation'}
-                            initial={false}
+                            className='flex flex-col gap-5'
+                            initial={reduceMotion ? false : { opacity: 0 }}
+                            animate={reduceMotion ? undefined : { opacity: 1 }}
+                            transition={
+                              reduceMotion
+                                ? undefined
+                                : { duration: 0.16, ease: 'easeOut' }
+                            }
                           >
-                            {messages.map((message) => (
-                              <motion.div
-                                key={message.id}
-                                className='mx-auto flex w-full max-w-3xl flex-col px-6'
-                                layout={!reduceMotion}
-                                initial={
-                                  reduceMotion
-                                    ? false
-                                    : { opacity: 0, y: 12, scale: 0.98 }
-                                }
-                                animate={
-                                  reduceMotion
-                                    ? undefined
-                                    : { opacity: 1, y: 0, scale: 1 }
-                                }
-                                exit={
-                                  reduceMotion
-                                    ? undefined
-                                    : { opacity: 0, y: -8, scale: 0.98 }
-                                }
-                                transition={
-                                  reduceMotion
-                                    ? undefined
-                                    : { duration: 0.26, ease: [0.22, 1, 0.36, 1] }
-                                }
-                              >
-                                <ChatMessageItem
-                                  message={message}
-                                  canRegenerate={
-                                    message.id === lastAssistantMessageId &&
-                                    !message.isStreaming
+                            <AnimatePresence initial={false}>
+                              {messages.map((message) => (
+                                <motion.div
+                                  key={message.id}
+                                  className='mx-auto flex w-full max-w-3xl flex-col px-6'
+                                  layout={!reduceMotion}
+                                  initial={
+                                    reduceMotion
+                                      ? false
+                                      : { opacity: 0, y: 12, scale: 0.98 }
                                   }
-                                  onCopyMessage={handleCopyMessage}
-                                  onEditUserMessage={handleEditUserMessage}
-                                  onRegenerateMessage={handleRegenerateMessage}
-                                  onStreamingComplete={() => markMessageComplete(message.id)}
-                                />
-                              </motion.div>
-                            ))}
-                          </AnimatePresence>
+                                  animate={
+                                    reduceMotion
+                                      ? undefined
+                                      : { opacity: 1, y: 0, scale: 1 }
+                                  }
+                                  exit={
+                                    reduceMotion
+                                      ? undefined
+                                      : { opacity: 0, y: -8, scale: 0.98 }
+                                  }
+                                  transition={
+                                    reduceMotion
+                                      ? undefined
+                                      : { duration: 0.26, ease: [0.22, 1, 0.36, 1] }
+                                  }
+                                >
+                                  <ChatMessageItem
+                                    message={message}
+                                    canRegenerate={
+                                      message.id === lastAssistantMessageId &&
+                                      !message.isStreaming
+                                    }
+                                    onCopyMessage={handleCopyMessage}
+                                    onEditUserMessage={handleEditUserMessage}
+                                    onRegenerateMessage={handleRegenerateMessage}
+                                    onStreamingComplete={() => markMessageComplete(message.id)}
+                                  />
+                                </motion.div>
+                              ))}
+                            </AnimatePresence>
+                          </motion.div>
                           <ChatContainerScrollAnchor />
                         </ChatContainerContent>
 
@@ -2404,11 +2062,57 @@ export function ChatHome() {
   )
 }
 
+function ChatConversationSkeleton() {
+  return (
+    <div className='h-full overflow-hidden'>
+      <div className='mx-auto flex w-full max-w-3xl flex-col gap-6 px-11 pt-24 pb-14'>
+        <div className='flex justify-end'>
+          <div className='flex w-full max-w-[78%] flex-col items-end gap-2'>
+            <Skeleton className='h-10 w-2/3 rounded-2xl' />
+            <Skeleton className='h-4 w-24 rounded-full' />
+          </div>
+        </div>
+        <div className='flex w-full flex-col gap-3'>
+          <Skeleton className='h-4 w-28 rounded-full' />
+          <Skeleton className='h-4 w-full rounded-full' />
+          <Skeleton className='h-4 w-11/12 rounded-full' />
+          <Skeleton className='h-4 w-4/5 rounded-full' />
+        </div>
+        <div className='flex justify-end'>
+          <div className='flex w-full max-w-[70%] flex-col items-end gap-2'>
+            <Skeleton className='h-10 w-full rounded-2xl' />
+            <Skeleton className='h-4 w-20 rounded-full' />
+          </div>
+        </div>
+        <div className='flex w-full flex-col gap-3'>
+          <Skeleton className='h-4 w-32 rounded-full' />
+          <Skeleton className='h-4 w-10/12 rounded-full' />
+          <Skeleton className='h-4 w-9/12 rounded-full' />
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ChatHistorySkeleton() {
+  return (
+    <div className='mr-1 min-h-0 flex-1 overflow-hidden pr-1'>
+      <SidebarGroupLabel>最近</SidebarGroupLabel>
+      <SidebarMenu className='gap-1'>
+        {Array.from({ length: 8 }).map((_, index) => (
+          <SidebarMenuSkeleton key={index} className='h-8 px-3' />
+        ))}
+      </SidebarMenu>
+    </div>
+  )
+}
+
 function ChatHistorySidebar({
   collapsible,
   variant,
   conversations,
   activeConversationId,
+  isLoadingConversations,
   onGoHome,
   onNewConversation,
   onSelectConversation,
@@ -2420,24 +2124,26 @@ function ChatHistorySidebar({
   onDuplicateConversation,
   onExportConversation,
   onClearArchived,
-  onResetDemo,
 }: {
   collapsible: Collapsible
   variant: ChatSidebarVariant
   conversations: ChatConversation[]
   activeConversationId: string | null
+  isLoadingConversations: boolean
   onGoHome: () => void
   onNewConversation: () => void
   onSelectConversation: (conversationId: string) => void
-  onDeleteConversation: (conversationId: string) => void
-  onRenameConversation: (conversationId: string, title: string) => void
+  onDeleteConversation: (conversationId: string) => void | Promise<void>
+  onRenameConversation: (
+    conversationId: string,
+    title: string
+  ) => void | Promise<void>
   onTogglePin: (conversationId: string) => void
   onToggleFavorite: (conversationId: string) => void
   onToggleArchive: (conversationId: string) => void
   onDuplicateConversation: (conversationId: string) => void
   onExportConversation: (conversationId: string) => void
-  onClearArchived: () => void
-  onResetDemo: () => void
+  onClearArchived: () => void | Promise<void>
 }) {
   const { setOpen } = useSidebar()
   const reduceMotion = useReducedMotion()
@@ -2450,7 +2156,6 @@ function ChatHistorySidebar({
   const [deletingConversation, setDeletingConversation] =
     useState<ChatConversation | null>(null)
   const [isClearArchiveOpen, setIsClearArchiveOpen] = useState(false)
-  const [isResetOpen, setIsResetOpen] = useState(false)
 
   const archivedCount = conversations.filter(
     (conversation) => conversation.isArchived
@@ -2495,7 +2200,7 @@ function ChatHistorySidebar({
   function handleRenameSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!renamingConversation) return
-    onRenameConversation(renamingConversation.id, renameTitle)
+    void onRenameConversation(renamingConversation.id, renameTitle)
     setRenamingConversation(null)
   }
 
@@ -2756,7 +2461,9 @@ function ChatHistorySidebar({
             <SidebarGroupContent
               className='flex h-full min-h-0 flex-col overflow-hidden'
             >
-              {visibleConversations.length > 0 ? (
+              {isLoadingConversations ? (
+                <ChatHistorySkeleton />
+              ) : visibleConversations.length > 0 ? (
                 <div className='mr-1 min-h-0 flex-1 overflow-x-hidden overflow-y-auto pr-1 [scrollbar-gutter:stable]'>
                   {view === 'active' ? (
                     <>
@@ -2881,11 +2588,6 @@ function ChatHistorySidebar({
                     <Archive />
                     清空归档
                   </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => setIsResetOpen(true)}>
-                    <RotateCcw />
-                    恢复演示数据
-                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </SidebarMenuItem>
@@ -2905,7 +2607,7 @@ function ChatHistorySidebar({
             <DialogHeader>
               <DialogTitle>重命名对话</DialogTitle>
               <DialogDescription>
-                修改后的标题只保存在当前浏览器，后续可接入后端同步。
+                修改后的标题会同步到后端会话。
               </DialogDescription>
             </DialogHeader>
             <Input
@@ -2947,7 +2649,7 @@ function ChatHistorySidebar({
               variant='destructive'
               onClick={() => {
                 if (deletingConversation) {
-                  onDeleteConversation(deletingConversation.id)
+                  void onDeleteConversation(deletingConversation.id)
                 }
                 setDeletingConversation(null)
               }}
@@ -2974,7 +2676,7 @@ function ChatHistorySidebar({
             <AlertDialogAction
               variant='destructive'
               onClick={() => {
-                onClearArchived()
+                void onClearArchived()
                 setIsClearArchiveOpen(false)
               }}
             >
@@ -2984,30 +2686,6 @@ function ChatHistorySidebar({
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={isResetOpen} onOpenChange={setIsResetOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogMedia>
-              <RotateCcw />
-            </AlertDialogMedia>
-            <AlertDialogTitle>恢复演示数据？</AlertDialogTitle>
-            <AlertDialogDescription>
-              当前本地历史会话会被替换为默认演示数据。
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>取消</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                onResetDemo()
-                setIsResetOpen(false)
-              }}
-            >
-              恢复
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </>
   )
 }
@@ -3288,94 +2966,6 @@ function AssistantMessage({
         </MessageActions>
       ) : null}
 
-      {message.isLive ? null : <RetrievalTrace />}
-      {!message.isLive && message.variant === 'code' ? <CodeAnswer /> : null}
-      {!message.isLive && message.variant === 'document' ? (
-        <ArtifactPreview />
-      ) : null}
-      {message.variant === 'rag' && !message.isStreaming ? (
-        !message.isLive ? <GeneratedFlowImage /> : null
-      ) : null}
-    </div>
-  )
-}
-
-function RetrievalTrace() {
-  return (
-    <div className='rounded-lg border bg-background p-3'>
-      <Steps>
-        <StepsTrigger leftIcon={<FileSearch />}>
-          检索执行步骤
-        </StepsTrigger>
-        <StepsContent>
-          <StepsItem>解析用户问题，提取“知识库问答链路”和“引用来源”。</StepsItem>
-          <StepsItem>同时执行关键词检索和向量检索，召回 6 条候选片段。</StepsItem>
-          <StepsItem>按相关性重排，保留可引用的来源并生成回答。</StepsItem>
-        </StepsContent>
-      </Steps>
-
-      <ChainOfThought className='mt-4'>
-        <ChainOfThoughtStep defaultOpen>
-          <ChainOfThoughtTrigger leftIcon={<Search />}>
-            可见推理摘要
-          </ChainOfThoughtTrigger>
-          <ChainOfThoughtContent>
-            <ChainOfThoughtItem>
-              先回答业务链路，再展示前端需要渲染的结构化数据。
-            </ChainOfThoughtItem>
-          </ChainOfThoughtContent>
-        </ChainOfThoughtStep>
-        <ChainOfThoughtStep>
-          <ChainOfThoughtTrigger leftIcon={<Circle />}>
-            质量检查
-          </ChainOfThoughtTrigger>
-          <ChainOfThoughtContent>
-            <ChainOfThoughtItem>
-              回答必须包含来源、工具状态和反馈入口，方便后续接真实接口。
-            </ChainOfThoughtItem>
-          </ChainOfThoughtContent>
-        </ChainOfThoughtStep>
-      </ChainOfThought>
-    </div>
-  )
-}
-
-function GeneratedFlowImage() {
-  return (
-    <div className='overflow-hidden rounded-lg border bg-background p-2'>
-      <Image
-        base64={generatedDiagram}
-        mediaType='image/svg+xml'
-        alt='RAG workflow diagram'
-        className='aspect-[2/1] w-full object-cover'
-      />
-    </div>
-  )
-}
-
-function CodeAnswer() {
-  return (
-    <CodeBlock>
-      <CodeBlockGroup className='border-b px-4 py-2'>
-        <div className='flex items-center gap-2 text-sm font-medium'>
-          <Database />
-          search-knowledge-base.ts
-        </div>
-        <span className='text-xs text-muted-foreground'>adapter</span>
-      </CodeBlockGroup>
-      <CodeBlockCode code={codeSample} language='ts' />
-    </CodeBlock>
-  )
-}
-
-function ArtifactPreview() {
-  return (
-    <div className='rounded-lg border bg-background p-3'>
-      <div className='mb-3 flex items-center gap-2 text-sm font-medium'>
-        <CheckCircle />
-        文档处理产物预览
-      </div>
-      <JSXPreview jsx={artifactJsx} />
     </div>
   )
 }

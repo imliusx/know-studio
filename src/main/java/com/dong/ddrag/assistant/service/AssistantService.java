@@ -17,6 +17,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 
 /**
@@ -176,7 +177,11 @@ public class AssistantService {
                 safeRequest.groupId(),
                 safeRequest.message()
         );
-        return new AssistantExecutionResult(agentResult.reply(), null, agentResult.citations());
+        return new AssistantExecutionResult(
+                agentResult.reply(),
+                buildStructuredPayload(agentResult.citations()),
+                agentResult.citations()
+        );
     }
 
     private AssistantExecutionResult executeAssistantStreaming(
@@ -189,11 +194,32 @@ public class AssistantService {
         if (safeRequest.toolMode() == AssistantToolMode.CHAT) {
             // 仅对话流式模式下，delta 直接来自 AgentFacade.streamChat 的模型流输出。
             AssistantAgentResult agentResult = streamExecutor.execute(deltaConsumer);
-            return new AssistantExecutionResult(agentResult.reply(), null, agentResult.citations());
+            return new AssistantExecutionResult(
+                    agentResult.reply(),
+                    buildStructuredPayload(agentResult.citations()),
+                    agentResult.citations()
+            );
         }
         requireKnowledgeBaseReadableIfNeeded(request, safeRequest);
         AssistantAgentResult agentResult = streamExecutor.execute(deltaConsumer);
-        return new AssistantExecutionResult(agentResult.reply(), null, agentResult.citations());
+        return new AssistantExecutionResult(
+                agentResult.reply(),
+                buildStructuredPayload(agentResult.citations()),
+                agentResult.citations()
+        );
+    }
+
+    private String buildStructuredPayload(
+            List<com.dong.ddrag.qa.model.vo.AskQuestionResponse.Citation> citations
+    ) {
+        if (citations == null || citations.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(Map.of("citations", citations));
+        } catch (Exception exception) {
+            throw new BusinessException("消息结构化载荷生成失败", exception);
+        }
     }
 
     private void saveUserMessage(Long userId, AssistantChatRequest safeRequest) {

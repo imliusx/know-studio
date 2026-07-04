@@ -13,6 +13,8 @@ export type MarkdownProps = {
   components?: Partial<Components>
 }
 
+const MARKDOWN_PARSING_MARKER = "\u200B"
+
 function parseMarkdownIntoBlocks(markdown: string): string[] {
   const tokens = marked.lexer(markdown)
   return tokens.map((token) => token.raw)
@@ -23,6 +25,114 @@ function normalizeMarkdownCodeFences(markdown: string): string {
     .replace(/([^\n])```([A-Za-z][\w-]*)(?=\s|$)/g, "$1\n\n```$2")
     .replace(/(^|\n)(```[A-Za-z][\w-]*)[ \t]+(\S)/g, "$1$2\n$3")
     .replace(/([^\n`])```(?=\s*(?:\n|$))/g, "$1\n```")
+}
+
+function normalizeStrongDelimiters(markdown: string): string {
+  let result = ""
+  let index = 0
+  let inFence = false
+
+  while (index < markdown.length) {
+    const isLineStart = index === 0 || markdown[index - 1] === "\n"
+
+    if (isLineStart && markdown.startsWith("```", index)) {
+      inFence = !inFence
+
+      const lineEnd = markdown.indexOf("\n", index)
+      if (lineEnd === -1) {
+        result += markdown.slice(index)
+        break
+      }
+
+      result += markdown.slice(index, lineEnd + 1)
+      index = lineEnd + 1
+      continue
+    }
+
+    if (inFence) {
+      result += markdown[index]
+      index += 1
+      continue
+    }
+
+    if (markdown[index] === "`") {
+      let runEnd = index + 1
+      while (markdown[runEnd] === "`") runEnd += 1
+
+      const tickRun = markdown.slice(index, runEnd)
+      const closing = markdown.indexOf(tickRun, runEnd)
+      if (closing === -1) {
+        result += tickRun
+        index = runEnd
+      } else {
+        result += markdown.slice(index, closing + tickRun.length)
+        index = closing + tickRun.length
+      }
+      continue
+    }
+
+    const isStrongDelimiter =
+      markdown.startsWith("**", index) &&
+      markdown[index - 1] !== "*" &&
+      markdown[index + 2] !== "*"
+
+    if (isStrongDelimiter) {
+      const closing = markdown.indexOf("**", index + 2)
+
+      if (
+        closing !== -1 &&
+        markdown[closing - 1] !== "*" &&
+        markdown[closing + 2] !== "*" &&
+        !markdown.slice(index + 2, closing).includes("\n")
+      ) {
+        result += `**${MARKDOWN_PARSING_MARKER}${markdown.slice(
+          index + 2,
+          closing
+        )}${MARKDOWN_PARSING_MARKER}**`
+        index = closing + 2
+        continue
+      }
+    }
+
+    result += markdown[index]
+    index += 1
+  }
+
+  return result
+}
+
+function stripMarkdownParsingMarkers() {
+  return function transformer(tree: {
+    type?: string
+    value?: string
+    children?: unknown[]
+  }) {
+    function visit(node: {
+      type?: string
+      value?: string
+      children?: unknown[]
+    }) {
+      if (node.type === "text" && typeof node.value === "string") {
+        node.value = node.value.replaceAll(MARKDOWN_PARSING_MARKER, "")
+      }
+
+      if (Array.isArray(node.children)) {
+        node.children.forEach((child) => {
+          if (child && typeof child === "object") {
+            visit(
+              child as {
+                type?: string
+                value?: string
+                children?: unknown[]
+              }
+            )
+          }
+        })
+      }
+    }
+
+    visit(tree)
+  }
 }
 
 function extractLanguage(className?: string): string {
@@ -96,6 +206,7 @@ const MemoizedMarkdownBlock = memo(
     return (
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkBreaks]}
+        rehypePlugins={[stripMarkdownParsingMarkers]}
         components={components}
       >
         {content}
@@ -118,7 +229,7 @@ function MarkdownComponent({
   const generatedId = useId()
   const blockId = id ?? generatedId
   const normalizedChildren = useMemo(
-    () => normalizeMarkdownCodeFences(children),
+    () => normalizeStrongDelimiters(normalizeMarkdownCodeFences(children)),
     [children]
   )
   const blocks = useMemo(
