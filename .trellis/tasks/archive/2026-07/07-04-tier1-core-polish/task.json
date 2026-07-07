@@ -1,0 +1,30 @@
+{
+  "id": "tier1-core-polish",
+  "name": "tier1-core-polish",
+  "title": "第一梯队：QA 流式 + 入库状态可视化 + mock 清理",
+  "description": "",
+  "status": "completed",
+  "dev_type": null,
+  "scope": null,
+  "package": null,
+  "priority": "P2",
+  "creator": "shaunx",
+  "assignee": "shaunx",
+  "createdAt": "2026-07-04",
+  "completedAt": "2026-07-07",
+  "branch": null,
+  "base_branch": "main",
+  "worktree_path": null,
+  "commit": null,
+  "pr_url": null,
+  "subtasks": [],
+  "children": [
+    "07-04-qa-streaming",
+    "07-04-ingestion-status-ui",
+    "07-04-mock-cleanup"
+  ],
+  "parent": null,
+  "relatedFiles": [],
+  "notes": "",
+  "meta": {}
+}
