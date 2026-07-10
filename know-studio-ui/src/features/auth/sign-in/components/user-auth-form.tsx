@@ -23,6 +23,11 @@ type FieldKey = 'loginId' | 'password'
 type FieldErrors = Partial<Record<FieldKey, string>>
 type Values = Record<FieldKey, string>
 
+const DEMO_ACCOUNT: Values = {
+  loginId: 'liusx1024@gmail.com',
+  password: '#L194140',
+}
+
 interface UserAuthFormProps extends React.ComponentProps<'div'> {
   redirectTo?: string
 }
@@ -33,10 +38,7 @@ export function UserAuthForm({
   ...props
 }: UserAuthFormProps) {
   const [isLoading, setIsLoading] = useState(false)
-  const [values, setValues] = useState<Values>({
-    loginId: '',
-    password: '',
-  })
+  const [values, setValues] = useState<Values>(DEMO_ACCOUNT)
   const [touched, setTouched] = useState<Record<FieldKey, boolean>>({
     loginId: false,
     password: false,
@@ -178,18 +180,15 @@ export function UserAuthForm({
               </FieldDescription>
             </FieldGroup>
           </form>
-          <div className='relative hidden bg-muted md:order-first md:block'>
+          <div className='relative hidden md:order-first md:block'>
             <img
-              src='/placeholder.svg'
+              src='/images/signin.svg'
               alt=''
-              className='absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale'
+              className='absolute inset-0 h-full w-full object-contain p-8 dark:invert md:p-10'
             />
           </div>
         </CardContent>
       </Card>
-      <FieldDescription className='px-6 text-center'>
-        后端 Refresh Token 使用 HttpOnly Cookie，前端仅保存 Access Token。
-      </FieldDescription>
     </div>
   )
 }

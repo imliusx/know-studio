@@ -252,11 +252,11 @@ export function SignUpForm({
               </FieldDescription>
             </FieldGroup>
           </form>
-          <div className='relative hidden bg-muted md:order-first md:block'>
+          <div className='relative hidden md:order-first md:block'>
             <img
-              src='/placeholder.svg'
+              src='/images/signup.svg'
               alt=''
-              className='absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale'
+              className='absolute inset-0 h-full w-full object-contain p-8 dark:invert md:p-10'
             />
           </div>
         </CardContent>

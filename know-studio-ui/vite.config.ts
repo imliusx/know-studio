@@ -22,6 +22,7 @@ export default defineConfig({
     },
   },
   server: {
+    allowedHosts: ["knows.liusx.dev"],
     port: 5174,
     proxy: {
       "/api": {
