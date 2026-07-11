@@ -17,7 +17,12 @@ services:
       retries: 10
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.0
+    build:
+      context: ./docker/elasticsearch
+      args:
+        ELASTICSEARCH_VERSION: 8.15.3
+        IK_VERSION: 8.15.3
+    image: know-studio/elasticsearch-ik:8.15.3
     container_name: arag-elasticsearch
     environment:
       discovery.type: single-node
@@ -32,7 +37,6 @@ services:
       interval: 15s
       timeout: 10s
       retries: 20
-    # 阶段 2 补：IK 分词插件（自定义镜像 docker/elasticsearch/Dockerfile）
 
   minio:
     image: minio/minio:RELEASE.2025-09-07T16-13-09Z

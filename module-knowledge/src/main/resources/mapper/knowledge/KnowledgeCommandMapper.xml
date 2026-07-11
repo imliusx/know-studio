@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="know.studio.arag.knowledge.infra.persistence.mapper.KnowledgeCommandMapper">
+
+    <insert id="ensureIngestionJob">
+        INSERT INTO ingestion_jobs (id, workspace_id, document_id, job_type, status)
+        VALUES (#{jobId}, #{workspaceId}, #{documentId}, 'DOCUMENT', 'PENDING')
+        ON CONFLICT (document_id, job_type) DO NOTHING
+    </insert>
+
+    <update id="claimDocumentForProcessing">
+        UPDATE documents
+        SET status = 'PROCESSING',
+            failure_reason = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE workspace_id = #{workspaceId}
+          AND id = #{documentId}
+          AND status IN ('PENDING', 'FAILED')
+    </update>
+
+    <insert id="insertDocumentChunks">
+        INSERT INTO document_chunks (
+            id, workspace_id, document_id, chunk_index, chunk_text,
+            char_start, char_end, section_path, status, deleted
+        )
+        VALUES
+        <foreach collection="chunks" item="chunk" separator=",">
+            (
+                #{chunk.id}, #{chunk.workspaceId}, #{chunk.documentId}, #{chunk.chunkIndex},
+                #{chunk.chunkText}, #{chunk.charStart}, #{chunk.charEnd}, #{chunk.sectionPath},
+                #{chunk.status}, #{chunk.deleted}
+            )
+        </foreach>
+    </insert>
+
+    <update id="appendNodeLog">
+        UPDATE ingestion_jobs
+        SET node_logs = node_logs || CAST(#{nodeLogJson} AS jsonb),
+            updated_at = CURRENT_TIMESTAMP
+        WHERE document_id = #{documentId}
+    </update>
+
+</mapper>

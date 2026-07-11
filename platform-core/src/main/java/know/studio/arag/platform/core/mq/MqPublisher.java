@@ -1,12 +1,14 @@
 package know.studio.arag.platform.core.mq;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 
 /**
  * RabbitMQ 发送封装。统一走 publisher-confirm：发送后异步确认 broker 是否收妥，
@@ -15,9 +17,10 @@ import java.util.UUID;
  * <p>需配合 {@code spring.rabbitmq.publisher-confirm-type=correlated}。
  */
 @Component
+@Slf4j
 public class MqPublisher {
 
-    private static final Logger log = LoggerFactory.getLogger(MqPublisher.class);
+    private static final Duration DEFAULT_CONFIRM_TIMEOUT = Duration.ofSeconds(5);
 
     private final RabbitTemplate rabbitTemplate;
 
@@ -36,8 +39,61 @@ public class MqPublisher {
     /** 发送消息；返回本次投递的关联 ID，便于日志/追踪。 */
     public String send(String exchange, String routingKey, Object payload) {
         String correlationId = UUID.randomUUID().toString().replace("-", "");
-        rabbitTemplate.convertAndSend(exchange, routingKey, payload, new CorrelationData(correlationId));
+        send(exchange, routingKey, payload, Map.of(), correlationId, new CorrelationData(correlationId));
         log.debug("[mq] sent exchange={} rk={} id={}", exchange, routingKey, correlationId);
         return correlationId;
+    }
+
+    public String sendConfirmed(String exchange, String routingKey, Object payload) {
+        return sendConfirmed(exchange, routingKey, payload, Map.of(), null);
+    }
+
+    public String sendConfirmed(
+            String exchange,
+            String routingKey,
+            Object payload,
+            Map<String, Object> headers,
+            String messageId
+    ) {
+        String correlationId = messageId == null || messageId.isBlank()
+                ? UUID.randomUUID().toString().replace("-", "")
+                : messageId;
+        CorrelationData correlationData = new CorrelationData(correlationId);
+        send(exchange, routingKey, payload, headers, correlationId, correlationData);
+        try {
+            CorrelationData.Confirm confirm = correlationData.getFuture()
+                    .get(DEFAULT_CONFIRM_TIMEOUT.toMillis(), TimeUnit.MILLISECONDS);
+            if (!confirm.isAck()) {
+                throw new IllegalStateException("RabbitMQ rejected message: " + confirm.getReason());
+            }
+            if (correlationData.getReturned() != null) {
+                throw new IllegalStateException(
+                        "RabbitMQ returned unroutable message: " + correlationData.getReturned().getReplyText()
+                );
+            }
+            log.debug("[mq] confirmed exchange={} rk={} id={}", exchange, routingKey, correlationId);
+            return correlationId;
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted while waiting for RabbitMQ confirm", exception);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Failed to confirm RabbitMQ message " + correlationId, exception);
+        }
+    }
+
+    private void send(
+            String exchange,
+            String routingKey,
+            Object payload,
+            Map<String, Object> headers,
+            String messageId,
+            CorrelationData correlationData
+    ) {
+        rabbitTemplate.convertAndSend(exchange, routingKey, payload, message -> {
+            message.getMessageProperties().setMessageId(messageId);
+            message.getMessageProperties().setCorrelationId(messageId);
+            headers.forEach(message.getMessageProperties()::setHeader);
+            return message;
+        }, correlationData);
     }
 }

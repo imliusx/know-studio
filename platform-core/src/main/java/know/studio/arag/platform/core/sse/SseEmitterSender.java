@@ -28,7 +28,7 @@ public class SseEmitterSender {
     }
 
     /** 发送一个命名事件；客户端已关闭则静默跳过。 */
-    public void send(String event, Object data) {
+    public synchronized void send(String event, Object data) {
         if (closed.get()) {
             return;
         }

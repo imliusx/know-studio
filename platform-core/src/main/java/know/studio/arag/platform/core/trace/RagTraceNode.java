@@ -15,4 +15,10 @@ public @interface RagTraceNode {
 
     /** 节点名，如 "retrieval.hybrid" / "agent.intent" / "qa.generate"。 */
     String value();
+
+    /** Whether method arguments may be recorded. Keep disabled for sensitive inputs. */
+    boolean captureInput() default false;
+
+    /** Whether the return value may be recorded. Keep disabled for sensitive outputs. */
+    boolean captureOutput() default false;
 }

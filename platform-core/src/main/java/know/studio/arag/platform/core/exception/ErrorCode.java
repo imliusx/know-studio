@@ -11,6 +11,7 @@ public enum ErrorCode {
     UNAUTHORIZED("A0401", "未登录或登录已失效", HttpStatus.UNAUTHORIZED),
     FORBIDDEN("A0403", "无权限访问", HttpStatus.FORBIDDEN),
     NOT_FOUND("A0404", "资源不存在", HttpStatus.NOT_FOUND),
+    CONFLICT("A0409", "资源冲突", HttpStatus.CONFLICT),
     BUSINESS_ERROR("A0500", "业务处理失败", HttpStatus.BAD_REQUEST),
     SYSTEM_ERROR("B0500", "系统内部错误", HttpStatus.INTERNAL_SERVER_ERROR);
 

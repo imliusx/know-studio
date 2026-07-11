@@ -1,8 +1,7 @@
 package know.studio.arag.platform.core.exception;
 
 import know.studio.arag.platform.core.response.ApiResponse;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -13,9 +12,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * 全局异常处理：把异常统一映射为 {@link ApiResponse} + 对应 HTTP 状态码。
  */
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
-
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     /** 所有自定义异常：按其 ErrorCode 映射状态码与业务码。 */
     @ExceptionHandler(BaseException.class)

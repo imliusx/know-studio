@@ -1,0 +1,9 @@
+package know.studio.arag.identity.infra.persistence.mapper;
+
+import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import know.studio.arag.identity.infra.persistence.entity.WorkspaceMemberEntity;
+import org.apache.ibatis.annotations.Mapper;
+
+@Mapper
+public interface WorkspaceMemberMapper extends BaseMapper<WorkspaceMemberEntity> {
+}
