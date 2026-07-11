@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: arag
+  profiles:
+    active: dev
+
+server:
+  port: 8080
