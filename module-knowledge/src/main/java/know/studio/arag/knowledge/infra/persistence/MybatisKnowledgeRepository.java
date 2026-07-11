@@ -216,6 +216,32 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
                 .toList();
     }
 
+    @Override
+    public List<DocumentRecord> recoverStaleProcessing(Instant updatedBefore, int limit) {
+        List<DocumentRecord> recovered = commandMapper.recoverStaleProcessing(
+                        updatedBefore,
+                        Math.max(1, limit)
+                ).stream()
+                .map(MybatisKnowledgeRepository::toDomain)
+                .toList();
+        recovered.forEach(document -> markIngestionFailed(
+                document.id(),
+                "Recovered stale ingestion task"
+        ));
+        return recovered;
+    }
+
+    @Override
+    public void deferRecoveredDocument(long workspaceId, long documentId, String reason) {
+        documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
+                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getId, documentId)
+                .eq(DocumentEntity::getStatus, DocumentStatus.FAILED.name())
+                .set(DocumentEntity::getStatus, DocumentStatus.PROCESSING.name())
+                .set(DocumentEntity::getFailureReason, truncate(reason))
+                .setSql("updated_at = CURRENT_TIMESTAMP"));
+    }
+
     private String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);

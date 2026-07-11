@@ -46,6 +46,10 @@ public interface KnowledgeRepository {
 
     List<DocumentRecord> findStaleProcessing(Instant updatedBefore, int limit);
 
+    List<DocumentRecord> recoverStaleProcessing(Instant updatedBefore, int limit);
+
+    void deferRecoveredDocument(long workspaceId, long documentId, String reason);
+
     default DocumentStatus status(long workspaceId, long documentId) {
         return findDocument(workspaceId, documentId)
                 .map(DocumentRecord::status)

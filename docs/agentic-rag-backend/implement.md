@@ -44,19 +44,20 @@ mvn -q -pl bootstrap spring-boot:run -Dspring-boot.run.profiles=dev
 - [x] documents / document_chunks / ingestion_jobs / upload_* 表(Flyway)
 - [x] 文档上传（分片 / 断点续传 / 秒传 hash）+ MinIO 存储
 - [x] RabbitMQ：ingestion exchange/queue/dlx/dlq 声明 + producer(publisher-confirm)
-- [ ] IngestionPipeline 节点编排：Parse(pdf/docx/txt/md) → Clean → Chunk(结构感知) → Embed → pgvector 写 + ES 索引写
-- [ ] 消费者：手动 ACK + 幂等(状态机去重) + 死信退避重试 + 启动回收僵尸任务
-- **当前进度**：消费者手动 ACK、三级 TTL 退避、最终 DLQ 和事务提交后投递已完成；待 Pipeline 接入状态机幂等与僵尸任务回收。
+- [x] IngestionPipeline 节点编排：Parse(pdf/docx/txt/md) → Clean → Chunk(结构感知) → Embed → pgvector 写 + ES 索引写
+- [x] 消费者：手动 ACK + 幂等(状态机去重) + 死信退避重试 + 启动回收僵尸任务
+- **验证记录**：Markdown 上传后 document=READY；PostgreSQL chunk/vector 各 1 条；ES 索引 1 条；ingestion job COMPLETED 且记录 5 个节点日志；MQ 无积压。
 - **验证**：传 pdf → 消费入库 → document READY，chunk 落库、pgvector/ES 有数据；模拟失败进 dlq
 - **回滚点**：阶段提交
 
 ## 阶段 3 · 检索（retrieval + rerank + 证据）
 
-- [ ] VectorSearchPort(pgvector) + KeywordSearchPort(ES BM25) adapter
-- [ ] QueryPlanner(LLM 查询规划) + 双通道并行召回
-- [ ] RrfFusion + 聚簇 + 邻居扩窗
-- [ ] RerankPort(bge-reranker) 精排
-- [ ] EvidenceGrader 证据分级 + `RetrievalApi` + Controller
+- [x] VectorSearchPort(pgvector) + KeywordSearchPort(ES BM25) adapter
+- [x] QueryPlanner(LLM 查询规划) + 双通道并行召回
+- [x] RrfFusion + 聚簇 + 邻居扩窗
+- [x] RerankPort(bge-reranker) 精排
+- [x] EvidenceGrader 证据分级 + `RetrievalApi` + Controller
+- **验证记录**：真实 API 同时命中 pgvector 与 ES，返回来源 `VECTOR/KEYWORD`、EvidenceLevel=PARTIAL；本地未启用 cross-encoder，rerank 按设计降级到 RRF，HTTP rerank provider 待接服务验证。
 - **验证**：检索 API 返回 EvidenceBundle（RRF+rerank 排序 + 分级）；无证据拒答
 - **回滚点**：阶段提交
 

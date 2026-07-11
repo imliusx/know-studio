@@ -20,9 +20,9 @@ services:
     build:
       context: ./docker/elasticsearch
       args:
-        ELASTICSEARCH_VERSION: 8.15.3
-        IK_VERSION: 8.15.3
-    image: know-studio/elasticsearch-ik:8.15.3
+        ELASTICSEARCH_VERSION: 8.18.1
+        IK_VERSION: 8.18.1
+    image: know-studio/elasticsearch-ik:8.18.1
     container_name: arag-elasticsearch
     environment:
       discovery.type: single-node

@@ -2,6 +2,7 @@ package know.studio.arag;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Agentic RAG 平台后端启动类
@@ -10,6 +11,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  * 因此各业务/平台模块的 {@code know.studio.arag.*} 组件都会被自动装配。
  */
 @SpringBootApplication
+@EnableScheduling
 public class ARagApplication {
 
     public static void main(String[] args) {

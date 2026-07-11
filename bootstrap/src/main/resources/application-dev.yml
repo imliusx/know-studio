@@ -27,6 +27,12 @@ spring:
     listener:
       simple:
         acknowledge-mode: manual
+  ai:
+    ollama:
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+      embedding:
+        options:
+          model: ${OLLAMA_EMBEDDING_MODEL:bge-m3}
 
 # 阶段 1+ 逐步补充：
 #   datasource (PostgreSQL + pgvector) / elasticsearch / minio / ollama / dashscope / sa-token
@@ -39,6 +45,11 @@ arag:
     routing:
       failure-threshold: ${AI_FAILURE_THRESHOLD:3}
       open-duration: ${AI_OPEN_DURATION:30s}
+    rerank:
+      enabled: ${RERANK_ENABLED:false}
+      base-url: ${RERANK_BASE_URL:http://localhost:8081}
+      timeout: ${RERANK_TIMEOUT:10s}
+      priority: ${RERANK_PRIORITY:10}
   storage:
     minio:
       endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
@@ -52,7 +63,6 @@ arag:
         - ${INGESTION_RETRY_DELAY_1:5s}
         - ${INGESTION_RETRY_DELAY_2:30s}
         - ${INGESTION_RETRY_DELAY_3:2m}
-
 sa-token:
   token-name: Authorization
   token-prefix: Bearer

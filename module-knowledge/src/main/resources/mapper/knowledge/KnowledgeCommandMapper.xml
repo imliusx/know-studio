@@ -35,11 +35,51 @@
         </foreach>
     </insert>
 
+    <delete id="deleteChunkEmbeddings">
+        DELETE FROM chunk_embeddings
+        WHERE workspace_id = #{workspaceId}
+          AND document_id = #{documentId}
+    </delete>
+
+    <insert id="insertChunkEmbeddings">
+        INSERT INTO chunk_embeddings (
+            chunk_id, workspace_id, document_id, embedding, metadata
+        )
+        VALUES
+        <foreach collection="embeddings" item="item" separator=",">
+            (
+                #{item.chunkId}, #{item.workspaceId}, #{item.documentId},
+                CAST(#{item.embedding} AS vector), CAST(#{item.metadata} AS jsonb)
+            )
+        </foreach>
+    </insert>
+
     <update id="appendNodeLog">
         UPDATE ingestion_jobs
         SET node_logs = node_logs || CAST(#{nodeLogJson} AS jsonb),
             updated_at = CURRENT_TIMESTAMP
         WHERE document_id = #{documentId}
     </update>
+
+    <select id="recoverStaleProcessing"
+            resultType="know.studio.arag.knowledge.infra.persistence.entity.DocumentEntity"
+            affectData="true">
+        WITH stale AS (
+            SELECT id
+            FROM documents
+            WHERE status = 'PROCESSING'
+              AND updated_at &lt; #{updatedBefore}
+            ORDER BY updated_at
+            LIMIT #{limit}
+            FOR UPDATE SKIP LOCKED
+        )
+        UPDATE documents AS document
+        SET status = 'FAILED',
+            failure_reason = 'Recovered stale ingestion task',
+            updated_at = CURRENT_TIMESTAMP
+        FROM stale
+        WHERE document.id = stale.id
+        RETURNING document.*
+    </select>
 
 </mapper>
