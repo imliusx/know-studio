@@ -4,6 +4,8 @@ import jakarta.validation.Valid;
 import know.studio.arag.agent.api.AgentApi;
 import know.studio.arag.agent.api.ChatRequest;
 import know.studio.arag.platform.core.sse.SseEmitterSender;
+import know.studio.arag.platform.core.ratelimit.RateLimit;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +27,8 @@ public class AgentController {
     private final AgentApi agentApi;
 
     @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @RateLimit(key = "agent.chat", permits = 5, windowSeconds = 1)
+    @RagTraceNode("api.agent.stream")
     public SseEmitter streamChat(
             @PathVariable long workspaceId,
             @Valid @RequestBody StreamChatRequest request

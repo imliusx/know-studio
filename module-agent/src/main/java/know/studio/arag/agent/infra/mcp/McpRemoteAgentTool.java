@@ -7,12 +7,13 @@ import io.modelcontextprotocol.spec.McpSchema;
 import know.studio.arag.agent.domain.AgentTool;
 import know.studio.arag.agent.domain.ToolResult;
 import know.studio.arag.platform.core.exception.BusinessException;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 
 import java.time.Duration;
 import java.net.URI;
 import java.util.Map;
 
-public final class McpRemoteAgentTool implements AgentTool, AutoCloseable {
+public class McpRemoteAgentTool implements AgentTool, AutoCloseable {
 
     private final String name;
     private final String url;
@@ -56,6 +57,7 @@ public final class McpRemoteAgentTool implements AgentTool, AutoCloseable {
     }
 
     @Override
+    @RagTraceNode("agent.tool.mcp")
     public ToolResult execute(long workspaceId, String question) {
         if (!available()) {
             throw new BusinessException("MCP 工具未配置");

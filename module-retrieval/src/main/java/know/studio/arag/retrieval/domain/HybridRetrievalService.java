@@ -2,11 +2,13 @@ package know.studio.arag.retrieval.domain;
 
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
 import know.studio.arag.retrieval.api.EvidenceLevel;
 import know.studio.arag.retrieval.api.RetrievalApi;
 import know.studio.arag.retrieval.api.RetrievalQuery;
+import know.studio.arag.retrieval.api.RetrievalMode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -39,6 +41,7 @@ public class HybridRetrievalService implements RetrievalApi {
     private final ExecutorService retrievalExecutor;
 
     @Override
+    @RagTraceNode("retrieval.hybrid")
     public EvidenceBundle retrieve(RetrievalQuery query) {
         identityApi.requireWorkspaceReadable(query.workspaceId());
         List<String> plannedQueries = queryPlanner.plan(query.question());
@@ -55,10 +58,12 @@ public class HybridRetrievalService implements RetrievalApi {
                     "vector",
                     () -> vectorSearch.search(query.workspaceId(), embedding, CHANNEL_LIMIT)
             ));
-            searches.add(searchAsync(
-                    "keyword",
-                    () -> keywordSearch.search(query.workspaceId(), plannedQuery, CHANNEL_LIMIT)
-            ));
+            if (query.mode() != RetrievalMode.VECTOR_ONLY) {
+                searches.add(searchAsync(
+                        "keyword",
+                        () -> keywordSearch.search(query.workspaceId(), plannedQuery, CHANNEL_LIMIT)
+                ));
+            }
         }
 
         List<List<SearchCandidate>> rankings = searches.stream()
@@ -75,7 +80,9 @@ public class HybridRetrievalService implements RetrievalApi {
                 );
         List<FusedCandidate> expanded = neighborExpander.expand(fused, neighbors, RERANK_LIMIT);
         List<FusedCandidate> clustered = candidateClusterer.cluster(expanded, RERANK_LIMIT);
-        List<FusedCandidate> ranked = rerank(query.question(), clustered);
+        List<FusedCandidate> ranked = query.mode() == RetrievalMode.HYBRID_RERANK
+                ? rerank(query.question(), clustered)
+                : clustered;
         EvidenceLevel level = evidenceGrader.grade(ranked);
         List<Evidence> evidence = ranked.stream()
                 .limit(query.topK())

@@ -23,6 +23,21 @@ mvn -pl bootstrap -am spring-boot:run
 
 The backend listens on port `8080` by default. Supporting services are defined in the root `docker-compose.yml`.
 
+API documentation is available at `/doc.html` (Knife4j) and `/v3/api-docs`.
+Prometheus metrics are exposed at `/actuator/prometheus`.
+
+Start the optional observability stack with:
+
+```bash
+docker compose --profile observability up -d prometheus tempo grafana
+OTEL_ENABLED=true mvn -pl bootstrap spring-boot:run
+```
+
+Grafana listens on `3000`, Prometheus on `9090`, and Tempo accepts OTLP on
+`4317`/`4318`. Langfuse export is optional and uses `LANGFUSE_ENABLED`,
+`LANGFUSE_BASE_URL`, `LANGFUSE_PUBLIC_KEY`, and `LANGFUSE_SECRET_KEY`; raw
+prompts and model output are not sent by the built-in observation payload.
+
 ## Frontend
 
 ```bash

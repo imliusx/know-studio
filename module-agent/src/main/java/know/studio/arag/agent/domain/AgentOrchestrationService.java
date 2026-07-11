@@ -13,6 +13,7 @@ import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatChunk;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
 import know.studio.arag.retrieval.api.EvidenceLevel;
@@ -46,6 +47,7 @@ public class AgentOrchestrationService implements AgentApi {
     private final ChatModelRouter chatModelRouter;
 
     @Override
+    @RagTraceNode("agent.orchestration")
     public Flux<ChatStreamEvent> streamChat(ChatRequest request) {
         identityApi.requireWorkspaceReadable(request.workspaceId());
         CurrentIdentity identity = identityApi.currentUser();

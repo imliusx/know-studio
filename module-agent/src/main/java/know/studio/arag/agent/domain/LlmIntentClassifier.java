@@ -4,6 +4,7 @@ import know.studio.arag.agent.api.IntentResult;
 import know.studio.arag.agent.api.IntentType;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatRequest;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -30,6 +31,7 @@ public class LlmIntentClassifier implements IntentClassifier {
     private final HeuristicIntentClassifier fallback = new HeuristicIntentClassifier();
 
     @Override
+    @RagTraceNode("agent.intent")
     public IntentResult classify(String message, boolean toolMode) {
         try {
             String response = chatModelRouter.stream(ChatRequest.chat(SYSTEM_PROMPT, message))

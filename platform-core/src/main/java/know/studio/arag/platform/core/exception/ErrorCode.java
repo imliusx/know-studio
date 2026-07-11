@@ -12,6 +12,7 @@ public enum ErrorCode {
     FORBIDDEN("A0403", "无权限访问", HttpStatus.FORBIDDEN),
     NOT_FOUND("A0404", "资源不存在", HttpStatus.NOT_FOUND),
     CONFLICT("A0409", "资源冲突", HttpStatus.CONFLICT),
+    TOO_MANY_REQUESTS("A0429", "请求过于频繁", HttpStatus.TOO_MANY_REQUESTS),
     BUSINESS_ERROR("A0500", "业务处理失败", HttpStatus.BAD_REQUEST),
     SYSTEM_ERROR("B0500", "系统内部错误", HttpStatus.INTERNAL_SERVER_ERROR);
 

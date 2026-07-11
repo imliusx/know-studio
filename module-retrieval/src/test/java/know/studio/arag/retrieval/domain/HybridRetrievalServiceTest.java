@@ -10,6 +10,7 @@ import know.studio.arag.platform.core.exception.ForbiddenException;
 import know.studio.arag.retrieval.api.EvidenceBundle;
 import know.studio.arag.retrieval.api.EvidenceLevel;
 import know.studio.arag.retrieval.api.RetrievalQuery;
+import know.studio.arag.retrieval.api.RetrievalMode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -109,6 +110,25 @@ class HybridRetrievalServiceTest {
 
         verify(queryPlanner, never()).plan(any());
         verify(vectorSearch, never()).search(anyLong(), any(), anyInt());
+    }
+
+    @Test
+    void vectorOnlySkipsKeywordAndRerank() {
+        when(queryPlanner.plan("vector only")).thenReturn(List.of("vector only"));
+        when(vectorSearch.search(anyLong(), any(float[].class), anyInt()))
+                .thenReturn(List.of(candidate(1L, 0.91, RetrievalSource.VECTOR)));
+        when(neighborPort.findNeighbors(anyLong(), any(), anyInt())).thenReturn(List.of());
+
+        EvidenceBundle result = service().retrieve(new RetrievalQuery(
+                "vector only",
+                WORKSPACE_ID,
+                5,
+                RetrievalMode.VECTOR_ONLY
+        ));
+
+        assertThat(result.evidence()).hasSize(1);
+        verify(keywordSearch, never()).search(anyLong(), any(), anyInt());
+        verify(rerankPort, never()).rerank(any(), any());
     }
 
     private HybridRetrievalService service() {

@@ -72,6 +72,19 @@ arag:
       business:
         url: ${MCP_BUSINESS_URL:}
         tool-name: ${MCP_BUSINESS_TOOL:business_lookup}
+  observability:
+    otel:
+      enabled: ${OTEL_ENABLED:false}
+      service-name: ${OTEL_SERVICE_NAME:arag}
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4317}
+      export-timeout: ${OTEL_EXPORT_TIMEOUT:10s}
+    langfuse:
+      enabled: ${LANGFUSE_ENABLED:false}
+      base-url: ${LANGFUSE_BASE_URL:https://cloud.langfuse.com}
+      public-key: ${LANGFUSE_PUBLIC_KEY:}
+      secret-key: ${LANGFUSE_SECRET_KEY:}
+      environment: ${LANGFUSE_ENVIRONMENT:dev}
+      timeout: ${LANGFUSE_TIMEOUT:5s}
 sa-token:
   token-name: Authorization
   token-prefix: Bearer

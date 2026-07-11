@@ -75,11 +75,12 @@ mvn -q -pl bootstrap spring-boot:run -Dspring-boot.run.profiles=dev
 
 ## 阶段 5 · 生产支柱补全（evaluation + 可观测）
 
-- [ ] 限流接入各入口（检索/chat）
-- [ ] Trace 埋点覆盖全链路 + OTel 导出
-- [ ] Prometheus / Grafana + Langfuse 接入
-- [ ] evaluation：数据集/样本表 + 消融对比(仅向量 / 混合 / +rerank) + Recall@K 输出
-- [ ] OpenAPI / knife4j 文档
+- [x] 限流接入各入口（检索/chat）
+- [x] Trace 埋点覆盖全链路 + OTel 导出
+- [x] Prometheus / Grafana + Langfuse 接入
+- [x] evaluation：数据集/样本表 + 消融对比(仅向量 / 混合 / +rerank) + Recall@K 输出
+- [x] OpenAPI / knife4j 文档
+- **验证记录**：Flyway V4 在真实 PostgreSQL 应用；真实 HTTP 连续请求返回 `429/A0429`；Prometheus target=`up` 且采集 `arag_rate_limit_*`/`arag_trace_node_*`；Tempo 查到 `evaluation.ablation` trace；Grafana 12 自动配置 Prometheus+Tempo；`/v3/api-docs` 与 `/doc.html` 均为 200。单条真实标注样本 Recall@5：VECTOR_ONLY=1.0（2118ms）、HYBRID=1.0（300ms）、HYBRID_RERANK=1.0（197ms），三条 eval_runs 已落库。Langfuse 未配置真实密钥，HTTP 投递仅完成代码与失败隔离验证。
 - **验证**：跑评测集出消融对比数字；Trace/指标可见；限流生效；容错测试（模型熔断降级不中断）
 - **回滚点**：阶段提交
 

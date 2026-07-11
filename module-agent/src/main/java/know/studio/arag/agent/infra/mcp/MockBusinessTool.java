@@ -2,11 +2,12 @@ package know.studio.arag.agent.infra.mcp;
 
 import know.studio.arag.agent.domain.AgentTool;
 import know.studio.arag.agent.domain.ToolResult;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 
 import java.util.Locale;
 import java.util.Map;
 
-public final class MockBusinessTool implements AgentTool {
+public class MockBusinessTool implements AgentTool {
 
     @Override
     public String name() {
@@ -33,6 +34,7 @@ public final class MockBusinessTool implements AgentTool {
     }
 
     @Override
+    @RagTraceNode("agent.tool.mock-business")
     public ToolResult execute(long workspaceId, String question) {
         String content = "模拟业务系统返回：workspace=" + workspaceId
                 + "，查询条件=" + question + "，状态=正常";

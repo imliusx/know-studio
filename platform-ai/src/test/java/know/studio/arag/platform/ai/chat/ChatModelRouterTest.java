@@ -1,6 +1,7 @@
 package know.studio.arag.platform.ai.chat;
 
 import know.studio.arag.platform.ai.provider.AiCapability;
+import know.studio.arag.platform.ai.observability.AiObservation;
 import know.studio.arag.platform.ai.provider.AiProvider;
 import know.studio.arag.platform.ai.provider.ChatChunk;
 import know.studio.arag.platform.ai.provider.ChatRequest;
@@ -15,6 +16,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -52,6 +54,21 @@ class ChatModelRouterTest {
                 .verify();
 
         assertThat(fallback.calls()).isZero();
+    }
+
+    @Test
+    void recordsProviderObservationWithoutPromptContent() {
+        TestProvider provider = new TestProvider("primary", 0, Flux.just(ChatChunk.token("answer")));
+        AtomicReference<AiObservation> observation = new AtomicReference<>();
+        ChatModelRouter router = new ChatModelRouter(List.of(provider), registry(), observation::set);
+
+        StepVerifier.create(router.stream(ChatRequest.chat("secret-system", "secret-question")))
+                .expectNext(ChatChunk.token("answer"))
+                .verifyComplete();
+
+        assertThat(observation.get().providerId()).isEqualTo("primary");
+        assertThat(observation.get().outputCharacters()).isEqualTo(6);
+        assertThat(observation.get().success()).isTrue();
     }
 
     private static ProviderCircuitBreakerRegistry registry() {

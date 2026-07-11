@@ -3,6 +3,7 @@ package know.studio.arag.platform.core.ratelimit;
 import know.studio.arag.platform.core.context.UserContext;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
@@ -21,9 +22,11 @@ import org.springframework.stereotype.Component;
 public class RateLimitAspect {
 
     private final RedissonClient redissonClient;
+    private final MeterRegistry meterRegistry;
 
-    public RateLimitAspect(RedissonClient redissonClient) {
+    public RateLimitAspect(RedissonClient redissonClient, MeterRegistry meterRegistry) {
         this.redissonClient = redissonClient;
+        this.meterRegistry = meterRegistry;
     }
 
     @Around("@annotation(rateLimit)")
@@ -32,8 +35,10 @@ public class RateLimitAspect {
         RRateLimiter limiter = redissonClient.getRateLimiter(limiterKey);
         limiter.trySetRate(RateType.OVERALL, rateLimit.permits(), rateLimit.windowSeconds(), RateIntervalUnit.SECONDS);
         if (!limiter.tryAcquire(1)) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "请求过于频繁，请稍后再试");
+            meterRegistry.counter("arag.rate.limit.rejected", "key", rateLimit.key()).increment();
+            throw new BusinessException(ErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
         }
+        meterRegistry.counter("arag.rate.limit.allowed", "key", rateLimit.key()).increment();
         return joinPoint.proceed();
     }
 

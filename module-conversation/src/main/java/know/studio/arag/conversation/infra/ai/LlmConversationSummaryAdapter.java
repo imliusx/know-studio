@@ -4,6 +4,7 @@ import know.studio.arag.conversation.api.ConversationMessage;
 import know.studio.arag.conversation.domain.ConversationSummaryPort;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatRequest;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ public class LlmConversationSummaryAdapter implements ConversationSummaryPort {
     private final ChatModelRouter chatModelRouter;
 
     @Override
+    @RagTraceNode("conversation.summarize")
     public String summarize(String previousSummary, List<ConversationMessage> messages) {
         StringBuilder prompt = new StringBuilder();
         if (previousSummary != null && !previousSummary.isBlank()) {

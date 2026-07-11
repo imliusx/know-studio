@@ -2,6 +2,7 @@ package know.studio.arag.platform.ai.routing;
 
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
+import know.studio.arag.platform.ai.observability.AiObservationSink;
 import know.studio.arag.platform.ai.provider.AiProvider;
 import know.studio.arag.platform.ai.rerank.RerankClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,9 +23,10 @@ public class PlatformAiConfiguration {
     @Bean
     ChatModelRouter chatModelRouter(
             List<AiProvider> providers,
-            ProviderCircuitBreakerRegistry breakers
+            ProviderCircuitBreakerRegistry breakers,
+            AiObservationSink observationSink
     ) {
-        return new ChatModelRouter(providers, breakers);
+        return new ChatModelRouter(providers, breakers, observationSink);
     }
 
     @Bean

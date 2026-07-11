@@ -2,6 +2,7 @@ package know.studio.arag.agent.domain;
 
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatRequest;
+import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
@@ -21,6 +22,7 @@ public class LlmQuestionDecomposer implements QuestionDecomposer {
     private final ChatModelRouter chatModelRouter;
 
     @Override
+    @RagTraceNode("agent.decompose")
     public List<String> decompose(String question) {
         try {
             String result = chatModelRouter.stream(new ChatRequest(SYSTEM_PROMPT, question, true, null))

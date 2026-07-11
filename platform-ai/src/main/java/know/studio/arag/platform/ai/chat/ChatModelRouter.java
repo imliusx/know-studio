@@ -1,28 +1,41 @@
 package know.studio.arag.platform.ai.chat;
 
 import know.studio.arag.platform.ai.provider.AiCapability;
+import know.studio.arag.platform.ai.observability.AiObservation;
+import know.studio.arag.platform.ai.observability.AiObservationSink;
 import know.studio.arag.platform.ai.provider.AiProvider;
 import know.studio.arag.platform.ai.provider.ChatChunk;
 import know.studio.arag.platform.ai.provider.ChatRequest;
 import know.studio.arag.platform.ai.routing.AiRoutingException;
 import know.studio.arag.platform.ai.routing.ProviderCircuitBreaker;
 import know.studio.arag.platform.ai.routing.ProviderCircuitBreakerRegistry;
+import know.studio.arag.platform.core.trace.TraceContext;
 import reactor.core.publisher.Flux;
 
 import java.util.Comparator;
 import java.util.List;
 
 /** Routes streaming chat with circuit breaking and first-chunk failover. */
-public final class ChatModelRouter {
+public class ChatModelRouter {
 
     private final List<AiProvider> providers;
     private final ProviderCircuitBreakerRegistry breakers;
+    private final AiObservationSink observationSink;
 
     public ChatModelRouter(List<AiProvider> providers, ProviderCircuitBreakerRegistry breakers) {
+        this(providers, breakers, AiObservationSink.NOOP);
+    }
+
+    public ChatModelRouter(
+            List<AiProvider> providers,
+            ProviderCircuitBreakerRegistry breakers,
+            AiObservationSink observationSink
+    ) {
         this.providers = providers.stream()
                 .sorted(Comparator.comparingInt(AiProvider::priority))
                 .toList();
         this.breakers = breakers;
+        this.observationSink = observationSink;
     }
 
     public Flux<ChatChunk> stream(ChatRequest request) {
@@ -50,7 +63,7 @@ public final class ChatModelRouter {
             return route(candidates, index + 1, request);
         }
 
-        return Flux.defer(() -> provider.streamChat(request))
+        return observedProviderStream(provider, request)
                 .switchOnFirst((signal, stream) -> {
                     if (signal.hasValue()) {
                         breaker.onSuccess();
@@ -59,5 +72,37 @@ public final class ChatModelRouter {
                     breaker.onFailure();
                     return route(candidates, index + 1, request);
                 });
+    }
+
+    private Flux<ChatChunk> observedProviderStream(AiProvider provider, ChatRequest request) {
+        return Flux.defer(() -> {
+            long start = System.nanoTime();
+            String traceId = TraceContext.current();
+            java.util.concurrent.atomic.AtomicLong outputCharacters = new java.util.concurrent.atomic.AtomicLong();
+            return provider.streamChat(request)
+                    .doOnNext(chunk -> outputCharacters.addAndGet(chunk.content().length()))
+                    .doOnComplete(() -> observationSink.record(new AiObservation(
+                            provider.id(),
+                            request.reasoning(),
+                            true,
+                            elapsedMillis(start),
+                            outputCharacters.get(),
+                            "",
+                            traceId == null ? "" : traceId
+                    )))
+                    .doOnError(exception -> observationSink.record(new AiObservation(
+                            provider.id(),
+                            request.reasoning(),
+                            false,
+                            elapsedMillis(start),
+                            outputCharacters.get(),
+                            exception.getClass().getSimpleName(),
+                            traceId == null ? "" : traceId
+                    )));
+        });
+    }
+
+    private static long elapsedMillis(long start) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start);
     }
 }
