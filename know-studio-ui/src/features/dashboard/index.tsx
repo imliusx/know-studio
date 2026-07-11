@@ -24,6 +24,7 @@ import {
 } from 'recharts'
 import { motion, useReducedMotion } from 'motion/react'
 import { useAuthStore } from '@/stores/auth-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { listAdminUsers } from '@/api/admin-users'
 import { listAssistantSessions } from '@/api/assistant'
 import {
@@ -305,15 +306,18 @@ const qualityChartConfig = {
 
 export function Dashboard() {
   const currentUser = useAuthStore((state) => state.auth.user)
+  const currentWorkspaceId = useWorkspaceStore(
+    (state) => state.currentWorkspaceId
+  )
   const groupsQuery = useQuery({
     queryKey: ['groups', 'my'],
     queryFn: getMyGroups,
     enabled: Boolean(currentUser),
   })
   const documentsQuery = useQuery({
-    queryKey: ['documents', 'dashboard'],
-    queryFn: () => listDocuments(),
-    enabled: Boolean(currentUser),
+    queryKey: ['documents', currentWorkspaceId, 'dashboard'],
+    queryFn: () => listDocuments(currentWorkspaceId!),
+    enabled: Boolean(currentUser && currentWorkspaceId),
   })
   const sessionsQuery = useQuery({
     queryKey: ['assistant', 'sessions'],
@@ -604,7 +608,7 @@ export function Dashboard() {
                       </div>
                       <div className='text-sm text-muted-foreground'>
                         {currentUser?.systemRole ?? '-'} ·{' '}
-                        {currentUser?.userCode ?? '-'}
+                        {currentUser?.email ?? '-'}
                       </div>
                     </div>
                   </div>

@@ -24,12 +24,18 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { SignOutDialog } from '@/components/sign-out-dialog'
 
-export function ProfileDropdown() {
+type ProfileDropdownProps = {
+  showAccountLinks?: boolean
+}
+
+export function ProfileDropdown({
+  showAccountLinks = true,
+}: ProfileDropdownProps) {
   const { t } = useTranslation()
   const [open, setOpen] = useDialogState()
   const currentUser = useAuthStore((state) => state.auth.user)
   const displayName = currentUser?.displayName ?? '未登录'
-  const userCode = currentUser?.userCode ?? '访客'
+  const email = currentUser?.email ?? '访客'
   const role = currentUser?.systemRole ?? 'GUEST'
 
   return (
@@ -56,38 +62,42 @@ export function ProfileDropdown() {
             <div className='flex flex-col gap-1.5'>
               <p className='text-sm leading-none font-medium'>{displayName}</p>
               <p className='text-xs leading-none text-muted-foreground'>
-                {userCode} · {role}
+                {email} · {role}
               </p>
             </div>
           </DropdownMenuLabel>
-          <DropdownMenuSeparator />
-          <DropdownMenuGroup>
-            <DropdownMenuItem asChild>
-              <Link to='/admin/settings/account'>
-                <UserRound />
-                {t('userMenu.profile')}
-                <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to='/admin/settings/account'>
-                <CreditCard />
-                {t('userMenu.billing')}
-                <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link to='/admin/settings/account'>
-                <Settings />
-                {t('userMenu.settings')}
-                <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <UsersRound />
-              {t('userMenu.newTeam')}
-            </DropdownMenuItem>
-          </DropdownMenuGroup>
+          {showAccountLinks ? (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuGroup>
+                <DropdownMenuItem asChild>
+                  <Link to='/admin/settings/account'>
+                    <UserRound />
+                    {t('userMenu.profile')}
+                    <DropdownMenuShortcut>⇧⌘P</DropdownMenuShortcut>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to='/admin/settings/account'>
+                    <CreditCard />
+                    {t('userMenu.billing')}
+                    <DropdownMenuShortcut>⌘B</DropdownMenuShortcut>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link to='/admin/settings/account'>
+                    <Settings />
+                    {t('userMenu.settings')}
+                    <DropdownMenuShortcut>⌘S</DropdownMenuShortcut>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <UsersRound />
+                  {t('userMenu.newTeam')}
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
+            </>
+          ) : null}
           <DropdownMenuSeparator />
           <DropdownMenuItem variant='destructive' onClick={() => setOpen(true)}>
             <LogOut />

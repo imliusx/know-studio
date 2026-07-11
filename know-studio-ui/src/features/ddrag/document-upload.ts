@@ -2,7 +2,6 @@ import {
   completeDocumentUpload,
   getUploadStatus,
   initDocumentUpload,
-  uploadDocument,
   uploadDocumentChunk,
 } from '@/api/documents'
 
@@ -23,24 +22,18 @@ export async function uploadDocumentWithResume(
   file: File,
   onProgress: (payload: UploadProgressPayload) => void
 ) {
-  if (!supportsResumableUpload()) {
-    return uploadDocumentFallback(groupId, file, onProgress)
-  }
-
   onProgress({ percent: 0, stage: 'hashing', mode: 'resumable' })
   const fileHash = await computeFileHash(file)
   const chunkSize = resolveChunkSize(file.size)
   const chunkCount = Math.ceil(file.size / chunkSize)
 
   onProgress({ percent: 0, stage: 'checking', mode: 'resumable' })
-  const initResponse = await initDocumentUpload({
-    groupId,
+  const initResponse = await initDocumentUpload(groupId, {
     fileName: file.name,
     fileSize: file.size,
     contentType: file.type || 'application/octet-stream',
-    fileHash,
-    chunkSize,
-    chunkCount,
+    contentHash: fileHash,
+    totalChunks: chunkCount,
   })
 
   if (initResponse.instantUpload && typeof initResponse.documentId === 'number') {
@@ -48,11 +41,11 @@ export async function uploadDocumentWithResume(
     return initResponse.documentId
   }
 
-  if (!initResponse.uploadId) {
+  if (!initResponse.uploadSessionId) {
     throw new Error('上传会话创建失败')
   }
 
-  const status = await getUploadStatus(initResponse.uploadId)
+  const status = await getUploadStatus(groupId, initResponse.uploadSessionId)
   const uploadedChunks = new Set([
     ...(initResponse.uploadedChunks ?? []),
     ...(status.uploadedChunks ?? []),
@@ -70,8 +63,9 @@ export async function uploadDocumentWithResume(
     const chunkHash = await computeChunkHash(chunk)
 
     await uploadDocumentChunk(
+      groupId,
       {
-        uploadId: initResponse.uploadId!,
+        uploadSessionId: initResponse.uploadSessionId!,
         chunkIndex,
         chunkHash,
         chunk,
@@ -106,17 +100,12 @@ export async function uploadDocumentWithResume(
   )
 
   onProgress({ percent: 99, stage: 'completing', mode: 'resumable' })
-  const documentId = await completeDocumentUpload(initResponse.uploadId)
+  const documentId = await completeDocumentUpload(
+    groupId,
+    initResponse.uploadSessionId
+  )
   onProgress({ percent: 100, stage: 'completing', mode: 'resumable' })
   return documentId
-}
-
-function supportsResumableUpload() {
-  return (
-    typeof window !== 'undefined' &&
-    window.isSecureContext &&
-    typeof window.crypto?.subtle?.digest === 'function'
-  )
 }
 
 function resolveChunkSize(fileSize: number) {
@@ -172,19 +161,4 @@ async function computeHashHex(buffer: ArrayBuffer) {
   return Array.from(new Uint8Array(hashBuffer))
     .map((value) => value.toString(16).padStart(2, '0'))
     .join('')
-}
-
-async function uploadDocumentFallback(
-  groupId: number,
-  file: File,
-  onProgress: (payload: UploadProgressPayload) => void
-) {
-  onProgress({ percent: 0, stage: 'checking', mode: 'basic' })
-  const documentId = await uploadDocument(groupId, file, (loadedBytes, totalBytes) => {
-    const total = totalBytes && totalBytes > 0 ? totalBytes : file.size
-    const percent = total > 0 ? Math.min(99, Math.floor((loadedBytes / total) * 100)) : 0
-    onProgress({ percent, stage: 'uploading', mode: 'basic' })
-  })
-  onProgress({ percent: 100, stage: 'completing', mode: 'basic' })
-  return documentId
 }

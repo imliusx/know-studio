@@ -51,8 +51,9 @@ import {
   type DocumentListItem,
   type DocumentPreview,
 } from "@/api/documents"
-import { createGroup, getMyGroups } from "@/api/groups"
+import { createWorkspace, listWorkspaces } from "@/api/workspaces"
 import { extractApiError } from "@/api/http"
+import { useWorkspaceStore } from "@/stores/workspace-store"
 import { Header } from "@/components/layout/header"
 import { HeaderActions } from "@/components/layout/header-actions"
 import { Main } from "@/components/layout/main"
@@ -120,15 +121,14 @@ import {
   type UploadProgressPayload,
 } from "./document-upload"
 import { DocumentStatusBadge } from "./document-status-badge"
-import { formatDateTime, formatFileSize, mergeGroups } from "./shared"
+import { formatDateTime, formatFileSize } from "./shared"
 
 export function DocumentsPage() {
   const documentManager = useDocumentManagement()
-  const groupsQuery = useQuery({
-    queryKey: ["groups", "my"],
-    queryFn: getMyGroups,
-  })
-  const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
+  const currentWorkspaceId = useWorkspaceStore((state) => state.currentWorkspaceId)
+  const currentWorkspace = workspaces.find((item) => item.workspaceId === currentWorkspaceId)
+  const groups = useMemo(() => toManagedGroups(workspaces), [workspaces])
   const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
   const [activeView, setActiveView] = useState("knowledge-bases")
   const stats = useMemo(
@@ -139,7 +139,8 @@ export function DocumentsPage() {
     () => getKnowledgeBases(groups, documentManager.documents),
     [groups, documentManager.documents]
   )
-  const isLoading = documentManager.isLoading || groupsQuery.isPending
+  const isLoading = documentManager.isLoading
+  const canManage = currentWorkspace?.role !== "MEMBER"
 
   return (
     <>
@@ -153,7 +154,7 @@ export function DocumentsPage() {
             <KnowledgeBaseBreadcrumb />
             <h2 className="text-2xl font-bold tracking-tight">知识库管理</h2>
           </div>
-          <KnowledgeBasePrimaryButtons groups={groups} />
+          <KnowledgeBasePrimaryButtons groups={groups} canManage={canManage} />
         </div>
 
         <KnowledgeBaseStats stats={stats} />
@@ -180,6 +181,7 @@ export function DocumentsPage() {
               groupNameById={groupNameById}
               isActionPending={documentManager.isActionPending}
               isPreviewPending={documentManager.isPreviewPending}
+              canManage={canManage}
               onPreview={documentManager.handlePreview}
               onRetry={documentManager.handleRetry}
               onDelete={documentManager.handleDelete}
@@ -201,11 +203,8 @@ export function DocumentsPage() {
 
 export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
   const documentManager = useDocumentManagement()
-  const groupsQuery = useQuery({
-    queryKey: ["groups", "my"],
-    queryFn: getMyGroups,
-  })
-  const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
+  const groups = useMemo(() => toManagedGroups(workspaces), [workspaces])
   const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
   const knowledgeBase = groups.find((item) => item.groupId === groupId)
   const knowledgeBaseName =
@@ -218,7 +217,8 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
     [documentManager.documents, groupId]
   )
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
-  const isLoading = documentManager.isLoading || groupsQuery.isPending
+  const isLoading = documentManager.isLoading
+  const canManage = workspaces.find((item) => item.workspaceId === groupId)?.role !== "MEMBER"
 
   return (
     <>
@@ -256,6 +256,7 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
           searchPlaceholder="按文档名称、格式或上传人搜索"
           isActionPending={documentManager.isActionPending}
           isPreviewPending={documentManager.isPreviewPending}
+          canManage={canManage}
           onPreview={documentManager.handlePreview}
           onRetry={documentManager.handleRetry}
           onDelete={documentManager.handleDelete}
@@ -321,18 +322,31 @@ function KnowledgeBaseBreadcrumb({
 
 function useDocumentManagement() {
   const queryClient = useQueryClient()
+  const currentWorkspaceId = useWorkspaceStore(
+    (state) => state.currentWorkspaceId
+  )
   const [preview, setPreview] = useState<DocumentPreview | null>(null)
 
   const documentsQuery = useQuery({
-    queryKey: ["documents"],
-    queryFn: () => listDocuments(),
+    queryKey: ["documents", currentWorkspaceId],
+    queryFn: () => listDocuments(currentWorkspaceId!),
+    enabled: Boolean(currentWorkspaceId),
+    refetchInterval: (query) =>
+      query.state.data?.some(
+        (document) =>
+          document.status === "PENDING" || document.status === "PROCESSING"
+      )
+        ? 2_000
+        : false,
   })
 
   const actionMutation = useMutation({
     mutationFn: async (fn: () => Promise<void>) => fn(),
     onSuccess: () => {
       toast.success("操作成功")
-      queryClient.invalidateQueries({ queryKey: ["documents"] })
+      queryClient.invalidateQueries({
+        queryKey: ["documents", currentWorkspaceId],
+      })
     },
     onError: (error) => toast.error(extractApiError(error, "操作失败")),
   })
@@ -361,33 +375,18 @@ function useDocumentManagement() {
   }
 
   function handleRetry(document: DocumentListItem) {
-    if (isMockDocument(document)) {
-      toast.info("示例数据暂不支持重新入库")
-      return
-    }
-
     actionMutation.mutate(() =>
       retryDocumentIngestion(document.documentId, document.groupId)
     )
   }
 
   function handleDelete(document: DocumentListItem) {
-    if (isMockDocument(document)) {
-      toast.info("示例数据暂不支持删除")
-      return
-    }
-
     actionMutation.mutate(() =>
       deleteDocument(document.documentId, document.groupId)
     )
   }
 
   function handleDeleteMany(documents: DocumentListItem[]) {
-    if (documents.some(isMockDocument)) {
-      toast.info("示例数据暂不支持批量删除")
-      return
-    }
-
     actionMutation.mutate(async () => {
       await Promise.all(
         documents.map((document) =>
@@ -432,32 +431,22 @@ type KnowledgeBaseItem = {
   uploaderNames: string[]
 }
 
-type ManagedGroup = ReturnType<typeof mergeGroups>[number]
+type ManagedGroup = { groupId: number; groupCode: string; groupName: string }
 
-const knowledgeBaseNameByGroupId = new Map<number, string>([
-  [1, "销售作战知识库"],
-  [2, "客户成功知识库"],
-  [3, "研发与运维知识库"],
-  [4, "法务与市场资料库"],
-  [5, "财务与客服知识库"],
-  [6, "采购与评测知识库"],
-])
-
-const knowledgeBaseEmbeddingModelByGroupId = new Map<number, string>([
-  [1, "bge-m3"],
-  [2, "text-embedding-3-large"],
-  [3, "gte-Qwen2-7B-instruct"],
-  [4, "bge-large-zh-v1.5"],
-  [5, "text-embedding-v4"],
-  [6, "m3e-large"],
-])
-
-function formatKnowledgeBaseName(groupId: number) {
-  return knowledgeBaseNameByGroupId.get(groupId) ?? `知识库 ${groupId}`
+function toManagedGroups(workspaces: import("@/api/workspaces").WorkspaceInfo[]): ManagedGroup[] {
+  return workspaces.map((workspace) => ({
+    groupId: workspace.workspaceId,
+    groupCode: String(workspace.workspaceId),
+    groupName: workspace.name,
+  }))
 }
 
-function formatKnowledgeBaseEmbeddingModel(groupId: number) {
-  return knowledgeBaseEmbeddingModelByGroupId.get(groupId) ?? "bge-m3"
+function formatKnowledgeBaseName(groupId: number) {
+  return `知识库 ${groupId}`
+}
+
+function formatKnowledgeBaseEmbeddingModel(_groupId: number) {
+  return "bge-m3"
 }
 
 function getKnowledgeBaseDisplayName(
@@ -608,13 +597,13 @@ function KnowledgeBaseStats({ stats }: { stats: KnowledgeBaseStat[] }) {
   )
 }
 
-function KnowledgeBasePrimaryButtons({ groups }: { groups: ManagedGroup[] }) {
+function KnowledgeBasePrimaryButtons({ groups, canManage }: { groups: ManagedGroup[]; canManage: boolean }) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
 
   return (
     <>
-      <div className="flex gap-2">
+      {canManage ? <div className="flex gap-2">
         <Button
           variant="outline"
           disabled={groups.length === 0}
@@ -627,7 +616,7 @@ function KnowledgeBasePrimaryButtons({ groups }: { groups: ManagedGroup[] }) {
           新建
           <Plus data-icon="inline-end" />
         </Button>
-      </div>
+      </div> : null}
       <CreateKnowledgeBaseDialog
         open={isCreateDialogOpen}
         onOpenChange={setIsCreateDialogOpen}
@@ -655,16 +644,20 @@ function CreateKnowledgeBaseDialog({
   const [values, setValues] = useState({ name: "", description: "" })
 
   const createMutation = useMutation({
-    mutationFn: createGroup,
-    onSuccess: (groupId) => {
+    mutationFn: async (request: { name: string; description?: string }) => {
+      const created = await createWorkspace(request)
+      return { created, workspaces: await listWorkspaces() }
+    },
+    onSuccess: ({ created, workspaces }) => {
       toast.success("知识库已创建")
       setValues({ name: "", description: "" })
       onOpenChange(false)
-      queryClient.invalidateQueries({ queryKey: ["groups"] })
+      useWorkspaceStore.getState().setWorkspaces(workspaces)
+      useWorkspaceStore.getState().setCurrentWorkspaceId(created.workspaceId)
       queryClient.invalidateQueries({ queryKey: ["documents"] })
       navigate({
         to: "/admin/documents/$groupId",
-        params: { groupId: String(groupId) },
+        params: { groupId: String(created.workspaceId) },
       })
     },
     onError: (error) => toast.error(extractApiError(error, "创建知识库失败")),
@@ -1361,6 +1354,7 @@ type KnowledgeBaseTableProps = {
   searchPlaceholder?: string
   isActionPending: boolean
   isPreviewPending: boolean
+  canManage: boolean
   onPreview: (document: DocumentListItem) => void
   onRetry: (document: DocumentListItem) => void
   onDelete: (document: DocumentListItem) => void
@@ -1388,10 +1382,6 @@ const documentStatusFilters = [
   },
 ]
 
-function isMockDocument(document: DocumentListItem) {
-  return document.documentId < 0
-}
-
 function KnowledgeBaseTable({
   data,
   isLoading,
@@ -1400,6 +1390,7 @@ function KnowledgeBaseTable({
   searchPlaceholder = "按文档名称、知识库或上传人搜索",
   isActionPending,
   isPreviewPending,
+  canManage,
   onPreview,
   onRetry,
   onDelete,
@@ -1530,6 +1521,7 @@ function KnowledgeBaseTable({
             document={row.original}
             isActionPending={isActionPending}
             isPreviewPending={isPreviewPending}
+            canManage={canManage}
             onPreview={onPreview}
             onRetry={onRetry}
             onDelete={onDelete}
@@ -1709,7 +1701,7 @@ function KnowledgeBaseTable({
       </motion.div>
 
       <DataTablePagination table={table} className="mt-auto" />
-      {isSelectionMode ? (
+      {isSelectionMode && canManage ? (
         <DataTableBulkActions
           table={table}
           entityName="document"
@@ -1734,6 +1726,7 @@ type DocumentRowActionsProps = {
   document: DocumentListItem
   isActionPending: boolean
   isPreviewPending: boolean
+  canManage: boolean
   onPreview: (document: DocumentListItem) => void
   onRetry: (document: DocumentListItem) => void
   onDelete: (document: DocumentListItem) => void
@@ -1743,6 +1736,7 @@ function DocumentRowActions({
   document,
   isActionPending,
   isPreviewPending,
+  canManage,
   onPreview,
   onRetry,
   onDelete,
@@ -1770,7 +1764,7 @@ function DocumentRowActions({
         </DropdownMenuItem>
         <DropdownMenuItem disabled>编辑</DropdownMenuItem>
         <DropdownMenuItem disabled>收藏</DropdownMenuItem>
-        {document.status === "FAILED" ? (
+        {document.status === "FAILED" && canManage ? (
           <>
             <DropdownMenuSeparator />
             <DropdownMenuItem
@@ -1784,17 +1778,19 @@ function DocumentRowActions({
             </DropdownMenuItem>
           </>
         ) : null}
-        <DropdownMenuSeparator />
-        <DropdownMenuItem
-          variant="destructive"
-          disabled={isActionPending}
-          onClick={() => onDelete(document)}
-        >
-          删除
-          <DropdownMenuShortcut>
-            <Trash2 />
-          </DropdownMenuShortcut>
-        </DropdownMenuItem>
+        {canManage ? <>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            variant="destructive"
+            disabled={isActionPending}
+            onClick={() => onDelete(document)}
+          >
+            删除
+            <DropdownMenuShortcut>
+              <Trash2 />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </> : null}
       </DropdownMenuContent>
     </DropdownMenu>
   )

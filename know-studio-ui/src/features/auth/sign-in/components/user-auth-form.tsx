@@ -19,12 +19,12 @@ import {
 import { Input } from '@/components/ui/input'
 import { PasswordInput } from '../../components/password-input'
 
-type FieldKey = 'loginId' | 'password'
+type FieldKey = 'email' | 'password'
 type FieldErrors = Partial<Record<FieldKey, string>>
 type Values = Record<FieldKey, string>
 
 const DEMO_ACCOUNT: Values = {
-  loginId: 'liusx1024@gmail.com',
+  email: 'liusx1024@gmail.com',
   password: '#L194140',
 }
 
@@ -40,7 +40,7 @@ export function UserAuthForm({
   const [isLoading, setIsLoading] = useState(false)
   const [values, setValues] = useState<Values>(DEMO_ACCOUNT)
   const [touched, setTouched] = useState<Record<FieldKey, boolean>>({
-    loginId: false,
+    email: false,
     password: false,
   })
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -49,7 +49,7 @@ export function UserAuthForm({
 
   function validate(nextValues: Values): FieldErrors {
     return {
-      loginId: nextValues.loginId.trim() ? undefined : '请输入用户名或邮箱',
+      email: nextValues.email.trim() ? undefined : '请输入邮箱',
       password: nextValues.password ? undefined : '请输入密码',
     }
   }
@@ -77,18 +77,18 @@ export function UserAuthForm({
 
     const nextErrors = validate(values)
     setErrors(nextErrors)
-    setTouched({ loginId: true, password: true })
+    setTouched({ email: true, password: true })
 
-    if (nextErrors.loginId || nextErrors.password) return
+    if (nextErrors.email || nextErrors.password) return
 
-    const loginId = values.loginId.trim()
+    const email = values.email.trim()
 
     setIsLoading(true)
 
     try {
-      const tokens = await login({ loginId, password: values.password })
-      auth.setAccessToken(tokens.accessToken)
-      auth.setUser(tokens.currentUser)
+      const session = await login({ email, password: values.password })
+      auth.setAccessToken(session.tokenValue)
+      auth.setUser(session.user)
       const target = redirectTo && redirectTo !== '/500' ? redirectTo : '/'
       navigate({ to: target, replace: true })
     } catch (error) {
@@ -120,24 +120,24 @@ export function UserAuthForm({
                   登录账号继续访问工作台
                 </p>
               </div>
-              <Field data-invalid={Boolean(fieldError('loginId'))}>
-                <FieldLabel htmlFor='loginId'>用户名或邮箱</FieldLabel>
+              <Field data-invalid={Boolean(fieldError('email'))}>
+                <FieldLabel htmlFor='email'>邮箱</FieldLabel>
                 <Input
-                  id='loginId'
-                  name='loginId'
-                  type='text'
-                  placeholder='admin 或 admin@example.com'
+                  id='email'
+                  name='email'
+                  type='email'
+                  placeholder='admin@example.com'
                   autoComplete='username'
-                  value={values.loginId}
+                  value={values.email}
                   onChange={(event) =>
-                    handleChange('loginId', event.target.value)
+                    handleChange('email', event.target.value)
                   }
-                  onBlur={() => handleBlur('loginId')}
-                  aria-invalid={Boolean(fieldError('loginId'))}
+                  onBlur={() => handleBlur('email')}
+                  aria-invalid={Boolean(fieldError('email'))}
                   disabled={isLoading}
                 />
-                {fieldError('loginId') ? (
-                  <FieldError>{fieldError('loginId')}</FieldError>
+                {fieldError('email') ? (
+                  <FieldError>{fieldError('email')}</FieldError>
                 ) : null}
               </Field>
               <Field data-invalid={Boolean(fieldError('password'))}>

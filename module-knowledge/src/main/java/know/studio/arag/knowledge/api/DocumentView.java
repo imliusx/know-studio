@@ -9,6 +9,7 @@ public record DocumentView(
         String contentHash,
         DocumentStatus status,
         int chunkCount,
-        String failureReason
+        String failureReason,
+        String previewText
 ) {
 }

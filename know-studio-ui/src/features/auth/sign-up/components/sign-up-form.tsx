@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
 import { extractApiError } from '@/api/http'
 import { register } from '@/api/auth'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
@@ -20,7 +21,6 @@ import { PasswordInput } from '../../components/password-input'
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 type FieldKey =
-  | 'username'
   | 'email'
   | 'displayName'
   | 'password'
@@ -35,16 +35,15 @@ export function SignUpForm({
   ...props
 }: React.ComponentProps<'div'>) {
   const navigate = useNavigate()
+  const { auth } = useAuthStore()
   const [isLoading, setIsLoading] = useState(false)
   const [values, setValues] = useState<Values>({
-    username: '',
     email: '',
     displayName: '',
     password: '',
     confirmPassword: '',
   })
   const [touched, setTouched] = useState<Record<FieldKey, boolean>>({
-    username: false,
     email: false,
     displayName: false,
     password: false,
@@ -54,7 +53,6 @@ export function SignUpForm({
 
   function validate(nextValues: Values): FieldErrors {
     const nextErrors: FieldErrors = {
-      username: nextValues.username.trim() ? undefined : '请输入用户名',
       email:
         nextValues.email.trim() && EMAIL_PATTERN.test(nextValues.email)
           ? undefined
@@ -97,7 +95,6 @@ export function SignUpForm({
     const nextErrors = validate(values)
     setErrors(nextErrors)
     setTouched({
-      username: true,
       email: true,
       displayName: true,
       password: true,
@@ -109,14 +106,15 @@ export function SignUpForm({
     setIsLoading(true)
 
     try {
-      await register({
-        username: values.username.trim(),
+      const session = await register({
         email: values.email.trim(),
         displayName: values.displayName.trim(),
         password: values.password,
       })
-      toast.success('注册成功，请登录')
-      navigate({ to: '/sign-in', replace: true })
+      auth.setAccessToken(session.tokenValue)
+      auth.setUser(session.user)
+      toast.success('注册成功')
+      navigate({ to: '/', replace: true })
     } catch (error) {
       toast.error(extractApiError(error, '注册失败'))
     } finally {
@@ -146,24 +144,6 @@ export function SignUpForm({
                   注册 KnowStudio 账号
                 </p>
               </div>
-              <Field data-invalid={Boolean(fieldError('username'))}>
-                <FieldLabel htmlFor='username'>用户名</FieldLabel>
-                <Input
-                  id='username'
-                  name='username'
-                  autoComplete='username'
-                  value={values.username}
-                  onChange={(event) =>
-                    handleChange('username', event.target.value)
-                  }
-                  onBlur={() => handleBlur('username')}
-                  aria-invalid={Boolean(fieldError('username'))}
-                  disabled={isLoading}
-                />
-                {fieldError('username') ? (
-                  <FieldError>{fieldError('username')}</FieldError>
-                ) : null}
-              </Field>
               <Field data-invalid={Boolean(fieldError('displayName'))}>
                 <FieldLabel htmlFor='displayName'>显示名</FieldLabel>
                 <Input

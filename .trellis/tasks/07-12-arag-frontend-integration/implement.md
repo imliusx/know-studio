@@ -45,12 +45,19 @@ mvn -q clean validate test
 
 ## Stage 2 · Authentication and Workspace Context
 
-- [ ] 将前端认证类型迁移到 `AuthSession` / `CurrentIdentity`。
-- [ ] 移除核心流程对 refresh/reset/account 旧接口的依赖。
-- [ ] 建立全局 workspace store/provider 与持久化恢复逻辑。
-- [ ] 适配 workspace 列表、创建、切换和无 workspace 引导。
-- [ ] Query key 全部纳入 workspaceId；切换时中止请求和 SSE。
-- [ ] 按 OWNER/ADMIN/MEMBER 控制操作可见性，后端仍做最终授权。
+- [x] 将前端认证类型迁移到 `AuthSession` / `CurrentIdentity`。
+- [x] 核心认证恢复改为 `/auth/me` 校验，不再调用 refresh endpoint；非核心 reset/account API 暂保留原页面边界。
+- [x] 建立全局 workspace store 与 localStorage 持久化、失效回退逻辑。
+- [x] 适配 workspace 列表、创建、切换和无 workspace 引导。
+- [x] workspace 查询建立全局 key；文档/会话/评测的 workspace-scoped key 在对应迁移阶段完成。
+- [x] workspace role 已进入全局状态；具体页面按钮权限在文档、Chat、评测阶段接入。
+
+验证记录（2026-07-12）：
+
+- Stage 2 涉及文件定向 ESLint 通过。
+- `pnpm typecheck` 通过。
+- `pnpm build` 通过，保留既有 >500 kB chunk 警告。
+- 注册直接消费后端返回的 AuthSession 并进入已登录状态；持久 token 通过 `/auth/me` 重新校验。
 
 验证：登录刷新、token 失效、workspace 失效回退、跨空间缓存隔离、403 UI。
 
@@ -58,13 +65,19 @@ mvn -q clean validate test
 
 ## Stage 3 · Document and Ingestion Integration
 
-- [ ] API 改为 `/api/workspaces/{workspaceId}/documents...`。
-- [ ] 上传初始化字段、PUT multipart 分片和 hash header 对齐后端。
-- [ ] 支持秒传、恢复上传、上传进度和完成操作。
-- [ ] 文档列表/详情/删除/重试接入真实接口。
-- [ ] 上传完成后轮询入库状态，区分上传完成与 READY。
-- [ ] 移除核心文档页面 mock 行及硬编码 workspace 映射。
-- [ ] MEMBER 只读；ADMIN/OWNER 可管理。
+- [x] API 改为 `/api/workspaces/{workspaceId}/documents...`。
+- [x] 上传初始化字段、PUT multipart 分片和 hash header 对齐后端。
+- [x] API 层支持秒传、恢复上传、上传进度和完成操作。
+- [x] 文档列表/详情/删除/重试 API 接入真实接口。
+- [x] 上传完成后在 PENDING/PROCESSING 状态自动轮询，区分上传完成与 READY。
+- [x] 移除核心文档页面 mock 分支及硬编码 workspace 名称/模型映射。
+- [x] MEMBER 只读；ADMIN/OWNER 可上传、重试和删除。
+
+验证记录（2026-07-12）：
+
+- 文档 API、分片上传、状态查询和完成接口全部改为 workspace-scoped ARAG 契约。
+- `pnpm build` 通过，保留既有大 chunk 警告。
+- `mvn -q -pl module-knowledge -am validate test` 通过。
 
 验证：小文件、跨多分片文件、秒传、断点恢复、FAILED 重试、越权操作。
 

@@ -74,7 +74,8 @@ public class KnowledgeQueryService implements KnowledgeApi {
                 document.contentHash(),
                 document.status(),
                 document.chunkCount(),
-                document.failureReason()
+                document.failureReason(),
+                document.previewText()
         );
     }
 

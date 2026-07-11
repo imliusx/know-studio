@@ -2,12 +2,14 @@ import axios from 'axios'
 
 export interface ApiResponse<T> {
   success: boolean
+  code: string
   data: T
   message: string | null
 }
 
 interface ApiErrorPayload {
   success?: boolean
+  code?: string
   message?: string | null
   title?: string
 }

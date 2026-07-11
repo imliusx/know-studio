@@ -15,12 +15,14 @@ import {
 type HeaderActionsProps = {
   showSearch?: boolean
   showAdminLink?: boolean
+  showProfileAccountLinks?: boolean
   className?: string
 }
 
 export function HeaderActions({
   showSearch = true,
   showAdminLink = false,
+  showProfileAccountLinks = true,
   className,
 }: HeaderActionsProps) {
   const { t } = useTranslation()
@@ -59,7 +61,7 @@ export function HeaderActions({
       <LanguageSwitch />
       <ThemeSwitch />
       <ConfigDrawer />
-      <ProfileDropdown />
+      <ProfileDropdown showAccountLinks={showProfileAccountLinks} />
     </div>
   )
 }

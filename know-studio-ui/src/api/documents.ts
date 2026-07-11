@@ -1,4 +1,23 @@
-import http, { unwrapApiResponse, unwrapBareResponse } from './http'
+import http, { unwrapApiResponse } from './http'
+
+export type DocumentStatus =
+  | 'PENDING'
+  | 'PROCESSING'
+  | 'READY'
+  | 'FAILED'
+
+interface DocumentView {
+  id: number
+  workspaceId: number
+  fileName: string
+  contentType: string | null
+  fileSize: number
+  contentHash: string
+  status: DocumentStatus
+  chunkCount: number
+  failureReason: string | null
+  previewText: string | null
+}
 
 export interface DocumentListItem {
   documentId: number
@@ -7,7 +26,7 @@ export interface DocumentListItem {
   fileExt: string | null
   contentType: string | null
   fileSize: number
-  status: string
+  status: DocumentStatus
   failureReason: string | null
   uploadedAt: string
   uploaderUserId: number
@@ -23,120 +42,145 @@ export interface DocumentPreview {
 }
 
 export interface DocumentQuery {
-  groupId?: number
   fileName?: string
-  status?: string
-}
-
-export interface InitDocumentUploadPayload {
-  groupId: number
-  fileName: string
-  fileSize: number
-  contentType: string
-  fileHash: string
-  chunkSize: number
-  chunkCount: number
-}
-
-export interface UploadChunkPayload {
-  uploadId: string
-  chunkIndex: number
-  chunkHash: string
-  chunk: Blob
+  status?: DocumentStatus
 }
 
 export interface UploadInitResult {
   instantUpload: boolean
   documentId: number | null
-  uploadId: string | null
+  uploadSessionId: number | null
   uploadedChunks: number[]
-  chunkSize: number | null
-  chunkCount: number | null
 }
 
 export interface UploadStatusResult {
-  status: string
+  uploadSessionId: number
+  totalChunks: number
   uploadedChunks: number[]
-  uploadedChunkCount: number
-  chunkCount: number | null
+  status: 'UPLOADING' | 'COMPLETED' | 'EXPIRED'
+  documentId: number | null
 }
 
-export async function listDocuments(query: DocumentQuery = {}) {
-  const response = await http.get<DocumentListItem[]>('/documents', {
+export async function listDocuments(
+  workspaceId: number,
+  query: DocumentQuery = {}
+) {
+  const response = await http.get(`/workspaces/${workspaceId}/documents`, {
     params: query,
   })
-  return unwrapBareResponse<DocumentListItem[]>(response.data, '获取文档失败')
+  const documents = unwrapApiResponse<DocumentView[]>(response.data, '获取文档失败')
+  return documents.map(toListItem)
 }
 
-export async function uploadDocument(
-  groupId: number,
-  file: File,
-  onProgress?: (loadedBytes: number, totalBytes?: number) => void
+export async function initDocumentUpload(
+  workspaceId: number,
+  payload: {
+    fileName: string
+    fileSize: number
+    contentType: string
+    contentHash: string
+    totalChunks: number
+  }
 ) {
-  const formData = new FormData()
-  formData.append('groupId', String(groupId))
-  formData.append('file', file)
-
-  const response = await http.post('/documents/upload', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: (event) => onProgress?.(event.loaded, event.total),
-    timeout: 120_000,
-  })
-  return unwrapApiResponse<number>(response.data, '上传文档失败')
-}
-
-export async function initDocumentUpload(payload: InitDocumentUploadPayload) {
-  const response = await http.post('/documents/upload/init', payload)
+  const response = await http.post(
+    `/workspaces/${workspaceId}/documents/uploads`,
+    payload
+  )
   return unwrapApiResponse<UploadInitResult>(response.data, '初始化上传失败')
 }
 
 export async function uploadDocumentChunk(
-  payload: UploadChunkPayload,
+  workspaceId: number,
+  payload: {
+    uploadSessionId: number
+    chunkIndex: number
+    chunkHash: string
+    chunk: Blob
+  },
   onProgress?: (loadedBytes: number) => void
 ) {
   const formData = new FormData()
-  formData.append('uploadId', payload.uploadId)
-  formData.append('chunkIndex', String(payload.chunkIndex))
-  formData.append('chunkHash', payload.chunkHash)
-  formData.append('chunk', payload.chunk)
-
-  const response = await http.post('/documents/upload/chunks', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-    onUploadProgress: (event) => onProgress?.(event.loaded),
-  })
+  formData.append('file', payload.chunk)
+  const response = await http.put(
+    `/workspaces/${workspaceId}/documents/uploads/${payload.uploadSessionId}/chunks/${payload.chunkIndex}`,
+    formData,
+    {
+      headers: { 'X-Chunk-SHA256': payload.chunkHash },
+      onUploadProgress: (event) => onProgress?.(event.loaded),
+    }
+  )
   return unwrapApiResponse<UploadStatusResult>(response.data, '上传分片失败')
 }
 
-export async function getUploadStatus(uploadId: string) {
-  const response = await http.get(`/documents/upload/${uploadId}`)
+export async function getUploadStatus(
+  workspaceId: number,
+  uploadSessionId: number
+) {
+  const response = await http.get(
+    `/workspaces/${workspaceId}/documents/uploads/${uploadSessionId}`
+  )
   return unwrapApiResponse<UploadStatusResult>(response.data, '获取上传状态失败')
 }
 
-export async function completeDocumentUpload(uploadId: string) {
-  const response = await http.post(`/documents/upload/${uploadId}/complete`)
-  return unwrapApiResponse<number>(response.data, '完成上传失败')
+export async function completeDocumentUpload(
+  workspaceId: number,
+  uploadSessionId: number
+) {
+  const response = await http.post(
+    `/workspaces/${workspaceId}/documents/uploads/${uploadSessionId}/complete`
+  )
+  const result = unwrapApiResponse<{ documentId: number }>(
+    response.data,
+    '完成上传失败'
+  )
+  return result.documentId
 }
 
-export async function deleteDocument(documentId: number, groupId: number) {
-  const response = await http.delete(`/documents/${documentId}`, {
-    params: { groupId },
-  })
+export async function deleteDocument(documentId: number, workspaceId: number) {
+  const response = await http.delete(
+    `/workspaces/${workspaceId}/documents/${documentId}`
+  )
   return unwrapApiResponse<void>(response.data, '删除文档失败')
 }
 
-export async function retryDocumentIngestion(documentId: number, groupId: number) {
+export async function retryDocumentIngestion(
+  documentId: number,
+  workspaceId: number
+) {
   const response = await http.post(
-    `/documents/${documentId}/retry-ingestion`,
-    null,
-    { params: { groupId } }
+    `/workspaces/${workspaceId}/documents/${documentId}/retry-ingestion`
   )
   return unwrapApiResponse<void>(response.data, '重试入库失败')
 }
 
-export async function previewDocument(documentId: number, groupId: number) {
-  const response = await http.get<DocumentPreview>(
-    `/documents/${documentId}/preview`,
-    { params: { groupId } }
+export async function previewDocument(documentId: number, workspaceId: number) {
+  const response = await http.get(
+    `/workspaces/${workspaceId}/documents/${documentId}`
   )
-  return unwrapBareResponse<DocumentPreview>(response.data, '获取文档预览失败')
+  const document = unwrapApiResponse<DocumentView>(response.data, '获取文档详情失败')
+  return {
+    documentId: document.id,
+    fileName: document.fileName,
+    previewText: document.previewText ?? '',
+  } satisfies DocumentPreview
+}
+
+function toListItem(document: DocumentView): DocumentListItem {
+  const extensionIndex = document.fileName.lastIndexOf('.')
+  return {
+    documentId: document.id,
+    groupId: document.workspaceId,
+    fileName: document.fileName,
+    fileExt:
+      extensionIndex >= 0 ? document.fileName.slice(extensionIndex + 1) : null,
+    contentType: document.contentType,
+    fileSize: document.fileSize,
+    status: document.status,
+    failureReason: document.failureReason,
+    uploadedAt: new Date(0).toISOString(),
+    uploaderUserId: 0,
+    uploaderUserCode: '-',
+    uploaderDisplayName: '-',
+    previewText: document.previewText,
+  }
 }

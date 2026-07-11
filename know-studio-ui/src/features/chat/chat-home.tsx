@@ -9,7 +9,6 @@ import {
   type UIEvent,
 } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
 import Typed from 'typed.js'
 import {
   AnimatePresence,
@@ -64,7 +63,6 @@ import {
   Plus,
   RotateCcw,
   Search,
-  Settings,
   SquarePen,
   Square,
   Star,
@@ -1913,7 +1911,11 @@ export function ChatHome() {
                 <span className='truncate'>{activeConversationTitle}</span>
               </div>
               <div className='pointer-events-auto flex min-w-0 items-center justify-end'>
-                <HeaderActions showSearch={false} showAdminLink />
+                <HeaderActions
+                  showSearch={false}
+                  showAdminLink
+                  showProfileAccountLinks={false}
+                />
               </div>
             </header>
 
@@ -2553,20 +2555,6 @@ function ChatHistorySidebar({
 
         <SidebarFooter>
           <SidebarMenu className='gap-1'>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                asChild
-                tooltip='设置'
-                className='h-8 text-sm font-normal'
-              >
-                <Link to='/admin/settings/account'>
-                  <Settings />
-                  <span className='group-data-[collapsible=icon]:hidden'>
-                    设置
-                  </span>
-                </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
             <SidebarMenuItem>
               <DropdownMenu modal={false}>
                 <DropdownMenuTrigger asChild>

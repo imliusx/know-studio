@@ -1,15 +1,16 @@
 import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 import { setAuthToken } from '@/api/http'
-import { refreshToken, type CurrentUserProfile } from '@/api/auth'
+import { getCurrentUser, type CurrentIdentity } from '@/api/auth'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 
 const ACCESS_TOKEN = 'ddrag_access_token'
 const CURRENT_USER = 'ddrag_current_user'
 
 interface AuthState {
   auth: {
-    user: CurrentUserProfile | null
-    setUser: (user: CurrentUserProfile | null) => void
+    user: CurrentIdentity | null
+    setUser: (user: CurrentIdentity | null) => void
     accessToken: string
     setAccessToken: (accessToken: string) => void
     refreshSession: () => Promise<string>
@@ -21,6 +22,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>()((set) => {
   const cookieState = getCookie(ACCESS_TOKEN)
   const initToken = cookieState ? decodeURIComponent(cookieState) : ''
+  let currentAccessToken = initToken
   const initUser = initToken ? readStoredUser() : null
   if (!initToken) writeStoredUser(null)
   setAuthToken(initToken || null)
@@ -36,28 +38,29 @@ export const useAuthStore = create<AuthState>()((set) => {
       accessToken: initToken,
       setAccessToken: (accessToken) =>
         set((state) => {
+          currentAccessToken = accessToken
           setCookie(ACCESS_TOKEN, encodeURIComponent(accessToken))
           setAuthToken(accessToken)
           return { ...state, auth: { ...state.auth, accessToken } }
         }),
-      refreshSession: async () => {
+      refreshSession: async (): Promise<string> => {
         try {
-          const tokens = await refreshToken()
+          const currentUser = await getCurrentUser()
+          const accessToken = currentAccessToken
+          if (!accessToken) throw new Error('登录状态已失效')
           set((state) => {
-            setCookie(ACCESS_TOKEN, encodeURIComponent(tokens.accessToken))
-            writeStoredUser(tokens.currentUser)
-            setAuthToken(tokens.accessToken)
+            writeStoredUser(currentUser)
             return {
               ...state,
               auth: {
                 ...state.auth,
-                user: tokens.currentUser,
-                accessToken: tokens.accessToken,
+                user: currentUser,
               },
             }
           })
-          return tokens.accessToken
+          return accessToken
         } catch (error) {
+          currentAccessToken = ''
           removeCookie(ACCESS_TOKEN)
           writeStoredUser(null)
           setAuthToken(null)
@@ -65,14 +68,17 @@ export const useAuthStore = create<AuthState>()((set) => {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },
           }))
+          useWorkspaceStore.getState().reset()
           throw error
         }
       },
       resetAccessToken: () =>
         set((state) => {
+          currentAccessToken = ''
           removeCookie(ACCESS_TOKEN)
           writeStoredUser(null)
           setAuthToken(null)
+          useWorkspaceStore.getState().reset()
           return {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },
@@ -80,9 +86,11 @@ export const useAuthStore = create<AuthState>()((set) => {
         }),
       reset: () =>
         set((state) => {
+          currentAccessToken = ''
           removeCookie(ACCESS_TOKEN)
           writeStoredUser(null)
           setAuthToken(null)
+          useWorkspaceStore.getState().reset()
           return {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },
@@ -95,13 +103,13 @@ export const useAuthStore = create<AuthState>()((set) => {
 function readStoredUser() {
   try {
     const value = window.localStorage.getItem(CURRENT_USER)
-    return value ? (JSON.parse(value) as CurrentUserProfile) : null
+    return value ? (JSON.parse(value) as CurrentIdentity) : null
   } catch {
     return null
   }
 }
 
-function writeStoredUser(user: CurrentUserProfile | null) {
+function writeStoredUser(user: CurrentIdentity | null) {
   if (!user) {
     window.localStorage.removeItem(CURRENT_USER)
     return
