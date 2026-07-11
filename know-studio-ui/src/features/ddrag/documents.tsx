@@ -1,5 +1,4 @@
 import {
-  useEffect,
   useMemo,
   useState,
   type ChangeEvent,
@@ -445,7 +444,7 @@ function formatKnowledgeBaseName(groupId: number) {
   return `知识库 ${groupId}`
 }
 
-function formatKnowledgeBaseEmbeddingModel(_groupId: number) {
+function formatKnowledgeBaseEmbeddingModel() {
   return "bge-m3"
 }
 
@@ -470,7 +469,7 @@ function getKnowledgeBases(
     byGroupId.set(group.groupId, {
       groupId: group.groupId,
       name: group.groupName,
-      embeddingModel: formatKnowledgeBaseEmbeddingModel(group.groupId),
+      embeddingModel: formatKnowledgeBaseEmbeddingModel(),
       documentCount: 0,
       readyCount: 0,
       processingCount: 0,
@@ -485,7 +484,7 @@ function getKnowledgeBases(
     const item = byGroupId.get(document.groupId) ?? {
       groupId: document.groupId,
       name: formatKnowledgeBaseName(document.groupId),
-      embeddingModel: formatKnowledgeBaseEmbeddingModel(document.groupId),
+      embeddingModel: formatKnowledgeBaseEmbeddingModel(),
       documentCount: 0,
       readyCount: 0,
       processingCount: 0,
@@ -760,19 +759,13 @@ function UploadDocumentDialog({
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [progress, setProgress] = useState<UploadProgressPayload | null>(null)
 
-  useEffect(() => {
-    if (!open) return
-
-    setSelectedGroupId((current) => {
-      if (defaultGroupId) return String(defaultGroupId)
-      if (current) return current
-      return groups[0] ? String(groups[0].groupId) : ""
-    })
-  }, [defaultGroupId, groups, open])
+  const resolvedSelectedGroupId =
+    (defaultGroupId ? String(defaultGroupId) : selectedGroupId) ||
+    String(groups[0]?.groupId ?? "")
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      const groupId = Number(selectedGroupId)
+      const groupId = Number(resolvedSelectedGroupId)
       if (!Number.isFinite(groupId) || groupId <= 0) {
         throw new Error("请选择知识库")
       }
@@ -816,7 +809,7 @@ function UploadDocumentDialog({
             <Field>
               <FieldLabel>知识库</FieldLabel>
               <Select
-                value={selectedGroupId}
+                value={resolvedSelectedGroupId}
                 disabled={Boolean(defaultGroupId) || uploadMutation.isPending}
                 onValueChange={setSelectedGroupId}
               >
@@ -872,7 +865,7 @@ function UploadDocumentDialog({
               type="submit"
               disabled={
                 uploadMutation.isPending ||
-                !selectedGroupId ||
+                !resolvedSelectedGroupId ||
                 !selectedFile ||
                 groups.length === 0
               }
@@ -1535,6 +1528,7 @@ function KnowledgeBaseTable({
       isSelectionMode,
       knowledgeBaseName,
       groupNameById,
+      canManage,
       isActionPending,
       isPreviewPending,
       onDelete,

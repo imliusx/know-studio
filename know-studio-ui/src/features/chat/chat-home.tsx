@@ -268,6 +268,7 @@ const CHAT_EMPTY_TITLES = [
   'Ask Anything',
   '与知识对话',
 ]
+const CHAT_TYPED_TITLES = CHAT_EMPTY_TITLES.slice(1)
 const CHAT_EMPTY_TITLE_PLACEHOLDER = CHAT_EMPTY_TITLES.reduce((longest, title) =>
   title.length > longest.length ? title : longest
 )
@@ -359,18 +360,6 @@ const suggestions: Array<{
 function ChatHeroTitle() {
   const reduceMotion = useReducedMotion()
   const typedElementRef = useRef<HTMLSpanElement>(null)
-  const typedTitles = useMemo(() => {
-    const titles = CHAT_EMPTY_TITLES.slice(1)
-
-    for (let index = titles.length - 1; index > 0; index -= 1) {
-      const randomIndex = Math.floor(Math.random() * (index + 1))
-      const currentTitle = titles[index]
-      titles[index] = titles[randomIndex]
-      titles[randomIndex] = currentTitle
-    }
-
-    return titles
-  }, [])
 
   useLayoutEffect(() => {
     if (reduceMotion || !typedElementRef.current) return
@@ -378,7 +367,7 @@ function ChatHeroTitle() {
     typedElementRef.current.textContent = CHAT_EMPTY_TITLES[0]
 
     const typed = new Typed(typedElementRef.current, {
-      strings: typedTitles,
+      strings: CHAT_TYPED_TITLES,
       typeSpeed: 125,
       backSpeed: 100,
       backDelay: 3000,
@@ -393,7 +382,7 @@ function ChatHeroTitle() {
     return () => {
       typed.destroy()
     }
-  }, [reduceMotion, typedTitles])
+  }, [reduceMotion])
 
   return (
     <motion.h1
@@ -746,6 +735,12 @@ export function ChatHome() {
     [workspaces]
   )
   const [initialChatState] = useState(createInitialChatState)
+  const initialMessageId = Math.max(
+    0,
+    ...initialChatState.conversations.flatMap((conversation) =>
+      conversation.messages.map((message) => message.id)
+    )
+  )
   const [input, setInput] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
@@ -754,7 +749,7 @@ export function ChatHome() {
   const [deepThinking, setDeepThinking] = useState(false)
   const [isHeaderGlass, setIsHeaderGlass] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
-  const messageIdRef = useRef(Date.now())
+  const messageIdRef = useRef(initialMessageId)
   const messageLoadRequestRef = useRef(0)
   const streamAbortControllerRef = useRef<AbortController | null>(null)
   const [conversations, setConversations] = useState<ChatConversation[]>(
@@ -766,15 +761,30 @@ export function ChatHome() {
   const [loadingConversationId, setLoadingConversationId] = useState<string | null>(
     null
   )
-  const [showConversationSkeleton, setShowConversationSkeleton] = useState(false)
-
-  const activeConversation =
-    conversations.find((conversation) => conversation.id === activeConversationId) ??
+  const [skeletonConversationId, setSkeletonConversationId] = useState<string | null>(
     null
-  const messages = activeConversation?.messages ?? []
+  )
+
+  const resolvedActiveConversationId = conversations.some(
+    (conversation) => conversation.id === activeConversationId
+  )
+    ? activeConversationId
+    : null
+  const activeConversation =
+    conversations.find(
+      (conversation) => conversation.id === resolvedActiveConversationId
+    ) ?? null
+  const messages = useMemo(
+    () => activeConversation?.messages ?? [],
+    [activeConversation]
+  )
   const hasMessages = messages.length > 0
   const isLoadingActiveConversation =
-    Boolean(activeConversationId) && loadingConversationId === activeConversationId
+    Boolean(resolvedActiveConversationId) &&
+    loadingConversationId === resolvedActiveConversationId
+  const showConversationSkeleton =
+    isLoadingActiveConversation &&
+    skeletonConversationId === resolvedActiveConversationId
   const isStreaming = messages.some((message) => message.isStreaming)
   const lastAssistantMessageId = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -787,8 +797,9 @@ export function ChatHome() {
   }, [messages])
   const activeConversationTitle =
     activeConversation?.title ?? DEFAULT_CONVERSATION_TITLE
+  const resolvedSelectedGroupId = selectedGroupId || String(groups[0]?.groupId ?? '')
   const selectedGroup = groups.find(
-    (group) => String(group.groupId) === selectedGroupId
+    (group) => String(group.groupId) === resolvedSelectedGroupId
   )
   const activeGroupId = selectedGroup?.groupId ?? groups[0]?.groupId ?? null
   const activeMode =
@@ -804,31 +815,40 @@ export function ChatHome() {
   useEffect(() => {
     if (!sessionsQuery.data) return
 
+    let cancelled = false
     const metadata = loadSessionMetadata()
+    const sessions = sessionsQuery.data
 
-    setConversations((prev) => {
-      const backendConversations = sessionsQuery.data.map((session) => {
-        const existingConversation = prev.find(
-          (conversation) => conversation.assistantSessionId === session.sessionId
+    window.queueMicrotask(() => {
+      if (cancelled) return
+      setConversations((prev) => {
+        const backendConversations = sessions.map((session) => {
+          const existingConversation = prev.find(
+            (conversation) => conversation.assistantSessionId === session.sessionId
+          )
+
+          return buildConversationFromSession(
+            session,
+            existingConversation,
+            metadata
+          )
+        })
+
+        const localPendingConversations = prev.filter(
+          (conversation) =>
+            !conversation.assistantSessionId && conversation.messages.length > 0
         )
 
-        return buildConversationFromSession(
-          session,
-          existingConversation,
-          metadata
-        )
+        return orderConversations([
+          ...localPendingConversations,
+          ...backendConversations,
+        ])
       })
-
-      const localPendingConversations = prev.filter(
-        (conversation) =>
-          !conversation.assistantSessionId && conversation.messages.length > 0
-      )
-
-      return orderConversations([
-        ...localPendingConversations,
-        ...backendConversations,
-      ])
     })
+
+    return () => {
+      cancelled = true
+    }
   }, [sessionsQuery.data])
 
   useEffect(() => {
@@ -837,32 +857,14 @@ export function ChatHome() {
   }, [conversations, sessionsQuery.data])
 
   useEffect(() => {
-    if (
-      activeConversationId &&
-      !conversations.some((conversation) => conversation.id === activeConversationId)
-    ) {
-      setActiveConversationId(null)
-    }
-  }, [activeConversationId, conversations])
-
-  useEffect(() => {
-    if (!isLoadingActiveConversation) {
-      setShowConversationSkeleton(false)
-      return
-    }
+    if (!isLoadingActiveConversation || !resolvedActiveConversationId) return
 
     const timer = window.setTimeout(() => {
-      setShowConversationSkeleton(true)
+      setSkeletonConversationId(resolvedActiveConversationId)
     }, 150)
 
     return () => window.clearTimeout(timer)
-  }, [isLoadingActiveConversation])
-
-  useEffect(() => {
-    if (!selectedGroupId && groups[0]) {
-      setSelectedGroupId(String(groups[0].groupId))
-    }
-  }, [groups, selectedGroupId])
+  }, [isLoadingActiveConversation, resolvedActiveConversationId])
 
   useEffect(
     () =>
@@ -3033,7 +3035,6 @@ function StreamingMarkdownContent({
 
     if (content.length < displayedRef.current.length) {
       displayedRef.current = content
-      setDisplayedText(content)
     }
   }, [content])
 
@@ -3049,7 +3050,6 @@ function StreamingMarkdownContent({
   useEffect(() => {
     if (reduceMotion) {
       displayedRef.current = content
-      setDisplayedText(content)
 
       if (isComplete && !didCompleteRef.current) {
         didCompleteRef.current = true
@@ -3098,7 +3098,7 @@ function StreamingMarkdownContent({
   }, [content, isComplete, reduceMotion])
   return (
     <MessageContent markdown className={ASSISTANT_CONTENT_CLASS_NAME}>
-      {displayedText}
+      {reduceMotion ? content : displayedText.slice(0, content.length)}
     </MessageContent>
   )
 }

@@ -130,13 +130,30 @@ mvn -q clean validate test
 
 ## Stage 6 · Local End-to-End Acceptance
 
-- [ ] 启动全部 Compose 依赖、后端和 Vite 前端。
-- [ ] 创建 OWNER、ADMIN、MEMBER 测试用户并验证权限矩阵。
-- [ ] 跑通注册/登录 → workspace → 上传入库 → Chat 引用 → Evaluation。
-- [ ] 验证跨 workspace 隔离、401/403/429、SSE 断连与恢复。
+- [x] 启动全部 Compose 依赖、后端和 Vite 前端。
+- [x] 创建 OWNER、ADMIN、MEMBER 测试用户并验证权限矩阵。
+- [x] 跑通注册/登录 → workspace → 上传入库 → Chat 引用 → Evaluation。
+- [x] 验证跨 workspace 隔离、401/403/429、SSE 断连与恢复。
 - [ ] 使用桌面和移动视口做 Playwright 交互及截图检查。
-- [ ] 运行前端 lint/typecheck/build、后端全测试和 `git diff --check`。
-- [ ] 更新 README：本地启动、环境变量、核心演示流程和已知可选依赖。
+- [x] 运行前端 lint/typecheck/build、后端全测试和 `git diff --check`。
+- [x] 更新 README：本地启动、环境变量、核心演示流程和已知可选依赖。
+
+验证记录（2026-07-12）：
+
+- PostgreSQL、Redis、RabbitMQ、MinIO、Elasticsearch 和 Ollama 均通过
+  Compose health check；Ollama 已安装 `bge-m3` 和 `qwen2.5:1.5b`。
+- 注册、workspace 创建、文档 multipart 上传及异步入库跑通，文档最终进入
+  `READY`；知识 Chat 返回 citation/token/done，深度思考返回
+  thinking/citation/token/done。
+- 三种评测模式 `VECTOR_ONLY`、`HYBRID`、`HYBRID_RERANK` 均完成，
+  Recall@5 为 1.0。
+- MEMBER 文档读取和会话创建为 200，文档删除和评测为 403；ADMIN 评测为
+  200；无 token 为 401；第二 workspace 文档列表为空；重复评测触发 429。
+- `pnpm lint` 通过，保留 TanStack Table 与 React Compiler 的两条兼容性
+  warning；`pnpm typecheck`、`pnpm build`、`mvn -q clean validate test`、
+  `docker compose config --quiet` 和 `git diff --check` 通过。
+- 当前执行环境的内置浏览器列表为空，无法完成桌面/移动 Playwright 截图；
+  该项保持未勾选，需在有浏览器实例的会话补验。
 
 最终验证：
 

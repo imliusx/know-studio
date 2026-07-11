@@ -1,21 +1,17 @@
 import { Link } from '@tanstack/react-router'
 import { type LucideIcon } from 'lucide-react'
 import { type ComponentProps, type ReactNode } from 'react'
-import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import {
+  headerIconButtonClass,
+  headerIconClass,
+  type HeaderIconScale,
+} from './header-icon-button-utils'
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-
-type HeaderIconScale = 'default' | 'sm' | 'lg'
-
-const iconScaleClass: Record<HeaderIconScale, string> = {
-  default: 'size-[1.2rem]',
-  sm: 'size-[1.125rem]',
-  lg: 'size-[1.25rem]',
-}
 
 type HeaderIconButtonProps = Omit<
   ComponentProps<typeof Button>,
@@ -29,16 +25,6 @@ type HeaderIconButtonProps = Omit<
 
 type HeaderIconLinkButtonProps = HeaderIconButtonProps & {
   to: ComponentProps<typeof Link>['to']
-}
-
-export function headerIconButtonClass(
-  className?: string
-) {
-  return cn('relative', className)
-}
-
-export function headerIconClass(iconScale: HeaderIconScale = 'default') {
-  return iconScaleClass[iconScale]
 }
 
 export function HeaderIconTooltip({

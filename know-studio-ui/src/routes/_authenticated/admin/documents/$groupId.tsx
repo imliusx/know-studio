@@ -1,14 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router"
-import { KnowledgeBaseDocumentsPage } from "@/features/ddrag/documents"
+import { KnowledgeBaseRoute } from "@/features/ddrag/knowledge-base-route"
 
 export const Route = createFileRoute(
   "/_authenticated/admin/documents/$groupId"
 )({
-  component: RouteComponent,
+  component: KnowledgeBaseRoute,
 })
-
-function RouteComponent() {
-  const { groupId } = Route.useParams()
-
-  return <KnowledgeBaseDocumentsPage groupId={Number(groupId)} />
-}

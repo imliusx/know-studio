@@ -6,8 +6,8 @@ import { useTheme } from '@/context/theme-provider'
 import {
   HeaderIconButton,
   HeaderIconTooltip,
-  headerIconClass,
 } from '@/components/layout/header-icon-button'
+import { headerIconClass } from '@/components/layout/header-icon-button-utils'
 
 type Theme = 'dark' | 'light' | 'system'
 

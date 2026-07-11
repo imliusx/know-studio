@@ -76,7 +76,7 @@ function CodeBlockCode({
   ...props
 }: CodeBlockCodeProps) {
   const [highlightedHtml, setHighlightedHtml] = useState<string | null>(null)
-  const [copied, setCopied] = useState(false)
+  const [copiedCode, setCopiedCode] = useState<string | null>(null)
   const { resolvedTheme } = useTheme()
   const normalizedCode = useMemo(() => normalizeCodeIndent(code), [code])
   const shikiTheme =
@@ -101,19 +101,17 @@ function CodeBlockCode({
     highlight()
   }, [normalizedCode, language, shikiTheme])
 
-  useEffect(() => {
-    setCopied(false)
-  }, [normalizedCode])
-
   async function handleCopyCode(event: React.MouseEvent<HTMLButtonElement>) {
     event.stopPropagation()
 
     if (!normalizedCode) return
 
     await navigator.clipboard.writeText(normalizedCode)
-    setCopied(true)
-    window.setTimeout(() => setCopied(false), 1200)
+    setCopiedCode(normalizedCode)
+    window.setTimeout(() => setCopiedCode(null), 1200)
   }
+
+  const copied = copiedCode === normalizedCode
 
   const classNames = cn(
     "relative w-full overflow-x-auto text-[13px] [&_pre]:pt-10 [&_pre]:pr-14 [&_pre]:pb-4 [&_pre]:pl-6",
