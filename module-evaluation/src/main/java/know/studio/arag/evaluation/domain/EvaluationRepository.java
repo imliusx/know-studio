@@ -7,6 +7,8 @@ public interface EvaluationRepository {
 
     void insertDataset(EvaluationDataset dataset);
 
+    List<EvaluationDataset> findDatasets(long workspaceId);
+
     Optional<EvaluationDataset> findDataset(long workspaceId, long datasetId);
 
     void insertSample(EvaluationSample sample);
@@ -14,4 +16,6 @@ public interface EvaluationRepository {
     List<EvaluationSample> findSamples(long workspaceId, long datasetId);
 
     void insertRun(EvaluationRun run);
+
+    List<EvaluationRun> findRuns(long workspaceId, long datasetId);
 }

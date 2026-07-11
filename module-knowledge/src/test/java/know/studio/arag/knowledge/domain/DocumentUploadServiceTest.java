@@ -3,6 +3,7 @@ package know.studio.arag.knowledge.domain;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
+import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.knowledge.api.DocumentStatus;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
@@ -182,7 +183,7 @@ class DocumentUploadServiceTest {
 
     @Test
     void deniesCrossWorkspaceAccessBeforeReadingUploadState() {
-        doThrow(new ForbiddenException()).when(identityApi).requireWorkspaceReadable(WORKSPACE_ID);
+        doThrow(new ForbiddenException()).when(identityApi).requireRole(WORKSPACE_ID, WorkspaceRole.ADMIN);
 
         assertThatThrownBy(() -> service.progress(WORKSPACE_ID, SESSION_ID))
                 .isInstanceOf(ForbiddenException.class);

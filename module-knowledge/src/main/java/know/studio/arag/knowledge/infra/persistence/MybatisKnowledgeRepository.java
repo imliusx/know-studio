@@ -52,6 +52,23 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
+    public List<DocumentRecord> findDocuments(long workspaceId, DocumentStatus status, String fileName) {
+        var query = Wrappers.<DocumentEntity>lambdaQuery()
+                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .ne(DocumentEntity::getStatus, DocumentStatus.DELETED.name())
+                .orderByDesc(DocumentEntity::getUpdatedAt);
+        if (status != null && status != DocumentStatus.DELETED) {
+            query.eq(DocumentEntity::getStatus, status.name());
+        }
+        if (fileName != null) {
+            query.like(DocumentEntity::getFileName, fileName);
+        }
+        return documentMapper.selectList(query).stream()
+                .map(MybatisKnowledgeRepository::toDomain)
+                .toList();
+    }
+
+    @Override
     public Optional<DocumentRecord> findReadyDocumentByHash(long workspaceId, String contentHash) {
         DocumentEntity entity = documentMapper.selectOne(Wrappers.<DocumentEntity>lambdaQuery()
                 .eq(DocumentEntity::getWorkspaceId, workspaceId)
@@ -240,6 +257,36 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
                 .set(DocumentEntity::getStatus, DocumentStatus.PROCESSING.name())
                 .set(DocumentEntity::getFailureReason, truncate(reason))
                 .setSql("updated_at = CURRENT_TIMESTAMP"));
+    }
+
+    @Override
+    public boolean markDocumentDeleted(long workspaceId, long documentId) {
+        return documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
+                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getId, documentId)
+                .in(DocumentEntity::getStatus, DocumentStatus.PENDING.name(), DocumentStatus.READY.name(),
+                        DocumentStatus.FAILED.name())
+                .set(DocumentEntity::getStatus, DocumentStatus.DELETED.name())
+                .setSql("updated_at = CURRENT_TIMESTAMP")) == 1;
+    }
+
+    @Override
+    public boolean resetFailedDocument(long workspaceId, long documentId) {
+        return documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
+                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getId, documentId)
+                .eq(DocumentEntity::getStatus, DocumentStatus.FAILED.name())
+                .set(DocumentEntity::getStatus, DocumentStatus.PENDING.name())
+                .set(DocumentEntity::getFailureReason, null)
+                .setSql("updated_at = CURRENT_TIMESTAMP")) == 1;
+    }
+
+    @Override
+    public void markDocumentChunksDeleted(long workspaceId, long documentId) {
+        documentChunkMapper.update(Wrappers.<DocumentChunkEntity>lambdaUpdate()
+                .eq(DocumentChunkEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentChunkEntity::getDocumentId, documentId)
+                .set(DocumentChunkEntity::getDeleted, true));
     }
 
     private String toJson(Object value) {

@@ -45,6 +45,13 @@ public class PgVectorElasticsearchDocumentIndex implements DocumentIndexPort {
         searchRepository.saveAll(searchDocuments(document, chunks));
     }
 
+    @Override
+    @Transactional
+    public void delete(long workspaceId, long documentId) {
+        commandMapper.deleteChunkEmbeddings(workspaceId, documentId);
+        searchRepository.deleteByWorkspaceIdAndDocumentId(workspaceId, documentId);
+    }
+
     private List<ChunkEmbeddingRow> embeddingRows(
             long workspaceId,
             long documentId,

@@ -10,6 +10,8 @@ public interface KnowledgeRepository {
 
     Optional<DocumentRecord> findDocument(long workspaceId, long documentId);
 
+    List<DocumentRecord> findDocuments(long workspaceId, DocumentStatus status, String fileName);
+
     Optional<DocumentRecord> findReadyDocumentByHash(long workspaceId, String contentHash);
 
     Optional<DocumentRecord> findDocumentByHash(long workspaceId, String contentHash);
@@ -49,6 +51,12 @@ public interface KnowledgeRepository {
     List<DocumentRecord> recoverStaleProcessing(Instant updatedBefore, int limit);
 
     void deferRecoveredDocument(long workspaceId, long documentId, String reason);
+
+    boolean markDocumentDeleted(long workspaceId, long documentId);
+
+    boolean resetFailedDocument(long workspaceId, long documentId);
+
+    void markDocumentChunksDeleted(long workspaceId, long documentId);
 
     default DocumentStatus status(long workspaceId, long documentId) {
         return findDocument(workspaceId, documentId)

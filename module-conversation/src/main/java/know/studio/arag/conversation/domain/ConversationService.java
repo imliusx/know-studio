@@ -58,6 +58,38 @@ public class ConversationService implements ConversationApi {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public List<SessionInfo> listSessions(long workspaceId) {
+        identityApi.requireWorkspaceReadable(workspaceId);
+        CurrentIdentity identity = identityApi.currentUser();
+        return repository.findOwnedSessions(workspaceId, identity.userId()).stream()
+                .map(ConversationService::toInfo)
+                .toList();
+    }
+
+    @Override
+    @Transactional
+    public SessionInfo renameSession(long workspaceId, long sessionId, String title) {
+        CurrentIdentity identity = requireOwnedSession(workspaceId, sessionId);
+        String normalizedTitle = normalizeTitle(title);
+        if (!repository.renameOwnedSession(workspaceId, identity.userId(), sessionId, normalizedTitle)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "会话不存在");
+        }
+        return repository.findOwnedSession(workspaceId, identity.userId(), sessionId)
+                .map(ConversationService::toInfo)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
+    }
+
+    @Override
+    @Transactional
+    public void deleteSession(long workspaceId, long sessionId) {
+        CurrentIdentity identity = requireOwnedSession(workspaceId, sessionId);
+        if (!repository.deleteOwnedSession(workspaceId, identity.userId(), sessionId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "会话不存在");
+        }
+    }
+
+    @Override
     @Transactional
     public ConversationMessage appendMessage(AppendMessageCommand command) {
         CurrentIdentity identity = requireOwnedSession(command.workspaceId(), command.sessionId());

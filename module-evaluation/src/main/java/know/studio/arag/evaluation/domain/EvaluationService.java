@@ -6,9 +6,11 @@ import know.studio.arag.evaluation.api.DatasetInfo;
 import know.studio.arag.evaluation.api.EvaluationApi;
 import know.studio.arag.evaluation.api.EvaluationMetric;
 import know.studio.arag.evaluation.api.EvaluationReport;
+import know.studio.arag.evaluation.api.EvaluationRunInfo;
 import know.studio.arag.evaluation.api.SampleInfo;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
+import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
@@ -41,9 +43,18 @@ public class EvaluationService implements EvaluationApi {
     private final SnowflakeIdGenerator idGenerator;
 
     @Override
+    @Transactional(readOnly = true)
+    public List<DatasetInfo> listDatasets(long workspaceId) {
+        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
+        return repository.findDatasets(workspaceId).stream()
+                .map(EvaluationService::toInfo)
+                .toList();
+    }
+
+    @Override
     @Transactional
     public DatasetInfo createDataset(CreateDatasetCommand command) {
-        identityApi.requireWorkspaceReadable(command.workspaceId());
+        identityApi.requireRole(command.workspaceId(), WorkspaceRole.ADMIN);
         CurrentIdentity identity = identityApi.currentUser();
         String name = requireText(command.name(), "评测集名称不能为空");
         Instant now = Instant.now();
@@ -85,6 +96,24 @@ public class EvaluationService implements EvaluationApi {
         );
         repository.insertSample(sample);
         return toInfo(sample);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<SampleInfo> listSamples(long workspaceId, long datasetId) {
+        requireDataset(workspaceId, datasetId);
+        return repository.findSamples(workspaceId, datasetId).stream()
+                .map(EvaluationService::toInfo)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<EvaluationRunInfo> listRuns(long workspaceId, long datasetId) {
+        requireDataset(workspaceId, datasetId);
+        return repository.findRuns(workspaceId, datasetId).stream()
+                .map(EvaluationService::toInfo)
+                .toList();
     }
 
     @Override
@@ -149,7 +178,7 @@ public class EvaluationService implements EvaluationApi {
     }
 
     private EvaluationDataset requireDataset(long workspaceId, long datasetId) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
         return repository.findDataset(workspaceId, datasetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "评测集不存在"));
     }
@@ -184,6 +213,20 @@ public class EvaluationService implements EvaluationApi {
                 sample.relevantChunkIds(),
                 sample.expectedAnswer(),
                 sample.createdAt()
+        );
+    }
+
+    private static EvaluationRunInfo toInfo(EvaluationRun run) {
+        return new EvaluationRunInfo(
+                run.id(),
+                run.datasetId(),
+                run.userId(),
+                run.mode(),
+                run.recallAtK(),
+                run.sampleCount(),
+                run.averageLatencyMillis(),
+                run.topK(),
+                run.createdAt()
         );
     }
 }

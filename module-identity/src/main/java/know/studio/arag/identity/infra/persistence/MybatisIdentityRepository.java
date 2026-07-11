@@ -7,6 +7,9 @@ import know.studio.arag.identity.domain.IdentityRepository;
 import know.studio.arag.identity.domain.UserAccount;
 import know.studio.arag.identity.domain.UserStatus;
 import know.studio.arag.identity.domain.Workspace;
+import know.studio.arag.identity.domain.WorkspaceAccess;
+import know.studio.arag.identity.domain.WorkspaceMember;
+import know.studio.arag.identity.domain.WorkspaceStatus;
 import know.studio.arag.identity.infra.persistence.entity.UserEntity;
 import know.studio.arag.identity.infra.persistence.entity.WorkspaceEntity;
 import know.studio.arag.identity.infra.persistence.entity.WorkspaceMemberEntity;
@@ -16,7 +19,12 @@ import know.studio.arag.identity.infra.persistence.mapper.WorkspaceMemberMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Repository
 @RequiredArgsConstructor
@@ -83,6 +91,65 @@ public class MybatisIdentityRepository implements IdentityRepository {
                 .map(WorkspaceRole::valueOf);
     }
 
+    @Override
+    public List<WorkspaceAccess> findWorkspaceAccesses(long userId) {
+        List<WorkspaceMemberEntity> memberships = memberMapper.selectList(
+                Wrappers.<WorkspaceMemberEntity>lambdaQuery()
+                        .eq(WorkspaceMemberEntity::getUserId, userId)
+        );
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Workspace> workspaces = workspaceMapper.selectBatchIds(
+                        memberships.stream().map(WorkspaceMemberEntity::getWorkspaceId).toList()
+                ).stream()
+                .map(MybatisIdentityRepository::toDomain)
+                .filter(workspace -> workspace.status() == WorkspaceStatus.ACTIVE)
+                .collect(Collectors.toMap(Workspace::id, Function.identity()));
+        return memberships.stream()
+                .filter(membership -> workspaces.containsKey(membership.getWorkspaceId()))
+                .map(membership -> new WorkspaceAccess(
+                        workspaces.get(membership.getWorkspaceId()),
+                        WorkspaceRole.valueOf(membership.getWorkspaceRole())
+                ))
+                .sorted(Comparator.comparing(access -> access.workspace().name()))
+                .toList();
+    }
+
+    @Override
+    public List<Workspace> findActiveWorkspaces() {
+        return workspaceMapper.selectList(Wrappers.<WorkspaceEntity>lambdaQuery()
+                        .eq(WorkspaceEntity::getStatus, WorkspaceStatus.ACTIVE.name())
+                        .orderByAsc(WorkspaceEntity::getName))
+                .stream()
+                .map(MybatisIdentityRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<WorkspaceMember> findWorkspaceMembers(long workspaceId) {
+        List<WorkspaceMemberEntity> memberships = memberMapper.selectList(
+                Wrappers.<WorkspaceMemberEntity>lambdaQuery()
+                        .eq(WorkspaceMemberEntity::getWorkspaceId, workspaceId)
+        );
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, UserAccount> users = userMapper.selectBatchIds(
+                        memberships.stream().map(WorkspaceMemberEntity::getUserId).toList()
+                ).stream()
+                .map(MybatisIdentityRepository::toDomain)
+                .collect(Collectors.toMap(UserAccount::id, Function.identity()));
+        return memberships.stream()
+                .filter(membership -> users.containsKey(membership.getUserId()))
+                .map(membership -> new WorkspaceMember(
+                        users.get(membership.getUserId()),
+                        WorkspaceRole.valueOf(membership.getWorkspaceRole())
+                ))
+                .sorted(Comparator.comparing(member -> member.user().displayName()))
+                .toList();
+    }
+
     private static UserEntity toEntity(UserAccount user) {
         UserEntity entity = new UserEntity();
         entity.setId(user.id());
@@ -102,6 +169,16 @@ public class MybatisIdentityRepository implements IdentityRepository {
                 entity.getPasswordHash(),
                 SystemRole.valueOf(entity.getSystemRole()),
                 UserStatus.valueOf(entity.getStatus())
+        );
+    }
+
+    private static Workspace toDomain(WorkspaceEntity entity) {
+        return new Workspace(
+                entity.getId(),
+                entity.getName(),
+                entity.getDescription(),
+                entity.getOwnerId(),
+                WorkspaceStatus.valueOf(entity.getStatus())
         );
     }
 }

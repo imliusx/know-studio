@@ -111,6 +111,19 @@ class ConversationServiceTest {
         assertThat(repository.memory).isEqualTo(ConversationMemory.empty());
     }
 
+    @Test
+    void renamesAndSoftDeletesOwnedSession() {
+        assertThat(service.renameSession(10L, 100L, " Renamed ").title()).isEqualTo("Renamed");
+        assertThat(service.listSessions(10L)).singleElement().extracting("title").isEqualTo("Renamed");
+
+        service.deleteSession(10L, 100L);
+
+        assertThat(service.listSessions(10L)).isEmpty();
+        assertThatThrownBy(() -> service.loadContext(10L, 100L, "question"))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("会话不存在");
+    }
+
     private static final class StubIdentityApi implements IdentityApi {
 
         @Override
@@ -145,10 +158,44 @@ class ConversationServiceTest {
             if (session != null
                     && session.workspaceId() == workspaceId
                     && session.userId() == userId
-                    && session.id() == sessionId) {
+                    && session.id() == sessionId
+                    && "ACTIVE".equals(session.status())) {
                 return Optional.of(session);
             }
             return Optional.empty();
+        }
+
+        @Override
+        public List<ConversationSession> findOwnedSessions(long workspaceId, long userId) {
+            return findOwnedSession(workspaceId, userId, session == null ? -1L : session.id())
+                    .stream()
+                    .toList();
+        }
+
+        @Override
+        public boolean renameOwnedSession(long workspaceId, long userId, long sessionId, String title) {
+            if (findOwnedSession(workspaceId, userId, sessionId).isEmpty()) {
+                return false;
+            }
+            session = new ConversationSession(
+                    session.id(), session.workspaceId(), session.userId(), title,
+                    session.toolMode(), session.deepThinking(), session.status(),
+                    session.createdAt(), Instant.now()
+            );
+            return true;
+        }
+
+        @Override
+        public boolean deleteOwnedSession(long workspaceId, long userId, long sessionId) {
+            if (findOwnedSession(workspaceId, userId, sessionId).isEmpty()) {
+                return false;
+            }
+            session = new ConversationSession(
+                    session.id(), session.workspaceId(), session.userId(), session.title(),
+                    session.toolMode(), session.deepThinking(), "DELETED",
+                    session.createdAt(), Instant.now()
+            );
+            return true;
         }
 
         @Override

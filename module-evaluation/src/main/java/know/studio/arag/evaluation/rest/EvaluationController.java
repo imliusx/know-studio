@@ -8,6 +8,7 @@ import know.studio.arag.evaluation.api.CreateDatasetCommand;
 import know.studio.arag.evaluation.api.DatasetInfo;
 import know.studio.arag.evaluation.api.EvaluationApi;
 import know.studio.arag.evaluation.api.EvaluationReport;
+import know.studio.arag.evaluation.api.EvaluationRunInfo;
 import know.studio.arag.evaluation.api.SampleInfo;
 import know.studio.arag.platform.core.ratelimit.RateLimit;
 import know.studio.arag.platform.core.response.ApiResponse;
@@ -15,10 +16,13 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}/evaluations")
@@ -27,6 +31,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class EvaluationController {
 
     private final EvaluationApi evaluationApi;
+
+    @GetMapping("/datasets")
+    public ApiResponse<List<DatasetInfo>> listDatasets(@PathVariable long workspaceId) {
+        return ApiResponse.ok(evaluationApi.listDatasets(workspaceId));
+    }
 
     @PostMapping("/datasets")
     public ApiResponse<DatasetInfo> createDataset(
@@ -53,6 +62,22 @@ public class EvaluationController {
                 request.relevantChunkIds(),
                 request.expectedAnswer()
         )));
+    }
+
+    @GetMapping("/datasets/{datasetId}/samples")
+    public ApiResponse<List<SampleInfo>> listSamples(
+            @PathVariable long workspaceId,
+            @PathVariable long datasetId
+    ) {
+        return ApiResponse.ok(evaluationApi.listSamples(workspaceId, datasetId));
+    }
+
+    @GetMapping("/datasets/{datasetId}/runs")
+    public ApiResponse<List<EvaluationRunInfo>> listRuns(
+            @PathVariable long workspaceId,
+            @PathVariable long datasetId
+    ) {
+        return ApiResponse.ok(evaluationApi.listRuns(workspaceId, datasetId));
     }
 
     @PostMapping("/datasets/{datasetId}/runs/ablation")

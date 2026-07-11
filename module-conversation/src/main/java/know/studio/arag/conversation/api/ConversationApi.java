@@ -4,6 +4,12 @@ public interface ConversationApi {
 
     SessionInfo createSession(CreateSessionCommand command);
 
+    java.util.List<SessionInfo> listSessions(long workspaceId);
+
+    SessionInfo renameSession(long workspaceId, long sessionId, String title);
+
+    void deleteSession(long workspaceId, long sessionId);
+
     ConversationMessage appendMessage(AppendMessageCommand command);
 
     ConversationMessage appendMessageForOwner(AppendMessageCommand command, long ownerUserId);

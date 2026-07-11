@@ -91,6 +91,11 @@ class EvaluationServiceTest {
         }
 
         @Override
+        public List<EvaluationDataset> findDatasets(long workspaceId) {
+            return dataset != null && dataset.workspaceId() == workspaceId ? List.of(dataset) : List.of();
+        }
+
+        @Override
         public Optional<EvaluationDataset> findDataset(long workspaceId, long datasetId) {
             return dataset != null && dataset.workspaceId() == workspaceId && dataset.id() == datasetId
                     ? Optional.of(dataset)
@@ -110,6 +115,13 @@ class EvaluationServiceTest {
         @Override
         public void insertRun(EvaluationRun run) {
             runs.add(run);
+        }
+
+        @Override
+        public List<EvaluationRun> findRuns(long workspaceId, long datasetId) {
+            return runs.stream()
+                    .filter(run -> run.workspaceId() == workspaceId && run.datasetId() == datasetId)
+                    .toList();
         }
     }
 }

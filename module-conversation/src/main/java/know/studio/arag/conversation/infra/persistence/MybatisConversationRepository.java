@@ -51,6 +51,40 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
+    public List<ConversationSession> findOwnedSessions(long workspaceId, long userId) {
+        return sessionMapper.selectList(Wrappers.<SessionEntity>lambdaQuery()
+                        .eq(SessionEntity::getWorkspaceId, workspaceId)
+                        .eq(SessionEntity::getUserId, userId)
+                        .eq(SessionEntity::getStatus, "ACTIVE")
+                        .orderByDesc(SessionEntity::getUpdatedAt))
+                .stream()
+                .map(MybatisConversationRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    public boolean renameOwnedSession(long workspaceId, long userId, long sessionId, String title) {
+        return sessionMapper.update(Wrappers.<SessionEntity>lambdaUpdate()
+                .eq(SessionEntity::getWorkspaceId, workspaceId)
+                .eq(SessionEntity::getUserId, userId)
+                .eq(SessionEntity::getId, sessionId)
+                .eq(SessionEntity::getStatus, "ACTIVE")
+                .set(SessionEntity::getTitle, title)
+                .setSql("updated_at = CURRENT_TIMESTAMP")) == 1;
+    }
+
+    @Override
+    public boolean deleteOwnedSession(long workspaceId, long userId, long sessionId) {
+        return sessionMapper.update(Wrappers.<SessionEntity>lambdaUpdate()
+                .eq(SessionEntity::getWorkspaceId, workspaceId)
+                .eq(SessionEntity::getUserId, userId)
+                .eq(SessionEntity::getId, sessionId)
+                .eq(SessionEntity::getStatus, "ACTIVE")
+                .set(SessionEntity::getStatus, "DELETED")
+                .setSql("updated_at = CURRENT_TIMESTAMP")) == 1;
+    }
+
+    @Override
     public void insertMessage(long sessionId, ConversationMessage message) {
         MessageEntity entity = new MessageEntity();
         entity.setId(message.id());

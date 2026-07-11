@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -79,6 +80,24 @@ class IdentityServiceTest {
         assertThat(owner.user().systemRole()).isEqualTo(SystemRole.USER);
     }
 
+    @Test
+    void listsOnlyCurrentUsersWorkspacesWithRole() {
+        Fixture fixture = new Fixture();
+        AuthSession owner = fixture.service.register("owner@example.com", "Owner", "password123");
+        long ownedWorkspace = fixture.service.createWorkspace("Owned", null);
+        fixture.session.logout();
+        AuthSession member = fixture.service.register("member@example.com", "Member", "password123");
+        fixture.repository.insertMember(999L, ownedWorkspace, member.user().userId(), WorkspaceRole.MEMBER);
+
+        assertThat(fixture.service.listWorkspaces())
+                .singleElement()
+                .satisfies(workspace -> {
+                    assertThat(workspace.workspaceId()).isEqualTo(ownedWorkspace);
+                    assertThat(workspace.role()).isEqualTo(WorkspaceRole.MEMBER);
+                });
+        assertThat(owner.user().userId()).isNotEqualTo(member.user().userId());
+    }
+
     private static final class Fixture {
 
         private final FakeIdentityRepository repository = new FakeIdentityRepository();
@@ -131,6 +150,33 @@ class IdentityServiceTest {
         @Override
         public Optional<WorkspaceRole> findWorkspaceRole(long workspaceId, long userId) {
             return Optional.ofNullable(memberships.get(new MembershipKey(workspaceId, userId)));
+        }
+
+        @Override
+        public List<WorkspaceAccess> findWorkspaceAccesses(long userId) {
+            return memberships.entrySet().stream()
+                    .filter(entry -> entry.getKey().userId() == userId)
+                    .map(entry -> new WorkspaceAccess(
+                            workspaces.get(entry.getKey().workspaceId()),
+                            entry.getValue()
+                    ))
+                    .toList();
+        }
+
+        @Override
+        public List<Workspace> findActiveWorkspaces() {
+            return List.copyOf(workspaces.values());
+        }
+
+        @Override
+        public List<WorkspaceMember> findWorkspaceMembers(long workspaceId) {
+            return memberships.entrySet().stream()
+                    .filter(entry -> entry.getKey().workspaceId() == workspaceId)
+                    .map(entry -> new WorkspaceMember(
+                            users.get(entry.getKey().userId()),
+                            entry.getValue()
+                    ))
+                    .toList();
         }
 
         private record MembershipKey(long workspaceId, long userId) {

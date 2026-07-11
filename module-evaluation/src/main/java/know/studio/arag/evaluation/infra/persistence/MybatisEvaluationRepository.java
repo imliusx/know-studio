@@ -19,6 +19,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.Map;
 import java.util.List;
 import java.util.Optional;
 
@@ -36,6 +37,17 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     @Override
     public void insertDataset(EvaluationDataset dataset) {
         datasetMapper.insert(toEntity(dataset));
+    }
+
+    @Override
+    public List<EvaluationDataset> findDatasets(long workspaceId) {
+        return datasetMapper.selectList(Wrappers.<EvaluationDatasetEntity>lambdaQuery()
+                        .eq(EvaluationDatasetEntity::getWorkspaceId, workspaceId)
+                        .eq(EvaluationDatasetEntity::getStatus, "ACTIVE")
+                        .orderByDesc(EvaluationDatasetEntity::getCreatedAt))
+                .stream()
+                .map(MybatisEvaluationRepository::toDomain)
+                .toList();
     }
 
     @Override
@@ -83,6 +95,17 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
         runMapper.insertJson(entity);
     }
 
+    @Override
+    public List<EvaluationRun> findRuns(long workspaceId, long datasetId) {
+        return runMapper.selectList(Wrappers.<EvaluationRunEntity>lambdaQuery()
+                        .eq(EvaluationRunEntity::getWorkspaceId, workspaceId)
+                        .eq(EvaluationRunEntity::getDatasetId, datasetId)
+                        .orderByDesc(EvaluationRunEntity::getCreatedAt))
+                .stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
     private static EvaluationDatasetEntity toEntity(EvaluationDataset dataset) {
         EvaluationDatasetEntity entity = new EvaluationDatasetEntity();
         entity.setId(dataset.id());
@@ -121,6 +144,21 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
         );
     }
 
+    private EvaluationRun toDomain(EvaluationRunEntity entity) {
+        return new EvaluationRun(
+                entity.getId(),
+                entity.getWorkspaceId(),
+                entity.getDatasetId(),
+                entity.getUserId(),
+                know.studio.arag.retrieval.api.RetrievalMode.valueOf(entity.getConfig()),
+                entity.getRecallAtK().doubleValue(),
+                entity.getSampleCount(),
+                entity.getAvgLatencyMs(),
+                readTopK(entity.getExtra()),
+                entity.getCreatedAt()
+        );
+    }
+
     private String write(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -134,6 +172,16 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
             return objectMapper.readValue(value, IDS_TYPE);
         } catch (JsonProcessingException exception) {
             throw new BusinessException("相关 chunk ID 无法解析");
+        }
+    }
+
+    private int readTopK(String value) {
+        try {
+            Map<?, ?> extra = objectMapper.readValue(value, Map.class);
+            Object topK = extra.get("topK");
+            return topK instanceof Number number ? number.intValue() : 0;
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException("评测运行参数无法解析");
         }
     }
 }

@@ -3,6 +3,8 @@ package know.studio.arag.identity.domain;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
+import know.studio.arag.identity.api.WorkspaceInfo;
+import know.studio.arag.identity.api.WorkspaceMemberInfo;
 import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
@@ -16,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
+import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -98,6 +101,32 @@ public class IdentityService implements IdentityApi {
         }
     }
 
+    @Transactional(readOnly = true)
+    public List<WorkspaceInfo> listWorkspaces() {
+        CurrentIdentity current = currentUser();
+        if (current.systemRole() == SystemRole.ADMIN) {
+            return repository.findActiveWorkspaces().stream()
+                    .map(workspace -> toInfo(workspace, WorkspaceRole.OWNER))
+                    .toList();
+        }
+        return repository.findWorkspaceAccesses(current.userId()).stream()
+                .map(access -> toInfo(access.workspace(), access.role()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<WorkspaceMemberInfo> listMembers(long workspaceId) {
+        requireRole(workspaceId, WorkspaceRole.ADMIN);
+        return repository.findWorkspaceMembers(workspaceId).stream()
+                .map(member -> new WorkspaceMemberInfo(
+                        member.user().id(),
+                        member.user().email(),
+                        member.user().displayName(),
+                        member.role()
+                ))
+                .toList();
+    }
+
     @Override
     public CurrentIdentity currentUser() {
         if (!loginSession.isLoggedIn()) {
@@ -136,6 +165,16 @@ public class IdentityService implements IdentityApi {
 
     private static CurrentIdentity toCurrentIdentity(UserAccount user) {
         return new CurrentIdentity(user.id(), user.email(), user.displayName(), user.systemRole());
+    }
+
+    private static WorkspaceInfo toInfo(Workspace workspace, WorkspaceRole role) {
+        return new WorkspaceInfo(
+                workspace.id(),
+                workspace.name(),
+                workspace.description(),
+                workspace.ownerId(),
+                role
+        );
     }
 
     private static String normalizeEmail(String email) {

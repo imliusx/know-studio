@@ -2,6 +2,7 @@ package know.studio.arag.knowledge.rest;
 
 import jakarta.validation.Valid;
 import know.studio.arag.knowledge.api.DocumentView;
+import know.studio.arag.knowledge.api.DocumentStatus;
 import know.studio.arag.knowledge.domain.DocumentUploadService;
 import know.studio.arag.knowledge.domain.KnowledgeQueryService;
 import know.studio.arag.knowledge.domain.UploadInitResult;
@@ -13,6 +14,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -21,6 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/workspaces/{workspaceId}")
@@ -91,5 +95,32 @@ public class DocumentUploadController {
             @PathVariable long documentId
     ) {
         return ApiResponse.ok(queryService.getDocument(workspaceId, documentId));
+    }
+
+    @GetMapping("/documents")
+    public ApiResponse<List<DocumentView>> listDocuments(
+            @PathVariable long workspaceId,
+            @RequestParam(required = false) DocumentStatus status,
+            @RequestParam(required = false) String fileName
+    ) {
+        return ApiResponse.ok(queryService.listDocuments(workspaceId, status, fileName));
+    }
+
+    @DeleteMapping("/documents/{documentId}")
+    public ApiResponse<Void> deleteDocument(
+            @PathVariable long workspaceId,
+            @PathVariable long documentId
+    ) {
+        queryService.deleteDocument(workspaceId, documentId);
+        return ApiResponse.ok();
+    }
+
+    @PostMapping("/documents/{documentId}/retry-ingestion")
+    public ApiResponse<Void> retryIngestion(
+            @PathVariable long workspaceId,
+            @PathVariable long documentId
+    ) {
+        queryService.retryIngestion(workspaceId, documentId);
+        return ApiResponse.ok();
     }
 }

@@ -2,6 +2,7 @@ package know.studio.arag.knowledge.domain;
 
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
+import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.knowledge.api.DocumentStatus;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
@@ -45,7 +46,7 @@ public class DocumentUploadService {
             String contentHash,
             int totalChunks
     ) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
         CurrentIdentity current = identityApi.currentUser();
         String normalizedHash = normalizeHash(contentHash);
         validateInitiation(fileName, fileSize, totalChunks);
@@ -92,7 +93,7 @@ public class DocumentUploadService {
             String expectedHash,
             InputStreamProvider content
     ) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
         UploadSession session = requireActiveSession(workspaceId, sessionId);
         validateChunk(session, chunkIndex, chunkSize);
         String normalizedHash = normalizeHash(expectedHash);
@@ -147,7 +148,7 @@ public class DocumentUploadService {
     }
 
     public UploadProgress progress(long workspaceId, long sessionId) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
         UploadSession session = repository.findUploadSession(workspaceId, sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上传会话不存在"));
         return progress(session);
@@ -155,7 +156,7 @@ public class DocumentUploadService {
 
     @Transactional
     public long complete(long workspaceId, long sessionId) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
         UploadSession session = repository.findUploadSession(workspaceId, sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上传会话不存在"));
         if (session.status() == UploadStatus.COMPLETED && session.documentId() != null) {
