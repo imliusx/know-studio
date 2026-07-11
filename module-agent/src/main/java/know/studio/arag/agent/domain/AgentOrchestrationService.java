@@ -20,6 +20,7 @@ import know.studio.arag.retrieval.api.EvidenceLevel;
 import know.studio.arag.retrieval.api.RetrievalApi;
 import know.studio.arag.retrieval.api.RetrievalQuery;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -30,6 +31,7 @@ import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AgentOrchestrationService implements AgentApi {
 
     private static final int RETRIEVAL_TOP_K = 5;
@@ -122,7 +124,15 @@ public class AgentOrchestrationService implements AgentApi {
             ConversationContext context,
             IntentResult intent
     ) {
-        AgentTool tool = toolRegistry.select(request.message());
+        AgentTool tool = toolRegistry.find(request.message()).orElse(null);
+        if (tool == null) {
+            log.info(
+                    "No matching tool, falling back to knowledge retrieval workspaceId={} sessionId={}",
+                    request.workspaceId(),
+                    request.sessionId()
+            );
+            return knowledgeAnswer(request, context, intent);
+        }
         ResultHolder holder = new ResultHolder();
         String key = tool.name() + ':' + request.workspaceId() + ':' + request.message();
         ToolResult result = holder.getOrCompute(key, () -> tool.execute(request.workspaceId(), request.message()));
@@ -211,10 +221,18 @@ public class AgentOrchestrationService implements AgentApi {
                         ), ownerUserId);
                     }
                 })
-                .onErrorResume(exception -> Flux.just(new ChatStreamEvent(
-                        ChatStreamEvent.Type.ERROR,
-                        Map.of("message", "Agent 执行失败，请稍后重试")
-                )));
+                .onErrorResume(exception -> {
+                    log.error(
+                            "Agent stream failed workspaceId={} sessionId={}",
+                            request.workspaceId(),
+                            request.sessionId(),
+                            exception
+                    );
+                    return Flux.just(new ChatStreamEvent(
+                            ChatStreamEvent.Type.ERROR,
+                            Map.of("message", "Agent 执行失败，请稍后重试")
+                    ));
+                });
     }
 
     private ChatStreamEvent toStreamEvent(ChatChunk chunk) {

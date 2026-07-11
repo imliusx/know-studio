@@ -22,6 +22,6 @@ public final class SpringAiChatProviderClient implements ChatProviderClient {
         UserMessage user = new UserMessage(request.userPrompt());
         return model.stream(system, user)
                 .filter(text -> text != null && !text.isEmpty())
-                .map(request.reasoning() ? ChatChunk::thinking : ChatChunk::token);
+                .map(ChatChunk::token);
     }
 }
