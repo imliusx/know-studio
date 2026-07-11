@@ -85,13 +85,21 @@ mvn -q clean validate test
 
 ## Stage 4 · Agentic Chat Integration
 
-- [ ] 会话创建、列表、上下文、重命名、删除改用 workspace 契约。
-- [ ] Chat 请求传递 toolMode 和 deepThinking。
-- [ ] 重写 SSE 类型与 parser，支持七种 ARAG 事件。
-- [ ] 将 token/thinking/tool/citation 映射到现有 Chat UI 组件。
-- [ ] 实现 AbortController、停止生成、切换 workspace/session 中止。
-- [ ] 处理重复 done、流末残片、401/403/429 和中途 error。
-- [ ] 保留当前 Header/Profile/Chat 导航调整。
+- [x] 会话创建、列表、上下文、重命名、删除改用 workspace 契约。
+- [x] Chat 请求传递 toolMode 和 deepThinking。
+- [x] 重写 SSE 类型与 parser，支持七种 ARAG 事件。
+- [x] 将 token/thinking/tool/citation 映射到现有 Chat UI 组件。
+- [x] 实现 AbortController、停止生成、切换 workspace/session 中止。
+- [x] 处理重复 done、流末残片、401/403/429 和中途 error。
+- [x] 保留当前 Header/Profile/Chat 导航调整。
+
+验证记录（2026-07-12）：
+
+- 会话 API、Dashboard 会话统计和 Query key 均改为 workspace-scoped 契约。
+- SSE API 边界支持 CRLF、多行 data、任意分片、末尾残帧和七种事件的类型化投影。
+- Chat UI 已展示深度思考、工具调用状态和引用；流错误保留已生成内容，重复终止事件不会重复收口。
+- 停止生成、切换会话、切换工作空间和组件卸载都会中止活动流；切换工作空间同时清理瞬态会话状态，避免跨空间串用。
+- `pnpm typecheck` 与 `pnpm build` 通过；API/Dashboard 定向 ESLint 通过。Chat 文件仍有 Stage 0 已记录的 React purity/effect 基线问题，本阶段未新增规则抑制或新的 lint 类别。
 
 验证：知识回答、引用、澄清、工具调用、深度思考、停止生成、限流和模型失败降级。
 

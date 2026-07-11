@@ -320,9 +320,9 @@ export function Dashboard() {
     enabled: Boolean(currentUser && currentWorkspaceId),
   })
   const sessionsQuery = useQuery({
-    queryKey: ['assistant', 'sessions'],
-    queryFn: listAssistantSessions,
-    enabled: Boolean(currentUser),
+    queryKey: ['assistant', 'sessions', currentWorkspaceId],
+    queryFn: () => listAssistantSessions(currentWorkspaceId!),
+    enabled: Boolean(currentUser && currentWorkspaceId),
   })
   const usersQuery = useQuery({
     queryKey: ['admin-users'],

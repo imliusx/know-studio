@@ -28,14 +28,18 @@ import {
   streamAssistantChat,
   type AssistantMessage as ApiAssistantMessage,
   type AssistantSessionListItem,
+  type AssistantStreamEvent,
   type AssistantToolMode,
 } from '@/api/assistant'
-import { getMyGroups } from '@/api/groups'
-import { extractApiError, isUnauthorizedError } from '@/api/http'
+import {
+  extractApiError,
+  HttpStatusError,
+  isUnauthorizedError,
+} from '@/api/http'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import { type Citation } from '@/api/qa'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
-import { mergeGroups } from '@/features/ddrag/shared'
 import { useAuthStore } from '@/stores/auth-store'
 import {
   Archive,
@@ -84,6 +88,14 @@ import {
 } from '@/components/ui/file-upload'
 import { Loader } from '@/components/ui/loader'
 import { Skeleton } from '@/components/ui/skeleton'
+import {
+  ChainOfThought,
+  ChainOfThoughtContent,
+  ChainOfThoughtItem,
+  ChainOfThoughtStep,
+  ChainOfThoughtTrigger,
+} from '@/components/ui/chain-of-thought'
+import { Tool, type ToolPart } from '@/components/ui/tool'
 import {
   Message,
   MessageAction,
@@ -146,6 +158,7 @@ import {
   EmptyTitle,
 } from '@/components/ui/empty'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
 import {
   Sidebar,
   SidebarContent,
@@ -187,6 +200,13 @@ type ChatMessage = {
   isLive?: boolean
   query?: string
   citations?: Citation[]
+  thinking?: string
+  tools?: ChatToolActivity[]
+  streamError?: string
+}
+
+type ChatToolActivity = ToolPart & {
+  key: string
 }
 
 type ChatConversation = {
@@ -652,27 +672,86 @@ function isAbortError(error: unknown) {
   return error instanceof DOMException && error.name === 'AbortError'
 }
 
+function getStreamErrorMessage(error: unknown) {
+  if (error instanceof HttpStatusError) {
+    if (error.status === 403) return '当前账号无权在此工作空间发起对话'
+    if (error.status === 429) return '请求过于频繁，请稍后再试'
+  }
+
+  return extractApiError(error, '提问失败')
+}
+
+function applyToolResult(
+  tools: ChatToolActivity[] | undefined,
+  result: Extract<AssistantStreamEvent, { event: 'tool_result' }>['result']
+) {
+  const nextTools = [...(tools ?? [])]
+  let targetIndex = -1
+
+  for (let index = nextTools.length - 1; index >= 0; index -= 1) {
+    const tool = nextTools[index]
+    if (
+      tool.state !== 'output-available' &&
+      tool.state !== 'output-error' &&
+      (tool.type === result.name || targetIndex === -1)
+    ) {
+      targetIndex = index
+      if (tool.type === result.name) break
+    }
+  }
+
+  const output = { content: result.content, ...result.metadata }
+  if (targetIndex >= 0) {
+    nextTools[targetIndex] = {
+      ...nextTools[targetIndex],
+      state: 'output-available',
+      output,
+    }
+    return nextTools
+  }
+
+  return [
+    ...nextTools,
+    {
+      key: `tool-result-${result.name}-${nextTools.length}`,
+      type: result.name,
+      state: 'output-available' as const,
+      output,
+    },
+  ]
+}
+
 export function ChatHome() {
   const defaultOpen = getCookie('sidebar_state') !== 'false'
   const { collapsible, variant } = useLayout()
   const reduceMotion = useReducedMotion()
   const accessToken = useAuthStore((state) => state.auth.accessToken)
   const refreshSession = useAuthStore((state) => state.auth.refreshSession)
-  const groupsQuery = useQuery({
-    queryKey: ['groups', 'my'],
-    queryFn: getMyGroups,
-  })
+  const workspaces = useWorkspaceStore((state) => state.workspaces)
+  const currentWorkspaceId = useWorkspaceStore(
+    (state) => state.currentWorkspaceId
+  )
   const sessionsQuery = useQuery({
-    queryKey: ['assistant', 'sessions'],
-    queryFn: listAssistantSessions,
+    queryKey: ['assistant', 'sessions', currentWorkspaceId],
+    queryFn: () => listAssistantSessions(currentWorkspaceId!),
+    enabled: Boolean(currentWorkspaceId),
   })
-  const groups = useMemo(() => mergeGroups(groupsQuery.data), [groupsQuery.data])
+  const groups = useMemo(
+    () =>
+      workspaces.map((workspace) => ({
+        groupId: workspace.workspaceId,
+        groupCode: String(workspace.workspaceId),
+        groupName: workspace.name,
+      })),
+    [workspaces]
+  )
   const [initialChatState] = useState(createInitialChatState)
   const [input, setInput] = useState('')
   const [files, setFiles] = useState<File[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState('')
   const [assistantMode, setAssistantMode] =
     useState<ChatAssistantMode>('CHAT')
+  const [deepThinking, setDeepThinking] = useState(false)
   const [isHeaderGlass, setIsHeaderGlass] = useState(false)
   const [scrollToLatestRequest, setScrollToLatestRequest] = useState(0)
   const messageIdRef = useRef(Date.now())
@@ -785,6 +864,25 @@ export function ChatHome() {
     }
   }, [groups, selectedGroupId])
 
+  useEffect(
+    () =>
+      useWorkspaceStore.subscribe((state, previousState) => {
+        if (state.currentWorkspaceId === previousState.currentWorkspaceId) return
+        streamAbortControllerRef.current?.abort()
+        streamAbortControllerRef.current = null
+        messageLoadRequestRef.current += 1
+        setLoadingConversationId(null)
+        setConversations([])
+        setActiveConversationId(null)
+        setSelectedGroupId('')
+        setInput('')
+        setFiles([])
+      }),
+    []
+  )
+
+  useEffect(() => () => streamAbortControllerRef.current?.abort(), [])
+
   function handleFilesAdded(nextFiles: File[]) {
     setFiles((prev) => [...prev, ...nextFiles])
   }
@@ -813,9 +911,7 @@ export function ChatHome() {
               ...conversation,
               messages: conversation.messages.map((message) =>
                 message.id === messageId
-                  ? message.content
-                    ? { ...message, isStreaming: false, isResponseComplete: true }
-                    : message
+                  ? { ...message, isStreaming: false, isResponseComplete: true }
                   : message
               ),
             }
@@ -824,7 +920,24 @@ export function ChatHome() {
     )
   }
 
+  function abortActiveStream() {
+    if (!streamAbortControllerRef.current) return
+    streamAbortControllerRef.current.abort()
+    streamAbortControllerRef.current = null
+    setConversations((prev) =>
+      prev.map((conversation) => ({
+        ...conversation,
+        messages: conversation.messages.map((message) =>
+          message.isStreaming
+            ? { ...message, isStreaming: false, isResponseComplete: true }
+            : message
+        ),
+      }))
+    )
+  }
+
   function handleNewConversation() {
+    abortActiveStream()
     messageLoadRequestRef.current += 1
     setLoadingConversationId(null)
     setActiveConversationId(null)
@@ -848,7 +961,8 @@ export function ChatHome() {
     setLoadingConversationId(conversationId)
 
     try {
-      const context = await getAssistantContext(sessionId, 100)
+      if (!currentWorkspaceId) return
+      const context = await getAssistantContext(currentWorkspaceId, sessionId, 100)
       if (messageLoadRequestRef.current !== requestId) return
 
       const nextMessages = insertModeChangeEvents(
@@ -892,6 +1006,7 @@ export function ChatHome() {
 
   function handleSelectConversation(conversationId: string) {
     if (conversationId === activeConversationId && !loadingConversationId) return
+    abortActiveStream()
     setActiveConversationId(conversationId)
     setInput('')
     setFiles([])
@@ -906,7 +1021,10 @@ export function ChatHome() {
 
     try {
       if (deletedConversation.assistantSessionId) {
-        await deleteAssistantSession(deletedConversation.assistantSessionId)
+        await deleteAssistantSession(
+          currentWorkspaceId!,
+          deletedConversation.assistantSessionId
+        )
       }
     } catch (error) {
       toast.error(extractApiError(error, '删除对话失败'))
@@ -943,7 +1061,11 @@ export function ChatHome() {
 
     try {
       if (target?.assistantSessionId) {
-        await renameAssistantSession(target.assistantSessionId, normalizedTitle)
+        await renameAssistantSession(
+          currentWorkspaceId!,
+          target.assistantSessionId,
+          normalizedTitle
+        )
       }
     } catch (error) {
       toast.error(extractApiError(error, '重命名对话失败'))
@@ -1086,7 +1208,7 @@ export function ChatHome() {
         archivedConversations
           .map((conversation) => conversation.assistantSessionId)
           .filter((sessionId): sessionId is number => Boolean(sessionId))
-          .map((sessionId) => deleteAssistantSession(sessionId))
+          .map((sessionId) => deleteAssistantSession(currentWorkspaceId!, sessionId))
       )
     } catch (error) {
       toast.error(extractApiError(error, '清空归档失败'))
@@ -1225,15 +1347,7 @@ export function ChatHome() {
   }
 
   function stopStreaming() {
-    streamAbortControllerRef.current?.abort()
-    streamAbortControllerRef.current = null
-    updateActiveConversation((prev) =>
-      prev.map((message) =>
-        message.isStreaming
-          ? { ...message, isStreaming: false, isResponseComplete: true }
-          : message
-      )
-    )
+    abortActiveStream()
   }
 
   async function getStreamAccessToken() {
@@ -1258,6 +1372,7 @@ export function ChatHome() {
     assistantSessionId,
     initialAccessToken,
     toolMode,
+    useDeepThinking,
   }: {
     targetConversationId: string
     assistantMessageId: number
@@ -1265,6 +1380,7 @@ export function ChatHome() {
     assistantSessionId: number | null
     initialAccessToken: string
     toolMode: ChatAssistantMode
+    useDeepThinking: boolean
   }) {
     const targetGroupId = toolMode === 'KB_SEARCH' ? activeGroupId : null
     if (toolMode === 'KB_SEARCH' && !targetGroupId) {
@@ -1292,29 +1408,104 @@ export function ChatHome() {
 
     const runAssistantStream = async (streamAccessToken: string) => {
       if (!currentAssistantSessionId) {
-        const session = await createAssistantSession(question)
+        if (!currentWorkspaceId) throw new Error('请先选择工作空间')
+        const session = await createAssistantSession(
+          currentWorkspaceId,
+          question,
+          toolMode,
+          useDeepThinking
+        )
         currentAssistantSessionId = session.sessionId
         updateConversationSession(targetConversationId, currentAssistantSessionId)
       }
 
+      if (!currentWorkspaceId) throw new Error('请先选择工作空间')
       await streamAssistantChat(
+        currentWorkspaceId,
         {
           sessionId: currentAssistantSessionId,
           message: question,
           toolMode,
-          ...(targetGroupId ? { groupId: targetGroupId } : {}),
+          deepThinking: useDeepThinking,
         },
         streamAccessToken,
         (event) => {
-          if (event.event === 'delta' && event.delta) {
+          if (receivedTerminalEvent) return
+
+          if (event.event === 'token' && event.content) {
             updateConversationMessage(
               targetConversationId,
               assistantMessageId,
               (message) => ({
                 ...message,
-                content: `${message.content}${event.delta}`,
+                content: `${message.content}${event.content}`,
                 isStreaming: true,
                 isResponseComplete: false,
+              })
+            )
+            return
+          }
+
+          if (event.event === 'thinking' && event.content) {
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                thinking: `${message.thinking ?? ''}${
+                  message.thinking && event.content.startsWith('步骤 ') ? '\n' : ''
+                }${event.content}`,
+              })
+            )
+            return
+          }
+
+          if (event.event === 'tool_call') {
+            const toolKey = `tool-${createNextMessageId()}`
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                tools: [
+                  ...(message.tools ?? []),
+                  {
+                    key: toolKey,
+                    type: event.tool.name,
+                    state: 'input-streaming',
+                    input: event.tool.input,
+                    toolCallId: toolKey,
+                  },
+                ],
+              })
+            )
+            return
+          }
+
+          if (event.event === 'tool_result') {
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                tools: applyToolResult(message.tools, event.result),
+              })
+            )
+            return
+          }
+
+          if (event.event === 'citation') {
+            updateConversationMessage(
+              targetConversationId,
+              assistantMessageId,
+              (message) => ({
+                ...message,
+                citations: [
+                  ...(message.citations ?? []).filter(
+                    (citation) => citation.chunkId !== event.citation.chunkId
+                  ),
+                  event.citation,
+                ],
               })
             )
             return
@@ -1327,10 +1518,8 @@ export function ChatHome() {
               assistantMessageId,
               (message) => ({
                 ...message,
-                content: event.reply || message.content,
                 isStreaming: false,
                 isResponseComplete: true,
-                citations: event.citations ?? [],
               })
             )
             return
@@ -1347,8 +1536,7 @@ export function ChatHome() {
                 ...message,
                 isStreaming: false,
                 isResponseComplete: true,
-                content: `请求失败：${errorMessage}`,
-                citations: [],
+                streamError: errorMessage,
               })
             )
           }
@@ -1390,7 +1578,7 @@ export function ChatHome() {
       const isUnauthorized = isUnauthorizedError(error)
       const errorMessage = isUnauthorized
         ? '登录状态已失效，请重新登录后再试'
-        : extractApiError(error, '提问失败')
+        : getStreamErrorMessage(error)
       toast.error(errorMessage)
       updateConversationMessage(
         targetConversationId,
@@ -1399,8 +1587,7 @@ export function ChatHome() {
           ...message,
           isStreaming: false,
           isResponseComplete: true,
-          content: `请求失败：${errorMessage}`,
-          citations: [],
+          streamError: errorMessage,
         })
       )
     } finally {
@@ -1491,6 +1678,7 @@ export function ChatHome() {
       assistantSessionId: activeConversation.assistantSessionId ?? null,
       initialAccessToken: currentAccessToken,
       toolMode: requestMode,
+      useDeepThinking: deepThinking,
     })
   }
 
@@ -1562,6 +1750,7 @@ export function ChatHome() {
       assistantSessionId,
       initialAccessToken: currentAccessToken,
       toolMode: requestMode,
+      useDeepThinking: deepThinking,
     })
   }
 
@@ -1717,6 +1906,20 @@ export function ChatHome() {
                     </DropdownMenuGroup>
                   </DropdownMenuContent>
                 </DropdownMenu>
+
+                <div className='flex h-10 items-center gap-2 rounded-full border border-input px-3'>
+                  <Brain className='size-4 text-muted-foreground' />
+                  <span className='hidden whitespace-nowrap text-sm sm:inline'>
+                    深度思考
+                  </span>
+                  <Switch
+                    size='sm'
+                    checked={deepThinking}
+                    onCheckedChange={setDeepThinking}
+                    disabled={isStreaming}
+                    aria-label='深度思考'
+                  />
+                </div>
 
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -2917,6 +3120,30 @@ function AssistantMessage({
 
   return (
     <div className='flex flex-col gap-3'>
+      {message.thinking ? (
+        <ChainOfThought>
+          <ChainOfThoughtStep defaultOpen={message.isStreaming}>
+            <ChainOfThoughtTrigger leftIcon={<Brain />}>
+              {message.isStreaming ? '正在思考' : '思考过程'}
+            </ChainOfThoughtTrigger>
+            <ChainOfThoughtContent>
+              <ChainOfThoughtItem className='whitespace-pre-wrap leading-6'>
+                {message.thinking}
+              </ChainOfThoughtItem>
+            </ChainOfThoughtContent>
+          </ChainOfThoughtStep>
+        </ChainOfThought>
+      ) : null}
+
+      {message.tools?.map((tool) => (
+        <Tool
+          key={tool.key}
+          toolPart={tool}
+          defaultOpen={tool.state === 'input-streaming'}
+          className='mt-0'
+        />
+      ))}
+
       {message.isStreaming && !message.content ? (
         <div className='flex items-center gap-2 text-sm text-muted-foreground'>
           <Loader variant='typing' size='sm' />
@@ -2936,6 +3163,36 @@ function AssistantMessage({
           className={ASSISTANT_CONTENT_CLASS_NAME}
           children={message.content}
         />
+      ) : null}
+
+      {message.citations?.length ? (
+        <div className='flex flex-col gap-2'>
+          <div className='text-xs font-medium text-muted-foreground'>引用来源</div>
+          <div className='flex flex-wrap gap-2'>
+            {message.citations.map((citation, index) => (
+              <div
+                key={`${citation.documentId}-${citation.chunkId}`}
+                className='flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs'
+                title={citation.snippet || citation.fileName}
+              >
+                <span className='shrink-0 font-medium'>[{index + 1}]</span>
+                <span className='truncate'>{citation.fileName || '知识文档'}</span>
+                {Number.isFinite(citation.score) ? (
+                  <span className='shrink-0 text-muted-foreground'>
+                    {citation.score.toFixed(3)}
+                  </span>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {message.streamError ? (
+        <div className='rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive'>
+          {message.content ? '回答中断：' : '请求失败：'}
+          {message.streamError}
+        </div>
       ) : null}
 
       {showActions ? (
