@@ -107,12 +107,22 @@ mvn -q clean validate test
 
 ## Stage 5 · Evaluation UI
 
-- [ ] 接入数据集列表/创建。
-- [ ] 接入样本列表/添加。
-- [ ] 支持 topK 和消融运行。
-- [ ] 展示三种模式 Recall@K 与 latency。
-- [ ] 处理运行中、空数据、429 冷却和失败状态。
-- [ ] MEMBER 不显示管理入口且直接请求返回 403。
+- [x] 接入数据集列表/创建。
+- [x] 接入样本列表/添加。
+- [x] 支持 topK 和消融运行。
+- [x] 展示三种模式 Recall@K 与 latency。
+- [x] 处理运行中、空数据、429 冷却和失败状态。
+- [x] MEMBER 不显示管理入口且直接请求返回 403。
+
+验证记录（2026-07-12）：
+
+- 新增 `/admin/evaluations` 路由、权限感知侧栏入口和 workspace-scoped Evaluation API。
+- 页面支持数据集创建、样本标注、topK 1-20、三模式消融、最新指标对比和运行历史。
+- 数据集、样本和运行记录均区分 loading、empty 与 failed；429 进入 10 秒倒计时冷却。
+- MEMBER 不显示侧栏入口，直达页面不发起评测请求并展示无权限状态；后端仍执行 ADMIN 权限校验。
+- `pnpm typecheck`、`pnpm build` 和 Stage 5 定向 ESLint 通过。
+- `mvn -q -pl module-evaluation -am validate test` 通过；日志中的 Elasticsearch/reranker 异常为既有故障降级测试输出。
+- 本地 Vite 可启动于 `http://127.0.0.1:5174`；当前执行环境无可连接浏览器实例，桌面/移动截图验收并入 Stage 6。
 
 验证：真实样本创建、三模式运行、历史记录刷新、权限和限流。
 

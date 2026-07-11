@@ -1,4 +1,5 @@
 import {
+  BarChart3,
   ClipboardCheck,
   ClipboardList,
   Database,
@@ -43,6 +44,11 @@ export const sidebarData: SidebarData = {
           title: '知识库管理',
           url: '/admin/documents',
           icon: Database,
+        },
+        {
+          title: '检索评测',
+          url: '/admin/evaluations',
+          icon: BarChart3,
         },
         {
           title: '意图管理',

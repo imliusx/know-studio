@@ -1,5 +1,7 @@
 import { Fragment } from 'react'
 import { useLayout } from '@/context/layout-provider'
+import { useAuthStore } from '@/stores/auth-store'
+import { useWorkspaceStore } from '@/stores/workspace-store'
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +17,24 @@ import { TeamSwitcher } from './team-switcher'
 
 export function AppSidebar() {
   const { collapsible, variant } = useLayout()
+  const isSystemAdmin = useAuthStore(
+    (state) => state.auth.user?.systemRole === 'ADMIN'
+  )
+  const canManageEvaluations = useWorkspaceStore((state) => {
+    const workspace = state.workspaces.find(
+      (item) => item.workspaceId === state.currentWorkspaceId
+    )
+    return workspace?.role === 'OWNER' || workspace?.role === 'ADMIN'
+  })
+  const navGroups = sidebarData.navGroups.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) =>
+        item.url !== '/admin/evaluations' ||
+        isSystemAdmin ||
+        canManageEvaluations
+    ),
+  }))
 
   return (
     <Sidebar collapsible={collapsible} variant={variant}>
@@ -26,7 +46,7 @@ export function AppSidebar() {
         {/* <AppTitle /> */}
       </SidebarHeader>
       <SidebarContent>
-        {sidebarData.navGroups.map((props, index) => (
+        {navGroups.map((props, index) => (
           <Fragment key={`${index}-${props.title || 'nav-group'}`}>
             {index > 0 && (
               <SidebarGroup className='py-0'>

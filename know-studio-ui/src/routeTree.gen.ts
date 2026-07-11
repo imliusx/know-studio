@@ -49,6 +49,7 @@ import { Route as AuthenticatedAdminUsersIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedAdminSettingsIndexRouteImport } from './routes/_authenticated/admin/settings/index'
 import { Route as AuthenticatedAdminQaIndexRouteImport } from './routes/_authenticated/admin/qa/index'
 import { Route as AuthenticatedAdminGroupsIndexRouteImport } from './routes/_authenticated/admin/groups/index'
+import { Route as AuthenticatedAdminEvaluationsIndexRouteImport } from './routes/_authenticated/admin/evaluations/index'
 import { Route as AuthenticatedAdminDocumentsIndexRouteImport } from './routes/_authenticated/admin/documents/index'
 import { Route as AuthenticatedAdminSettingsNotificationsRouteImport } from './routes/_authenticated/admin/settings/notifications'
 import { Route as AuthenticatedAdminSettingsDisplayRouteImport } from './routes/_authenticated/admin/settings/display'
@@ -275,6 +276,12 @@ const AuthenticatedAdminGroupsIndexRoute =
     path: '/groups/',
     getParentRoute: () => AuthenticatedAdminRouteRoute,
   } as any)
+const AuthenticatedAdminEvaluationsIndexRoute =
+  AuthenticatedAdminEvaluationsIndexRouteImport.update({
+    id: '/evaluations/',
+    path: '/evaluations/',
+    getParentRoute: () => AuthenticatedAdminRouteRoute,
+  } as any)
 const AuthenticatedAdminDocumentsIndexRoute =
   AuthenticatedAdminDocumentsIndexRouteImport.update({
     id: '/documents/',
@@ -394,6 +401,7 @@ export interface FileRoutesByFullPath {
   '/admin/settings/display': typeof AuthenticatedAdminSettingsDisplayRoute
   '/admin/settings/notifications': typeof AuthenticatedAdminSettingsNotificationsRoute
   '/admin/documents/': typeof AuthenticatedAdminDocumentsIndexRoute
+  '/admin/evaluations/': typeof AuthenticatedAdminEvaluationsIndexRoute
   '/admin/groups/': typeof AuthenticatedAdminGroupsIndexRoute
   '/admin/qa/': typeof AuthenticatedAdminQaIndexRoute
   '/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
@@ -442,6 +450,7 @@ export interface FileRoutesByTo {
   '/admin/settings/display': typeof AuthenticatedAdminSettingsDisplayRoute
   '/admin/settings/notifications': typeof AuthenticatedAdminSettingsNotificationsRoute
   '/admin/documents': typeof AuthenticatedAdminDocumentsIndexRoute
+  '/admin/evaluations': typeof AuthenticatedAdminEvaluationsIndexRoute
   '/admin/groups': typeof AuthenticatedAdminGroupsIndexRoute
   '/admin/qa': typeof AuthenticatedAdminQaIndexRoute
   '/admin/settings': typeof AuthenticatedAdminSettingsIndexRoute
@@ -497,6 +506,7 @@ export interface FileRoutesById {
   '/_authenticated/admin/settings/display': typeof AuthenticatedAdminSettingsDisplayRoute
   '/_authenticated/admin/settings/notifications': typeof AuthenticatedAdminSettingsNotificationsRoute
   '/_authenticated/admin/documents/': typeof AuthenticatedAdminDocumentsIndexRoute
+  '/_authenticated/admin/evaluations/': typeof AuthenticatedAdminEvaluationsIndexRoute
   '/_authenticated/admin/groups/': typeof AuthenticatedAdminGroupsIndexRoute
   '/_authenticated/admin/qa/': typeof AuthenticatedAdminQaIndexRoute
   '/_authenticated/admin/settings/': typeof AuthenticatedAdminSettingsIndexRoute
@@ -550,6 +560,7 @@ export interface FileRouteTypes {
     | '/admin/settings/display'
     | '/admin/settings/notifications'
     | '/admin/documents/'
+    | '/admin/evaluations/'
     | '/admin/groups/'
     | '/admin/qa/'
     | '/admin/settings/'
@@ -598,6 +609,7 @@ export interface FileRouteTypes {
     | '/admin/settings/display'
     | '/admin/settings/notifications'
     | '/admin/documents'
+    | '/admin/evaluations'
     | '/admin/groups'
     | '/admin/qa'
     | '/admin/settings'
@@ -652,6 +664,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin/settings/display'
     | '/_authenticated/admin/settings/notifications'
     | '/_authenticated/admin/documents/'
+    | '/_authenticated/admin/evaluations/'
     | '/_authenticated/admin/groups/'
     | '/_authenticated/admin/qa/'
     | '/_authenticated/admin/settings/'
@@ -955,6 +968,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAdminGroupsIndexRouteImport
       parentRoute: typeof AuthenticatedAdminRouteRoute
     }
+    '/_authenticated/admin/evaluations/': {
+      id: '/_authenticated/admin/evaluations/'
+      path: '/evaluations'
+      fullPath: '/admin/evaluations/'
+      preLoaderRoute: typeof AuthenticatedAdminEvaluationsIndexRouteImport
+      parentRoute: typeof AuthenticatedAdminRouteRoute
+    }
     '/_authenticated/admin/documents/': {
       id: '/_authenticated/admin/documents/'
       path: '/documents'
@@ -1079,6 +1099,7 @@ interface AuthenticatedAdminRouteRouteChildren {
   AuthenticatedAdminIntentListRoute: typeof AuthenticatedAdminIntentListRoute
   AuthenticatedAdminIntentTreeRoute: typeof AuthenticatedAdminIntentTreeRoute
   AuthenticatedAdminDocumentsIndexRoute: typeof AuthenticatedAdminDocumentsIndexRoute
+  AuthenticatedAdminEvaluationsIndexRoute: typeof AuthenticatedAdminEvaluationsIndexRoute
   AuthenticatedAdminGroupsIndexRoute: typeof AuthenticatedAdminGroupsIndexRoute
   AuthenticatedAdminQaIndexRoute: typeof AuthenticatedAdminQaIndexRoute
   AuthenticatedAdminUsersIndexRoute: typeof AuthenticatedAdminUsersIndexRoute
@@ -1103,6 +1124,8 @@ const AuthenticatedAdminRouteRouteChildren: AuthenticatedAdminRouteRouteChildren
     AuthenticatedAdminIntentTreeRoute: AuthenticatedAdminIntentTreeRoute,
     AuthenticatedAdminDocumentsIndexRoute:
       AuthenticatedAdminDocumentsIndexRoute,
+    AuthenticatedAdminEvaluationsIndexRoute:
+      AuthenticatedAdminEvaluationsIndexRoute,
     AuthenticatedAdminGroupsIndexRoute: AuthenticatedAdminGroupsIndexRoute,
     AuthenticatedAdminQaIndexRoute: AuthenticatedAdminQaIndexRoute,
     AuthenticatedAdminUsersIndexRoute: AuthenticatedAdminUsersIndexRoute,
