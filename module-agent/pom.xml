@@ -15,9 +15,21 @@
     <dependencies>
         <dependency><groupId>know.studio</groupId><artifactId>platform-core</artifactId></dependency>
         <dependency><groupId>know.studio</groupId><artifactId>platform-ai</artifactId></dependency>
+        <dependency><groupId>know.studio</groupId><artifactId>module-identity</artifactId></dependency>
+        <dependency><groupId>know.studio</groupId><artifactId>module-retrieval</artifactId></dependency>
+        <dependency><groupId>know.studio</groupId><artifactId>module-conversation</artifactId></dependency>
         <dependency>
             <groupId>io.modelcontextprotocol.sdk</groupId>
             <artifactId>mcp</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

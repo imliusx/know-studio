@@ -63,6 +63,15 @@ arag:
         - ${INGESTION_RETRY_DELAY_1:5s}
         - ${INGESTION_RETRY_DELAY_2:30s}
         - ${INGESTION_RETRY_DELAY_3:2m}
+  agent:
+    mcp:
+      timeout: ${MCP_TIMEOUT:15s}
+      web-search:
+        url: ${MCP_WEB_SEARCH_URL:}
+        tool-name: ${MCP_WEB_SEARCH_TOOL:web_search}
+      business:
+        url: ${MCP_BUSINESS_URL:}
+        tool-name: ${MCP_BUSINESS_TOOL:business_lookup}
 sa-token:
   token-name: Authorization
   token-prefix: Bearer

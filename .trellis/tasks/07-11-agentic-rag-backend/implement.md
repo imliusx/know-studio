@@ -63,12 +63,13 @@ mvn -q -pl bootstrap spring-boot:run -Dspring-boot.run.profiles=dev
 
 ## 阶段 4 · Agentic（agent + conversation）
 
-- [ ] sessions / messages / session_memory 表 + `ConversationApi` + 记忆整体重建 + 摘要压缩
-- [ ] IntentClassifier(LLM 浅层意图) + 路由(知识/工具/闲聊/澄清)
-- [ ] Agent 编排 + KB 检索工具(复用 retrieval) + ResultHolder 防重复守卫
-- [ ] MCP client 接入（Web 搜索 + mock 业务工具）
-- [ ] 深度思考（开关 + reasoning 模型 + 多步 loop + thinking 流式）
-- [ ] SSE 流式 `streamChat` + `AgentApi`
+- [x] sessions / messages / session_memory 表 + `ConversationApi` + 记忆整体重建 + 摘要压缩
+- [x] IntentClassifier(LLM 浅层意图) + 路由(知识/工具/闲聊/澄清)
+- [x] Agent 编排 + KB 检索工具(复用 retrieval) + ResultHolder 防重复守卫
+- [x] MCP client 接入（Web 搜索 + mock 业务工具）
+- [x] 深度思考（开关 + reasoning 模型 + 多步 loop + thinking 流式）
+- [x] SSE 流式 `streamChat` + `AgentApi`
+- **验证记录**：Flyway V3 在真实 PostgreSQL 成功应用；会话创建与上下文读取通过；mock 业务工具 SSE 实际返回 `tool_call → tool_result → error`（未配置 Chat provider，最终生成按设计输出 error）；澄清分支实际返回 `token → done` 且 USER/ASSISTANT 消息落库。远程 MCP、reasoning provider 和完整生成答案待配置真实服务后验证。
 - **验证**：多轮对话 / 意图路由 / 工具调用 / 深度思考开关 / SSE 流式；长会话触发摘要压缩
 - **回滚点**：阶段提交
 

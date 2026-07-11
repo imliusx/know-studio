@@ -16,6 +16,9 @@ Applies to all Java source and test code. `mvn validate` is the minimum local an
 ### 3. Contracts
 
 - Lombok is compile-only and excluded from the executable Spring Boot JAR.
+- The parent Maven compiler configuration must register Lombok under
+  `annotationProcessorPaths`; inherited `provided` dependencies alone are not a
+  reproducible annotation-processing contract on newer JDKs.
 - Do not use `@Data` on entities, services, controllers, or domain models.
 - Do not use `System.out`, `System.err`, or `printStackTrace`.
 - Custom exceptions declare `serialVersionUID`.
@@ -25,6 +28,8 @@ Applies to all Java source and test code. `mvn validate` is the minimum local an
 
 - Checkstyle violation -> Maven `validate` fails.
 - Lombok annotation processing failure -> compilation fails; do not add handwritten duplicate accessors.
+- Incremental build passes but `mvn clean` loses generated loggers/constructors ->
+  verify the parent compiler annotation processor path before changing source.
 - Console output or `@Data` -> Checkstyle failure.
 - Missing runtime logging implementation -> application packaging/startup failure.
 
@@ -39,7 +44,8 @@ Applies to all Java source and test code. `mvn validate` is the minimum local an
 ### 6. Tests Required
 
 - `mvn validate` for static rules.
-- `mvn clean test` for annotation processing and behavior.
+- `mvn clean test` for annotation processing and behavior; an incremental-only
+  pass is insufficient.
 - Inspect the executable JAR: Logback and encoder present; Lombok absent.
 - Start the application and verify the configured console pattern parses.
 

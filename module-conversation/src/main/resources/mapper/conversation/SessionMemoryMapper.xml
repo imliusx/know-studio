@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="know.studio.arag.conversation.infra.persistence.mapper.SessionMemoryMapper">
+    <select id="selectOwned"
+            resultType="know.studio.arag.conversation.infra.persistence.entity.SessionMemoryEntity">
+        SELECT sm.id, sm.session_id, sm.compact_summary, sm.session_summary,
+               sm.summarized_through_message_id, sm.updated_at
+        FROM session_memory sm
+        JOIN sessions s ON s.id = sm.session_id
+        WHERE s.workspace_id = #{workspaceId}
+          AND s.user_id = #{userId}
+          AND s.id = #{sessionId}
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO session_memory(
+            id, session_id, compact_summary, session_summary, summarized_through_message_id, updated_at
+        )
+        VALUES (
+            #{id}, #{sessionId}, #{compactSummary}, #{sessionSummary},
+            #{summarizedThroughMessageId}, CURRENT_TIMESTAMP
+        )
+        ON CONFLICT (session_id) DO UPDATE
+        SET compact_summary = EXCLUDED.compact_summary,
+            session_summary = EXCLUDED.session_summary,
+            summarized_through_message_id = EXCLUDED.summarized_through_message_id,
+            updated_at = CURRENT_TIMESTAMP
+    </insert>
+</mapper>
