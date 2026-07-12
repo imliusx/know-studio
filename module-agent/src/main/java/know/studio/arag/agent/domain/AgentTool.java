@@ -10,5 +10,5 @@ public interface AgentTool {
 
     boolean supports(String question);
 
-    ToolResult execute(long workspaceId, String question);
+    ToolResult execute(long userId, String question);
 }

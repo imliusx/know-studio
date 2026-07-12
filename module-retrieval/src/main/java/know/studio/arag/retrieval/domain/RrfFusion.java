@@ -46,6 +46,7 @@ public class RrfFusion {
 
         private FusedCandidate toCandidate() {
             return new FusedCandidate(
+                    candidate.knowledgeBaseId(),
                     candidate.chunkId(),
                     candidate.documentId(),
                     candidate.chunkIndex(),

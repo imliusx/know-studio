@@ -13,27 +13,23 @@ public interface MessageMapper extends BaseMapper<MessageEntity> {
     int insertJson(MessageEntity entity);
 
     List<MessageEntity> selectRecentOwned(
-            @Param("workspaceId") long workspaceId,
             @Param("userId") long userId,
             @Param("sessionId") long sessionId,
             @Param("limit") int limit
     );
 
     List<MessageEntity> selectAllOwned(
-            @Param("workspaceId") long workspaceId,
             @Param("userId") long userId,
             @Param("sessionId") long sessionId,
             @Param("afterMessageId") long afterMessageId
     );
 
     int countOwned(
-            @Param("workspaceId") long workspaceId,
             @Param("userId") long userId,
             @Param("sessionId") long sessionId
     );
 
     long sumTokensOwned(
-            @Param("workspaceId") long workspaceId,
             @Param("userId") long userId,
             @Param("sessionId") long sessionId
     );

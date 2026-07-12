@@ -58,13 +58,13 @@ public class McpRemoteAgentTool implements AgentTool, AutoCloseable {
 
     @Override
     @RagTraceNode("agent.tool.mcp")
-    public ToolResult execute(long workspaceId, String question) {
+    public ToolResult execute(long userId, String question) {
         if (!available()) {
             throw new BusinessException("MCP 工具未配置");
         }
         McpSchema.CallToolResult result = client().callTool(new McpSchema.CallToolRequest(
                 remoteToolName,
-                Map.of("query", question, "workspaceId", workspaceId)
+                Map.of("query", question, "userId", userId)
         ));
         if (Boolean.TRUE.equals(result.isError())) {
             throw new BusinessException("MCP 工具执行失败");

@@ -48,6 +48,7 @@ class RrfFusionTest {
 
     private static SearchCandidate candidate(long chunkId, double score, RetrievalSource source) {
         return new SearchCandidate(
+                11L,
                 chunkId,
                 100L,
                 Math.toIntExact(chunkId),

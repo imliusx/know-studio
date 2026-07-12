@@ -58,7 +58,7 @@ class EvaluationServiceTest {
     }
 
     private static Evidence evidence(long chunkId) {
-        return new Evidence(1L, chunkId, 0, "file", "text", 1.0, Set.of("VECTOR"));
+        return new Evidence(10L, 1L, chunkId, 0, "file", "text", 1.0, Set.of("VECTOR"));
     }
 
     private static final class StubIdentityApi implements IdentityApi {

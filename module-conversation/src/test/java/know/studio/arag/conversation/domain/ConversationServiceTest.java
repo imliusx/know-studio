@@ -38,7 +38,6 @@ class ConversationServiceTest {
         );
         repository.session = new ConversationSession(
                 100L,
-                10L,
                 20L,
                 "test",
                 false,
@@ -53,7 +52,6 @@ class ConversationServiceTest {
     void appendTriggersSummaryAfterMessageThreshold() {
         for (int index = 0; index < 21; index++) {
             service.appendMessage(new AppendMessageCommand(
-                    10L,
                     100L,
                     MessageRole.USER,
                     "message-" + index,
@@ -70,7 +68,6 @@ class ConversationServiceTest {
     void anotherUsersSessionIsNotVisible() {
         repository.session = new ConversationSession(
                 100L,
-                10L,
                 99L,
                 "other",
                 false,
@@ -80,7 +77,7 @@ class ConversationServiceTest {
                 Instant.now()
         );
 
-        assertThatThrownBy(() -> service.loadContext(10L, 100L, "question"))
+        assertThatThrownBy(() -> service.loadContext(100L, "question"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("会话不存在");
     }
@@ -98,7 +95,6 @@ class ConversationServiceTest {
 
         for (int index = 0; index < 21; index++) {
             failingSummaryService.appendMessage(new AppendMessageCommand(
-                    10L,
                     100L,
                     MessageRole.USER,
                     "message-" + index,
@@ -113,13 +109,13 @@ class ConversationServiceTest {
 
     @Test
     void renamesAndSoftDeletesOwnedSession() {
-        assertThat(service.renameSession(10L, 100L, " Renamed ").title()).isEqualTo("Renamed");
-        assertThat(service.listSessions(10L)).singleElement().extracting("title").isEqualTo("Renamed");
+        assertThat(service.renameSession(100L, " Renamed ").title()).isEqualTo("Renamed");
+        assertThat(service.listSessions()).singleElement().extracting("title").isEqualTo("Renamed");
 
-        service.deleteSession(10L, 100L);
+        service.deleteSession(100L);
 
-        assertThat(service.listSessions(10L)).isEmpty();
-        assertThatThrownBy(() -> service.loadContext(10L, 100L, "question"))
+        assertThat(service.listSessions()).isEmpty();
+        assertThatThrownBy(() -> service.loadContext(100L, "question"))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("会话不存在");
     }
@@ -140,6 +136,7 @@ class ConversationServiceTest {
         public WorkspaceRole requireRole(long workspaceId, WorkspaceRole requiredRole) {
             return WorkspaceRole.OWNER;
         }
+
     }
 
     private static final class InMemoryRepository implements ConversationRepository {
@@ -154,9 +151,8 @@ class ConversationServiceTest {
         }
 
         @Override
-        public Optional<ConversationSession> findOwnedSession(long workspaceId, long userId, long sessionId) {
+        public Optional<ConversationSession> findOwnedSession(long userId, long sessionId) {
             if (session != null
-                    && session.workspaceId() == workspaceId
                     && session.userId() == userId
                     && session.id() == sessionId
                     && "ACTIVE".equals(session.status())) {
@@ -166,19 +162,19 @@ class ConversationServiceTest {
         }
 
         @Override
-        public List<ConversationSession> findOwnedSessions(long workspaceId, long userId) {
-            return findOwnedSession(workspaceId, userId, session == null ? -1L : session.id())
+        public List<ConversationSession> findOwnedSessions(long userId) {
+            return findOwnedSession(userId, session == null ? -1L : session.id())
                     .stream()
                     .toList();
         }
 
         @Override
-        public boolean renameOwnedSession(long workspaceId, long userId, long sessionId, String title) {
-            if (findOwnedSession(workspaceId, userId, sessionId).isEmpty()) {
+        public boolean renameOwnedSession(long userId, long sessionId, String title) {
+            if (findOwnedSession(userId, sessionId).isEmpty()) {
                 return false;
             }
             session = new ConversationSession(
-                    session.id(), session.workspaceId(), session.userId(), title,
+                    session.id(), session.userId(), title,
                     session.toolMode(), session.deepThinking(), session.status(),
                     session.createdAt(), Instant.now()
             );
@@ -186,12 +182,12 @@ class ConversationServiceTest {
         }
 
         @Override
-        public boolean deleteOwnedSession(long workspaceId, long userId, long sessionId) {
-            if (findOwnedSession(workspaceId, userId, sessionId).isEmpty()) {
+        public boolean deleteOwnedSession(long userId, long sessionId) {
+            if (findOwnedSession(userId, sessionId).isEmpty()) {
                 return false;
             }
             session = new ConversationSession(
-                    session.id(), session.workspaceId(), session.userId(), session.title(),
+                    session.id(), session.userId(), session.title(),
                     session.toolMode(), session.deepThinking(), "DELETED",
                     session.createdAt(), Instant.now()
             );
@@ -205,7 +201,6 @@ class ConversationServiceTest {
 
         @Override
         public List<ConversationMessage> findRecentMessages(
-                long workspaceId,
                 long userId,
                 long sessionId,
                 int limit
@@ -215,7 +210,6 @@ class ConversationServiceTest {
 
         @Override
         public List<ConversationMessage> findMessagesForSummary(
-                long workspaceId,
                 long userId,
                 long sessionId,
                 long afterMessageId
@@ -224,17 +218,17 @@ class ConversationServiceTest {
         }
 
         @Override
-        public ConversationMemory findMemory(long workspaceId, long userId, long sessionId) {
+        public ConversationMemory findMemory(long userId, long sessionId) {
             return memory;
         }
 
         @Override
-        public int countMessages(long workspaceId, long userId, long sessionId) {
+        public int countMessages(long userId, long sessionId) {
             return messages.size();
         }
 
         @Override
-        public long sumTokens(long workspaceId, long userId, long sessionId) {
+        public long sumTokens(long userId, long sessionId) {
             return messages.stream().mapToLong(ConversationMessage::tokens).sum();
         }
 

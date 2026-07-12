@@ -1,7 +1,8 @@
 package know.studio.arag.retrieval.domain;
 
-import know.studio.arag.identity.api.IdentityApi;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
+import know.studio.arag.platform.core.exception.ForbiddenException;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
@@ -14,7 +15,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Supplier;
@@ -27,7 +30,7 @@ public class HybridRetrievalService implements RetrievalApi {
     private static final int CHANNEL_LIMIT = 50;
     private static final int RERANK_LIMIT = 20;
 
-    private final IdentityApi identityApi;
+    private final KnowledgeAccessApi knowledgeAccessApi;
     private final QueryPlanner queryPlanner;
     private final EmbeddingClient embeddingClient;
     private final VectorSearchPort vectorSearch;
@@ -43,7 +46,7 @@ public class HybridRetrievalService implements RetrievalApi {
     @Override
     @RagTraceNode("retrieval.hybrid")
     public EvidenceBundle retrieve(RetrievalQuery query) {
-        identityApi.requireWorkspaceReadable(query.workspaceId());
+        Set<Long> knowledgeBaseIds = authorizedScope(query.knowledgeBaseIds());
         List<String> plannedQueries = queryPlanner.plan(query.question());
         List<float[]> embeddings = embeddingClient.embed(plannedQueries);
         if (embeddings.size() != plannedQueries.size()) {
@@ -56,12 +59,12 @@ public class HybridRetrievalService implements RetrievalApi {
             float[] embedding = embeddings.get(index);
             searches.add(searchAsync(
                     "vector",
-                    () -> vectorSearch.search(query.workspaceId(), embedding, CHANNEL_LIMIT)
+                    () -> vectorSearch.search(knowledgeBaseIds, embedding, CHANNEL_LIMIT)
             ));
             if (query.mode() != RetrievalMode.VECTOR_ONLY) {
                 searches.add(searchAsync(
                         "keyword",
-                        () -> keywordSearch.search(query.workspaceId(), plannedQuery, CHANNEL_LIMIT)
+                        () -> keywordSearch.search(knowledgeBaseIds, plannedQuery, CHANNEL_LIMIT)
                 ));
             }
         }
@@ -74,7 +77,7 @@ public class HybridRetrievalService implements RetrievalApi {
         List<NeighborChunk> neighbors = fused.isEmpty()
                 ? List.of()
                 : neighborPort.findNeighbors(
-                        query.workspaceId(),
+                        knowledgeBaseIds,
                         fused.stream().map(FusedCandidate::chunkId).toList(),
                         1
                 );
@@ -89,6 +92,18 @@ public class HybridRetrievalService implements RetrievalApi {
                 .map(HybridRetrievalService::toEvidence)
                 .toList();
         return new EvidenceBundle(evidence, level, guidance(level));
+    }
+
+    private Set<Long> authorizedScope(Set<Long> requestedIds) {
+        Set<Long> authorizedIds = knowledgeAccessApi.readableKnowledgeBaseIds();
+        Set<Long> effectiveIds = new HashSet<>(authorizedIds);
+        if (!requestedIds.isEmpty()) {
+            effectiveIds.retainAll(requestedIds);
+        }
+        if (effectiveIds.isEmpty()) {
+            throw new ForbiddenException("没有可用于检索的知识库");
+        }
+        return Set.copyOf(effectiveIds);
     }
 
     private CompletableFuture<List<SearchCandidate>> searchAsync(
@@ -117,6 +132,7 @@ public class HybridRetrievalService implements RetrievalApi {
 
     private static Evidence toEvidence(FusedCandidate candidate) {
         return new Evidence(
+                candidate.knowledgeBaseId(),
                 candidate.documentId(),
                 candidate.chunkId(),
                 candidate.chunkIndex(),

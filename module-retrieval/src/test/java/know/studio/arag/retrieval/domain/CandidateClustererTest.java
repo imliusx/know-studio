@@ -27,6 +27,7 @@ class CandidateClustererTest {
 
     private static FusedCandidate candidate(long chunkId, int index, String text, double score) {
         return new FusedCandidate(
+                11L,
                 chunkId,
                 100L,
                 index,

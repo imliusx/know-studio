@@ -12,8 +12,7 @@
         SELECT m.id, m.session_id, m.role, m.content, m.tokens, m.metadata::TEXT AS metadata, m.created_at
         FROM messages m
         JOIN sessions s ON s.id = m.session_id
-        WHERE s.workspace_id = #{workspaceId}
-          AND s.user_id = #{userId}
+        WHERE s.user_id = #{userId}
           AND s.id = #{sessionId}
         ORDER BY m.created_at DESC, m.id DESC
         LIMIT #{limit}
@@ -24,8 +23,7 @@
         SELECT m.id, m.session_id, m.role, m.content, m.tokens, m.metadata::TEXT AS metadata, m.created_at
         FROM messages m
         JOIN sessions s ON s.id = m.session_id
-        WHERE s.workspace_id = #{workspaceId}
-          AND s.user_id = #{userId}
+        WHERE s.user_id = #{userId}
           AND s.id = #{sessionId}
           AND m.id &gt; #{afterMessageId}
         ORDER BY m.created_at, m.id
@@ -35,8 +33,7 @@
         SELECT COUNT(*)
         FROM messages m
         JOIN sessions s ON s.id = m.session_id
-        WHERE s.workspace_id = #{workspaceId}
-          AND s.user_id = #{userId}
+        WHERE s.user_id = #{userId}
           AND s.id = #{sessionId}
     </select>
 
@@ -44,8 +41,7 @@
         SELECT COALESCE(SUM(m.tokens), 0)
         FROM messages m
         JOIN sessions s ON s.id = m.session_id
-        WHERE s.workspace_id = #{workspaceId}
-          AND s.user_id = #{userId}
+        WHERE s.user_id = #{userId}
           AND s.id = #{sessionId}
     </select>
 </mapper>

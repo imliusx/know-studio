@@ -29,6 +29,7 @@ public class NeighborExpander {
             int distance = Math.abs(neighbor.chunkIndex() - nearest.chunkIndex());
             double score = nearest.rrfScore() * Math.pow(0.85, distance);
             expanded.put(neighbor.chunkId(), new FusedCandidate(
+                    neighbor.knowledgeBaseId(),
                     neighbor.chunkId(),
                     neighbor.documentId(),
                     neighbor.chunkIndex(),
@@ -51,7 +52,8 @@ public class NeighborExpander {
     private static FusedCandidate nearestSeed(NeighborChunk neighbor, List<FusedCandidate> seeds) {
         List<FusedCandidate> sameDocument = new ArrayList<>();
         for (FusedCandidate seed : seeds) {
-            if (seed.documentId() == neighbor.documentId()) {
+            if (seed.knowledgeBaseId() == neighbor.knowledgeBaseId()
+                    && seed.documentId() == neighbor.documentId()) {
                 sameDocument.add(seed);
             }
         }

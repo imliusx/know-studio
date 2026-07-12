@@ -36,6 +36,7 @@ class EvidenceGraderTest {
 
     private static FusedCandidate candidate(Double rerankScore, Set<RetrievalSource> sources) {
         return new FusedCandidate(
+                11L,
                 1L,
                 2L,
                 0,

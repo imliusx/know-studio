@@ -8,8 +8,7 @@
                sm.summarized_through_message_id, sm.updated_at
         FROM session_memory sm
         JOIN sessions s ON s.id = sm.session_id
-        WHERE s.workspace_id = #{workspaceId}
-          AND s.user_id = #{userId}
+        WHERE s.user_id = #{userId}
           AND s.id = #{sessionId}
     </select>
 

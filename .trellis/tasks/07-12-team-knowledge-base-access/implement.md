@@ -41,13 +41,13 @@
 
 ## Stage 3 · Retrieval, Agent and Conversation
 
-- [ ] Retrieval 入口计算当前用户可读 knowledgeBaseIds。
-- [ ] 显式范围和意图命中结果只允许缩小授权集合。
-- [ ] vector、keyword、rerank 和 citation 全链路携带知识库过滤。
-- [ ] Session/Message/Memory 查询仅按 userId + sessionId 隔离。
-- [ ] Chat API 移除强制 workspaceId 路径和请求字段。
-- [ ] 保存回答实际知识库和引用，失权后阻止文档访问。
-- [ ] TOOL 无匹配时继续在授权知识库内执行知识检索。
+- [x] Retrieval 入口计算当前用户可读 knowledgeBaseIds。
+- [x] 显式范围和意图命中结果只允许缩小授权集合。
+- [x] vector、keyword、rerank 和 citation 全链路携带知识库过滤。
+- [x] Session/Message/Memory 查询仅按 userId + sessionId 隔离。
+- [x] Chat API 移除强制 workspaceId 路径和请求字段。
+- [x] 保存回答实际知识库和引用，失权后阻止文档访问。
+- [x] TOOL 无匹配时继续在授权知识库内执行知识检索。
 
 验证：公开库、单 Team、跨 Team、多 Team、无权限、会话隔离和 SSE 七事件。
 
@@ -115,3 +115,13 @@
 - Existing E2E owner listed two granted KnowledgeBases and read the migrated READY document through the new API.
 - A newly registered user without Team grants received HTTP 403 when reading the same KnowledgeBase documents.
 - `mvn -q -pl module-knowledge -am validate test` passed.
+
+### Retrieval and conversation batch (2026-07-12)
+
+- V9 made Conversation sessions user-owned while preserving migrated rows; new sessions write `workspace_id=NULL`.
+- Vector SQL, Elasticsearch keyword search, neighbor expansion, rerank evidence and citations use the same
+  server-authorized KnowledgeBase ID set. Requested scopes are intersected and cannot expand permissions.
+- The startup Elasticsearch migration backfilled `knowledgeBaseId` on two legacy indexed chunks.
+- A second user received HTTP 404 for another user's conversation; an unauthorized KnowledgeBase-only scope
+  received HTTP 403 before query planning.
+- Authorized vector retrieval returned successfully and Agent SSE emitted `token` then `done` through the new APIs.

@@ -6,7 +6,8 @@
 
     <select id="searchByVector"
             resultType="know.studio.arag.retrieval.infra.persistence.VectorSearchRow">
-        SELECT chunk.id AS chunk_id,
+        SELECT chunk.knowledge_base_id,
+               chunk.id AS chunk_id,
                chunk.document_id,
                chunk.chunk_index,
                document.file_name,
@@ -15,11 +16,14 @@
         FROM chunk_embeddings AS embedding
         JOIN document_chunks AS chunk
           ON chunk.id = embedding.chunk_id
-         AND chunk.workspace_id = #{workspaceId}
+         AND chunk.knowledge_base_id = embedding.knowledge_base_id
         JOIN documents AS document
           ON document.id = embedding.document_id
-         AND document.workspace_id = #{workspaceId}
-        WHERE embedding.workspace_id = #{workspaceId}
+         AND document.knowledge_base_id = embedding.knowledge_base_id
+        WHERE embedding.knowledge_base_id IN
+          <foreach collection="knowledgeBaseIds" item="knowledgeBaseId" open="(" separator="," close=")">
+              #{knowledgeBaseId}
+          </foreach>
           AND chunk.status = 'READY'
           AND chunk.deleted = FALSE
           AND document.status = 'READY'
@@ -29,15 +33,19 @@
 
     <select id="findNeighbors" resultType="know.studio.arag.retrieval.domain.NeighborChunk">
         WITH seeds AS (
-            SELECT document_id, chunk_index
+            SELECT knowledge_base_id, document_id, chunk_index
             FROM document_chunks
-            WHERE workspace_id = #{workspaceId}
+            WHERE knowledge_base_id IN
+              <foreach collection="knowledgeBaseIds" item="knowledgeBaseId" open="(" separator="," close=")">
+                  #{knowledgeBaseId}
+              </foreach>
               AND id IN
               <foreach collection="seedChunkIds" item="chunkId" open="(" separator="," close=")">
                   #{chunkId}
               </foreach>
         )
-        SELECT DISTINCT chunk.id AS chunk_id,
+        SELECT DISTINCT chunk.knowledge_base_id,
+               chunk.id AS chunk_id,
                chunk.document_id,
                chunk.chunk_index,
                document.file_name,
@@ -45,15 +53,19 @@
         FROM document_chunks AS chunk
         JOIN documents AS document
           ON document.id = chunk.document_id
-         AND document.workspace_id = #{workspaceId}
-        WHERE chunk.workspace_id = #{workspaceId}
+         AND document.knowledge_base_id = chunk.knowledge_base_id
+        WHERE chunk.knowledge_base_id IN
+          <foreach collection="knowledgeBaseIds" item="knowledgeBaseId" open="(" separator="," close=")">
+              #{knowledgeBaseId}
+          </foreach>
           AND chunk.status = 'READY'
           AND chunk.deleted = FALSE
           AND document.status = 'READY'
           AND EXISTS (
               SELECT 1
               FROM seeds
-              WHERE seeds.document_id = chunk.document_id
+              WHERE seeds.knowledge_base_id = chunk.knowledge_base_id
+                AND seeds.document_id = chunk.document_id
                 AND chunk.chunk_index BETWEEN seeds.chunk_index - #{radius}
                                           AND seeds.chunk_index + #{radius}
           )

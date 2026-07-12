@@ -3,6 +3,7 @@ package know.studio.arag.retrieval.domain;
 import java.util.Set;
 
 public record FusedCandidate(
+        long knowledgeBaseId,
         long chunkId,
         long documentId,
         int chunkIndex,
@@ -25,6 +26,7 @@ public record FusedCandidate(
 
     public FusedCandidate withRerankScore(double score) {
         return new FusedCandidate(
+                knowledgeBaseId,
                 chunkId,
                 documentId,
                 chunkIndex,

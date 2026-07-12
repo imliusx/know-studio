@@ -4,24 +4,23 @@ public interface ConversationApi {
 
     SessionInfo createSession(CreateSessionCommand command);
 
-    java.util.List<SessionInfo> listSessions(long workspaceId);
+    java.util.List<SessionInfo> listSessions();
 
-    SessionInfo renameSession(long workspaceId, long sessionId, String title);
+    SessionInfo renameSession(long sessionId, String title);
 
-    void deleteSession(long workspaceId, long sessionId);
+    void deleteSession(long sessionId);
 
     ConversationMessage appendMessage(AppendMessageCommand command);
 
     ConversationMessage appendMessageForOwner(AppendMessageCommand command, long ownerUserId);
 
-    ConversationContext loadContext(long workspaceId, long sessionId, String currentQuestion);
+    ConversationContext loadContext(long sessionId, String currentQuestion);
 
     ConversationContext loadContextForOwner(
-            long workspaceId,
             long ownerUserId,
             long sessionId,
             String currentQuestion
     );
 
-    void summarizeIfNeeded(long workspaceId, long sessionId);
+    void summarizeIfNeeded(long sessionId);
 }

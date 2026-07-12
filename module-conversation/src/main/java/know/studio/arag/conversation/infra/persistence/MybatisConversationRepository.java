@@ -41,9 +41,8 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public Optional<ConversationSession> findOwnedSession(long workspaceId, long userId, long sessionId) {
+    public Optional<ConversationSession> findOwnedSession(long userId, long sessionId) {
         SessionEntity entity = sessionMapper.selectOne(Wrappers.<SessionEntity>lambdaQuery()
-                .eq(SessionEntity::getWorkspaceId, workspaceId)
                 .eq(SessionEntity::getUserId, userId)
                 .eq(SessionEntity::getId, sessionId)
                 .eq(SessionEntity::getStatus, "ACTIVE"));
@@ -51,9 +50,8 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public List<ConversationSession> findOwnedSessions(long workspaceId, long userId) {
+    public List<ConversationSession> findOwnedSessions(long userId) {
         return sessionMapper.selectList(Wrappers.<SessionEntity>lambdaQuery()
-                        .eq(SessionEntity::getWorkspaceId, workspaceId)
                         .eq(SessionEntity::getUserId, userId)
                         .eq(SessionEntity::getStatus, "ACTIVE")
                         .orderByDesc(SessionEntity::getUpdatedAt))
@@ -63,9 +61,8 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public boolean renameOwnedSession(long workspaceId, long userId, long sessionId, String title) {
+    public boolean renameOwnedSession(long userId, long sessionId, String title) {
         return sessionMapper.update(Wrappers.<SessionEntity>lambdaUpdate()
-                .eq(SessionEntity::getWorkspaceId, workspaceId)
                 .eq(SessionEntity::getUserId, userId)
                 .eq(SessionEntity::getId, sessionId)
                 .eq(SessionEntity::getStatus, "ACTIVE")
@@ -74,9 +71,8 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public boolean deleteOwnedSession(long workspaceId, long userId, long sessionId) {
+    public boolean deleteOwnedSession(long userId, long sessionId) {
         return sessionMapper.update(Wrappers.<SessionEntity>lambdaUpdate()
-                .eq(SessionEntity::getWorkspaceId, workspaceId)
                 .eq(SessionEntity::getUserId, userId)
                 .eq(SessionEntity::getId, sessionId)
                 .eq(SessionEntity::getStatus, "ACTIVE")
@@ -98,9 +94,8 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public List<ConversationMessage> findRecentMessages(long workspaceId, long userId, long sessionId, int limit) {
+    public List<ConversationMessage> findRecentMessages(long userId, long sessionId, int limit) {
         List<ConversationMessage> messages = messageMapper.selectRecentOwned(
-                        workspaceId,
                         userId,
                         sessionId,
                         limit
@@ -114,19 +109,18 @@ public class MybatisConversationRepository implements ConversationRepository {
 
     @Override
     public List<ConversationMessage> findMessagesForSummary(
-            long workspaceId,
             long userId,
             long sessionId,
             long afterMessageId
     ) {
-        return messageMapper.selectAllOwned(workspaceId, userId, sessionId, afterMessageId).stream()
+        return messageMapper.selectAllOwned(userId, sessionId, afterMessageId).stream()
                 .map(this::toMessage)
                 .toList();
     }
 
     @Override
-    public ConversationMemory findMemory(long workspaceId, long userId, long sessionId) {
-        SessionMemoryEntity entity = memoryMapper.selectOwned(workspaceId, userId, sessionId);
+    public ConversationMemory findMemory(long userId, long sessionId) {
+        SessionMemoryEntity entity = memoryMapper.selectOwned(userId, sessionId);
         if (entity == null) {
             return ConversationMemory.empty();
         }
@@ -138,13 +132,13 @@ public class MybatisConversationRepository implements ConversationRepository {
     }
 
     @Override
-    public int countMessages(long workspaceId, long userId, long sessionId) {
-        return messageMapper.countOwned(workspaceId, userId, sessionId);
+    public int countMessages(long userId, long sessionId) {
+        return messageMapper.countOwned(userId, sessionId);
     }
 
     @Override
-    public long sumTokens(long workspaceId, long userId, long sessionId) {
-        return messageMapper.sumTokensOwned(workspaceId, userId, sessionId);
+    public long sumTokens(long userId, long sessionId) {
+        return messageMapper.sumTokensOwned(userId, sessionId);
     }
 
     @Override
@@ -167,7 +161,6 @@ public class MybatisConversationRepository implements ConversationRepository {
     private static SessionEntity toEntity(ConversationSession session) {
         SessionEntity entity = new SessionEntity();
         entity.setId(session.id());
-        entity.setWorkspaceId(session.workspaceId());
         entity.setUserId(session.userId());
         entity.setTitle(session.title());
         entity.setToolMode(session.toolMode());
@@ -181,7 +174,6 @@ public class MybatisConversationRepository implements ConversationRepository {
     private static ConversationSession toDomain(SessionEntity entity) {
         return new ConversationSession(
                 entity.getId(),
-                entity.getWorkspaceId(),
                 entity.getUserId(),
                 entity.getTitle(),
                 entity.getToolMode(),

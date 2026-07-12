@@ -1,6 +1,7 @@
 package know.studio.arag.retrieval.domain;
 
 public record SearchCandidate(
+        long knowledgeBaseId,
         long chunkId,
         long documentId,
         int chunkIndex,

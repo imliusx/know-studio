@@ -14,6 +14,7 @@ class NeighborExpanderTest {
     @Test
     void addsAdjacentChunksFromSameDocumentWithDecayedScore() {
         FusedCandidate seed = new FusedCandidate(
+                11L,
                 10L,
                 100L,
                 5,
@@ -24,8 +25,8 @@ class NeighborExpanderTest {
                 Set.of(RetrievalSource.VECTOR, RetrievalSource.KEYWORD),
                 1
         );
-        NeighborChunk previous = new NeighborChunk(9L, 100L, 4, "guide.md", "previous");
-        NeighborChunk otherDocument = new NeighborChunk(20L, 200L, 4, "other.md", "other");
+        NeighborChunk previous = new NeighborChunk(11L, 9L, 100L, 4, "guide.md", "previous");
+        NeighborChunk otherDocument = new NeighborChunk(11L, 20L, 200L, 4, "other.md", "other");
 
         List<FusedCandidate> result = expander.expand(
                 List.of(seed),

@@ -160,7 +160,7 @@ public class EvaluationService implements EvaluationApi {
             long start = System.nanoTime();
             EvidenceBundle result = retrievalApi.retrieve(new RetrievalQuery(
                     sample.question(),
-                    workspaceId,
+                    Set.of(workspaceId),
                     topK,
                     mode
             ));

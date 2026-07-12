@@ -9,30 +9,29 @@ public interface ConversationRepository {
 
     void insertSession(ConversationSession session);
 
-    Optional<ConversationSession> findOwnedSession(long workspaceId, long userId, long sessionId);
+    Optional<ConversationSession> findOwnedSession(long userId, long sessionId);
 
-    List<ConversationSession> findOwnedSessions(long workspaceId, long userId);
+    List<ConversationSession> findOwnedSessions(long userId);
 
-    boolean renameOwnedSession(long workspaceId, long userId, long sessionId, String title);
+    boolean renameOwnedSession(long userId, long sessionId, String title);
 
-    boolean deleteOwnedSession(long workspaceId, long userId, long sessionId);
+    boolean deleteOwnedSession(long userId, long sessionId);
 
     void insertMessage(long sessionId, ConversationMessage message);
 
-    List<ConversationMessage> findRecentMessages(long workspaceId, long userId, long sessionId, int limit);
+    List<ConversationMessage> findRecentMessages(long userId, long sessionId, int limit);
 
     List<ConversationMessage> findMessagesForSummary(
-            long workspaceId,
             long userId,
             long sessionId,
             long afterMessageId
     );
 
-    ConversationMemory findMemory(long workspaceId, long userId, long sessionId);
+    ConversationMemory findMemory(long userId, long sessionId);
 
-    int countMessages(long workspaceId, long userId, long sessionId);
+    int countMessages(long userId, long sessionId);
 
-    long sumTokens(long workspaceId, long userId, long sessionId);
+    long sumTokens(long userId, long sessionId);
 
     void upsertMemory(
             long memoryId,

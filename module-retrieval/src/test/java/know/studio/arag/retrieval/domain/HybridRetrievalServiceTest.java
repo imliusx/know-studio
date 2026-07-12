@@ -1,6 +1,6 @@
 package know.studio.arag.retrieval.domain;
 
-import know.studio.arag.identity.api.IdentityApi;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
 import know.studio.arag.platform.ai.provider.AiCapability;
 import know.studio.arag.platform.ai.provider.AiProvider;
@@ -28,8 +28,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.ArgumentMatchers.anySet;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -37,10 +37,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class HybridRetrievalServiceTest {
 
-    private static final long WORKSPACE_ID = 11L;
+    private static final long KNOWLEDGE_BASE_ID = 11L;
 
     @Mock
-    private IdentityApi identityApi;
+    private KnowledgeAccessApi knowledgeAccessApi;
     @Mock
     private QueryPlanner queryPlanner;
     @Mock
@@ -57,6 +57,7 @@ class HybridRetrievalServiceTest {
     @BeforeEach
     void setUp() {
         executor = Executors.newVirtualThreadPerTaskExecutor();
+        when(knowledgeAccessApi.readableKnowledgeBaseIds()).thenReturn(Set.of(KNOWLEDGE_BASE_ID));
     }
 
     @AfterEach
@@ -67,14 +68,14 @@ class HybridRetrievalServiceTest {
     @Test
     void fusesVectorAndKeywordEvidenceAndFallsBackWhenRerankFails() {
         when(queryPlanner.plan("What is RAG?")).thenReturn(List.of("What is RAG?"));
-        when(vectorSearch.search(anyLong(), any(float[].class), anyInt()))
+        when(vectorSearch.search(anySet(), any(float[].class), anyInt()))
                 .thenReturn(List.of(candidate(1L, 0.91, RetrievalSource.VECTOR)));
-        when(keywordSearch.search(WORKSPACE_ID, "What is RAG?", 50))
+        when(keywordSearch.search(Set.of(KNOWLEDGE_BASE_ID), "What is RAG?", 50))
                 .thenReturn(List.of(candidate(1L, 8.2, RetrievalSource.KEYWORD)));
         when(rerankPort.rerank(any(), any())).thenThrow(new IllegalStateException("reranker offline"));
-        when(neighborPort.findNeighbors(anyLong(), any(), anyInt())).thenReturn(List.of());
+        when(neighborPort.findNeighbors(anySet(), any(), anyInt())).thenReturn(List.of());
 
-        EvidenceBundle result = service().retrieve(new RetrievalQuery("What is RAG?", WORKSPACE_ID, 5));
+        EvidenceBundle result = service().retrieve(new RetrievalQuery("What is RAG?", Set.of(), 5));
 
         assertThat(result.level()).isEqualTo(EvidenceLevel.PARTIAL);
         assertThat(result.evidence()).hasSize(1);
@@ -84,16 +85,16 @@ class HybridRetrievalServiceTest {
     @Test
     void continuesWithVectorEvidenceWhenKeywordChannelFails() {
         when(queryPlanner.plan("retrieval")).thenReturn(List.of("retrieval"));
-        when(vectorSearch.search(anyLong(), any(float[].class), anyInt())).thenReturn(List.of(
+        when(vectorSearch.search(anySet(), any(float[].class), anyInt())).thenReturn(List.of(
                 candidate(1L, 0.91, RetrievalSource.VECTOR),
                 candidate(2L, 0.80, RetrievalSource.VECTOR)
         ));
-        when(keywordSearch.search(WORKSPACE_ID, "retrieval", 50))
+        when(keywordSearch.search(Set.of(KNOWLEDGE_BASE_ID), "retrieval", 50))
                 .thenThrow(new IllegalStateException("elasticsearch offline"));
         when(rerankPort.rerank(any(), any())).thenThrow(new IllegalStateException("reranker offline"));
-        when(neighborPort.findNeighbors(anyLong(), any(), anyInt())).thenReturn(List.of());
+        when(neighborPort.findNeighbors(anySet(), any(), anyInt())).thenReturn(List.of());
 
-        EvidenceBundle result = service().retrieve(new RetrievalQuery("retrieval", WORKSPACE_ID, 5));
+        EvidenceBundle result = service().retrieve(new RetrievalQuery("retrieval", Set.of(), 5));
 
         assertThat(result.level()).isEqualTo(EvidenceLevel.WEAK);
         assertThat(result.evidence()).hasSize(1);
@@ -102,38 +103,54 @@ class HybridRetrievalServiceTest {
     }
 
     @Test
-    void deniesWorkspaceBeforePlanningOrCallingModels() {
-        doThrow(new ForbiddenException()).when(identityApi).requireWorkspaceReadable(WORKSPACE_ID);
+    void deniesRetrievalWithoutReadableKnowledgeBasesBeforePlanningOrCallingModels() {
+        when(knowledgeAccessApi.readableKnowledgeBaseIds()).thenReturn(Set.of());
 
-        assertThatThrownBy(() -> service().retrieve(new RetrievalQuery("retrieval", WORKSPACE_ID, 5)))
+        assertThatThrownBy(() -> service().retrieve(new RetrievalQuery("retrieval", Set.of(), 5)))
                 .isInstanceOf(ForbiddenException.class);
 
         verify(queryPlanner, never()).plan(any());
-        verify(vectorSearch, never()).search(anyLong(), any(), anyInt());
+        verify(vectorSearch, never()).search(anySet(), any(), anyInt());
     }
 
     @Test
     void vectorOnlySkipsKeywordAndRerank() {
         when(queryPlanner.plan("vector only")).thenReturn(List.of("vector only"));
-        when(vectorSearch.search(anyLong(), any(float[].class), anyInt()))
+        when(vectorSearch.search(anySet(), any(float[].class), anyInt()))
                 .thenReturn(List.of(candidate(1L, 0.91, RetrievalSource.VECTOR)));
-        when(neighborPort.findNeighbors(anyLong(), any(), anyInt())).thenReturn(List.of());
+        when(neighborPort.findNeighbors(anySet(), any(), anyInt())).thenReturn(List.of());
 
         EvidenceBundle result = service().retrieve(new RetrievalQuery(
                 "vector only",
-                WORKSPACE_ID,
+                Set.of(KNOWLEDGE_BASE_ID),
                 5,
                 RetrievalMode.VECTOR_ONLY
         ));
 
         assertThat(result.evidence()).hasSize(1);
-        verify(keywordSearch, never()).search(anyLong(), any(), anyInt());
+        verify(keywordSearch, never()).search(anySet(), any(), anyInt());
         verify(rerankPort, never()).rerank(any(), any());
+    }
+
+    @Test
+    void requestedScopeCanOnlyNarrowReadableKnowledgeBases() {
+        when(knowledgeAccessApi.readableKnowledgeBaseIds()).thenReturn(Set.of(11L, 12L));
+        when(queryPlanner.plan("scoped")).thenReturn(List.of("scoped"));
+        when(vectorSearch.search(eq(Set.of(12L)), any(float[].class), eq(50))).thenReturn(List.of());
+
+        service().retrieve(new RetrievalQuery(
+                "scoped",
+                Set.of(12L, 99L),
+                5,
+                RetrievalMode.VECTOR_ONLY
+        ));
+
+        verify(vectorSearch).search(eq(Set.of(12L)), any(float[].class), eq(50));
     }
 
     private HybridRetrievalService service() {
         return new HybridRetrievalService(
-                identityApi,
+                knowledgeAccessApi,
                 queryPlanner,
                 embeddingClient(),
                 vectorSearch,
@@ -178,6 +195,7 @@ class HybridRetrievalServiceTest {
 
     private static SearchCandidate candidate(long chunkId, double score, RetrievalSource source) {
         return new SearchCandidate(
+                KNOWLEDGE_BASE_ID,
                 chunkId,
                 100L,
                 Math.toIntExact(chunkId),

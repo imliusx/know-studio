@@ -1,9 +1,11 @@
 package know.studio.arag.retrieval.api;
 
-public record RetrievalQuery(String question, long workspaceId, int topK, RetrievalMode mode) {
+import java.util.Set;
 
-    public RetrievalQuery(String question, long workspaceId, int topK) {
-        this(question, workspaceId, topK, RetrievalMode.HYBRID_RERANK);
+public record RetrievalQuery(String question, Set<Long> knowledgeBaseIds, int topK, RetrievalMode mode) {
+
+    public RetrievalQuery(String question, Set<Long> knowledgeBaseIds, int topK) {
+        this(question, knowledgeBaseIds, topK, RetrievalMode.HYBRID_RERANK);
     }
 
     public RetrievalQuery {
@@ -11,8 +13,9 @@ public record RetrievalQuery(String question, long workspaceId, int topK, Retrie
             throw new IllegalArgumentException("question must not be blank");
         }
         question = question.trim();
-        if (workspaceId <= 0) {
-            throw new IllegalArgumentException("workspaceId must be positive");
+        knowledgeBaseIds = knowledgeBaseIds == null ? Set.of() : Set.copyOf(knowledgeBaseIds);
+        if (knowledgeBaseIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new IllegalArgumentException("knowledgeBaseIds must contain only positive IDs");
         }
         if (topK < 1 || topK > 20) {
             throw new IllegalArgumentException("topK must be between 1 and 20");

@@ -9,7 +9,6 @@ import org.apache.ibatis.annotations.Param;
 public interface SessionMemoryMapper extends BaseMapper<SessionMemoryEntity> {
 
     SessionMemoryEntity selectOwned(
-            @Param("workspaceId") long workspaceId,
             @Param("userId") long userId,
             @Param("sessionId") long sessionId
     );

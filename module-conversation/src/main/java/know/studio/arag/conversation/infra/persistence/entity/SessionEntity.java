@@ -16,7 +16,6 @@ public class SessionEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
     private Long userId;
     private String title;
     private Boolean toolMode;

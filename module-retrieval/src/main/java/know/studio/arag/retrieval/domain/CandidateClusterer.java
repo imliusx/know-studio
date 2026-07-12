@@ -13,8 +13,11 @@ import java.util.stream.Collectors;
 public class CandidateClusterer {
 
     public List<FusedCandidate> cluster(List<FusedCandidate> candidates, int limit) {
-        Map<Long, List<FusedCandidate>> byDocument = candidates.stream()
-                .collect(Collectors.groupingBy(FusedCandidate::documentId));
+        Map<DocumentKey, List<FusedCandidate>> byDocument = candidates.stream()
+                .collect(Collectors.groupingBy(candidate -> new DocumentKey(
+                        candidate.knowledgeBaseId(),
+                        candidate.documentId()
+                )));
         List<FusedCandidate> clusters = new ArrayList<>();
         for (List<FusedCandidate> documentCandidates : byDocument.values()) {
             List<FusedCandidate> sorted = documentCandidates.stream()
@@ -53,6 +56,7 @@ public class CandidateClusterer {
                 .distinct()
                 .collect(Collectors.joining("\n\n"));
         return new FusedCandidate(
+                anchor.knowledgeBaseId(),
                 anchor.chunkId(),
                 anchor.documentId(),
                 anchor.chunkIndex(),
@@ -63,5 +67,8 @@ public class CandidateClusterer {
                 sources,
                 candidates.stream().mapToInt(FusedCandidate::supportCount).sum()
         );
+    }
+
+    private record DocumentKey(long knowledgeBaseId, long documentId) {
     }
 }

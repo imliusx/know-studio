@@ -9,6 +9,7 @@ import lombok.Setter;
 @NoArgsConstructor
 public class VectorSearchRow {
 
+    private Long knowledgeBaseId;
     private Long chunkId;
     private Long documentId;
     private Integer chunkIndex;

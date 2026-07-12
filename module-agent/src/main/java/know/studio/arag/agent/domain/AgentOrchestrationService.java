@@ -51,10 +51,8 @@ public class AgentOrchestrationService implements AgentApi {
     @Override
     @RagTraceNode("agent.orchestration")
     public Flux<ChatStreamEvent> streamChat(ChatRequest request) {
-        identityApi.requireWorkspaceReadable(request.workspaceId());
         CurrentIdentity identity = identityApi.currentUser();
         conversationApi.appendMessageForOwner(new AppendMessageCommand(
-                request.workspaceId(),
                 request.sessionId(),
                 MessageRole.USER,
                 request.message(),
@@ -62,20 +60,20 @@ public class AgentOrchestrationService implements AgentApi {
                 Map.of()
         ), identity.userId());
         ConversationContext context = conversationApi.loadContextForOwner(
-                request.workspaceId(),
                 identity.userId(),
                 request.sessionId(),
                 ""
         );
         IntentResult intent = intentClassifier.classify(request.message(), request.toolMode());
-        Flux<ChatStreamEvent> response = Flux.defer(() -> route(request, context, intent));
+        Flux<ChatStreamEvent> response = Flux.defer(() -> route(request, context, intent, identity.userId()));
         return persistAssistant(response, request, identity.userId());
     }
 
     private Flux<ChatStreamEvent> route(
             ChatRequest request,
             ConversationContext context,
-            IntentResult intent
+            IntentResult intent,
+            long ownerUserId
     ) {
         if (intent.intent() == know.studio.arag.agent.api.IntentType.CLARIFY) {
             String clarification = intent.clarification().isBlank()
@@ -91,7 +89,7 @@ public class AgentOrchestrationService implements AgentApi {
         }
         return switch (intent.intent()) {
             case KNOWLEDGE -> knowledgeAnswer(request, context, intent);
-            case TOOL -> toolAnswer(request, context, intent);
+            case TOOL -> toolAnswer(request, context, intent, ownerUserId);
             case CHAT -> generate(contextPrompt(context, request.message()), "", false, intent);
             case CLARIFY -> Flux.empty();
         };
@@ -104,7 +102,7 @@ public class AgentOrchestrationService implements AgentApi {
     ) {
         EvidenceBundle bundle = retrievalApi.retrieve(new RetrievalQuery(
                 request.message(),
-                request.workspaceId(),
+                request.knowledgeBaseIds(),
                 RETRIEVAL_TOP_K
         ));
         if (bundle.level() == EvidenceLevel.NONE) {
@@ -122,20 +120,20 @@ public class AgentOrchestrationService implements AgentApi {
     private Flux<ChatStreamEvent> toolAnswer(
             ChatRequest request,
             ConversationContext context,
-            IntentResult intent
+            IntentResult intent,
+            long ownerUserId
     ) {
         AgentTool tool = toolRegistry.find(request.message()).orElse(null);
         if (tool == null) {
             log.info(
-                    "No matching tool, falling back to knowledge retrieval workspaceId={} sessionId={}",
-                    request.workspaceId(),
+                    "No matching tool, falling back to knowledge retrieval sessionId={}",
                     request.sessionId()
             );
             return knowledgeAnswer(request, context, intent);
         }
         ResultHolder holder = new ResultHolder();
-        String key = tool.name() + ':' + request.workspaceId() + ':' + request.message();
-        ToolResult result = holder.getOrCompute(key, () -> tool.execute(request.workspaceId(), request.message()));
+        String key = tool.name() + ':' + ownerUserId + ':' + request.message();
+        ToolResult result = holder.getOrCompute(key, () -> tool.execute(ownerUserId, request.message()));
         return Flux.concat(
                 Flux.just(
                         new ChatStreamEvent(ChatStreamEvent.Type.TOOL_CALL, Map.of("name", tool.name())),
@@ -160,7 +158,7 @@ public class AgentOrchestrationService implements AgentApi {
             ));
             EvidenceBundle bundle = retrievalApi.retrieve(new RetrievalQuery(
                     subQuestion,
-                    request.workspaceId(),
+                    request.knowledgeBaseIds(),
                     RETRIEVAL_TOP_K
             ));
             evidence.addAll(bundle.evidence());
@@ -203,28 +201,30 @@ public class AgentOrchestrationService implements AgentApi {
             long ownerUserId
     ) {
         StringBuilder answer = new StringBuilder();
+        List<Map<String, Object>> citations = new ArrayList<>();
         return response
                 .doOnNext(event -> {
                     if (event.type() == ChatStreamEvent.Type.TOKEN) {
                         answer.append(event.payload());
+                    } else if (event.type() == ChatStreamEvent.Type.CITATION
+                            && event.payload() instanceof Map<?, ?> payload) {
+                        citations.add(copyCitation(payload));
                     }
                 })
                 .doOnComplete(() -> {
                     if (!answer.isEmpty()) {
                         conversationApi.appendMessageForOwner(new AppendMessageCommand(
-                                request.workspaceId(),
                                 request.sessionId(),
                                 MessageRole.ASSISTANT,
                                 answer.toString(),
                                 estimateTokens(answer.toString()),
-                                Map.of()
+                                assistantMetadata(citations)
                         ), ownerUserId);
                     }
                 })
                 .onErrorResume(exception -> {
                     log.error(
-                            "Agent stream failed workspaceId={} sessionId={}",
-                            request.workspaceId(),
+                            "Agent stream failed sessionId={}",
                             request.sessionId(),
                             exception
                     );
@@ -244,6 +244,7 @@ public class AgentOrchestrationService implements AgentApi {
     private static Flux<ChatStreamEvent> citationEvents(List<Evidence> evidence) {
         return Flux.fromIterable(evidence)
                 .map(item -> new ChatStreamEvent(ChatStreamEvent.Type.CITATION, Map.of(
+                        "knowledgeBaseId", item.knowledgeBaseId(),
                         "documentId", item.documentId(),
                         "chunkId", item.chunkId(),
                         "fileName", item.fileName(),
@@ -281,6 +282,26 @@ public class AgentOrchestrationService implements AgentApi {
         Map<Long, Evidence> unique = new LinkedHashMap<>();
         evidence.forEach(item -> unique.putIfAbsent(item.chunkId(), item));
         return unique.values().stream().limit(10).toList();
+    }
+
+    private static Map<String, Object> copyCitation(Map<?, ?> payload) {
+        Map<String, Object> citation = new LinkedHashMap<>();
+        payload.forEach((key, value) -> citation.put(String.valueOf(key), value));
+        return Map.copyOf(citation);
+    }
+
+    private static Map<String, Object> assistantMetadata(List<Map<String, Object>> citations) {
+        if (citations.isEmpty()) {
+            return Map.of();
+        }
+        List<Long> knowledgeBaseIds = citations.stream()
+                .map(citation -> (Long) citation.get("knowledgeBaseId"))
+                .distinct()
+                .toList();
+        return Map.of(
+                "knowledgeBaseIds", knowledgeBaseIds,
+                "citations", List.copyOf(citations)
+        );
     }
 
     private static int estimateTokens(String content) {

@@ -13,7 +13,7 @@ events.
 - `ConversationApi` owns session creation, owner-scoped message append, context
   loading, and summary maintenance.
 - Async callers use `appendMessageForOwner(command, ownerUserId)` only after the
-  request thread has authenticated the same owner and workspace.
+  request thread has authenticated the same owner.
 - `AgentApi.streamChat(ChatRequest)` returns `Flux<ChatStreamEvent>`.
 - SSE event names are `token`, `thinking`, `tool_call`, `tool_result`,
   `citation`, `done`, and `error`.
@@ -23,10 +23,13 @@ events.
 
 ### 3. Contracts
 
-- Every session lookup filters `workspace_id`, `user_id`, `session_id`, and
-  active status explicitly.
-- Message and memory queries join `sessions` so their workspace and owner
-  isolation remains visible in SQL.
+- Every session lookup filters `user_id`, `session_id`, and active status explicitly.
+- Message and memory queries join `sessions` so owner isolation remains visible in SQL.
+- Retrieval computes readable KnowledgeBase IDs on the server. Optional request
+  scopes are intersected with that set before vector, keyword, neighbor, rerank,
+  citation, or generation steps run.
+- Vector SQL and Elasticsearch keyword queries must filter by the same effective
+  `knowledge_base_id` set. Evidence and citation payloads carry `knowledgeBaseId`.
 - `session_memory.summarized_through_message_id` is the compression cursor.
   Subsequent compression only sends messages after that cursor to the model.
 - The request thread captures the authenticated user before returning a Flux.
@@ -37,8 +40,8 @@ events.
 
 ### 4. Validation & Error Matrix
 
-- Session owned by another user or workspace -> `NOT_FOUND` without leaking
-  whether the session exists.
+- Session owned by another user -> `NOT_FOUND` without leaking whether the session exists.
+- Empty effective KnowledgeBase scope -> `FORBIDDEN`; never fall back to unfiltered retrieval.
 - Blank message, negative token count, or missing role -> `BAD_REQUEST`.
 - Summary provider failure -> keep the persisted message, log one warning, and
   retry compression on a later append.
@@ -59,6 +62,9 @@ events.
   after a nonblank summary is stored.
 - Bad: summarize the entire conversation after every message once total count
   exceeds the threshold.
+- Good: intersect requested KnowledgeBase IDs with `readableKnowledgeBaseIds()`
+  before starting query planning or embeddings.
+- Bad: trust client-supplied KnowledgeBase IDs or filter only citation rendering.
 
 ### 6. Tests Required
 
@@ -67,7 +73,7 @@ events.
 - Unit test owner isolation and successful threshold-triggered compression.
 - Regression test that summary provider failure does not remove the appended
   message.
-- Integration test Flyway V3, session creation/context loading, message JSONB
+- Integration test Flyway migrations, session creation/context loading, message JSONB
   round-trip, and representative SSE event ordering.
 - Configure a real MCP server and chat/reasoning provider before claiming remote
   MCP or full generated-answer end-to-end verification.
@@ -92,3 +98,13 @@ return Flux.defer(() -> route(request, context, intent))
 ```
 
 The synchronous route work now belongs to the stream error boundary.
+
+## Design Decisions
+
+### User-Owned Conversations and KnowledgeBase-Scoped Retrieval
+
+Conversation session rows no longer require a Workspace value. Public APIs use
+`/api/conversations` and `/api/agent/chat/stream`; ownership is always resolved
+from the authenticated user plus session ID. Retrieval accepts an optional set
+of KnowledgeBase IDs, but `KnowledgeAccessApi` is the authority and request data
+can only narrow its readable set.

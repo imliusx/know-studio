@@ -18,24 +18,22 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/workspaces/{workspaceId}/sessions")
+@RequestMapping("/api/conversations")
 @RequiredArgsConstructor
 public class ConversationController {
 
     private final ConversationApi conversationApi;
 
     @GetMapping
-    public ApiResponse<java.util.List<SessionInfo>> list(@PathVariable long workspaceId) {
-        return ApiResponse.ok(conversationApi.listSessions(workspaceId));
+    public ApiResponse<java.util.List<SessionInfo>> list() {
+        return ApiResponse.ok(conversationApi.listSessions());
     }
 
     @PostMapping
     public ApiResponse<SessionInfo> create(
-            @PathVariable long workspaceId,
             @Valid @RequestBody CreateSessionRequest request
     ) {
         return ApiResponse.ok(conversationApi.createSession(new CreateSessionCommand(
-                workspaceId,
                 request.title(),
                 request.toolMode(),
                 request.deepThinking()
@@ -44,28 +42,25 @@ public class ConversationController {
 
     @GetMapping("/{sessionId}/context")
     public ApiResponse<ConversationContext> context(
-            @PathVariable long workspaceId,
             @PathVariable long sessionId,
             @RequestParam(defaultValue = "") String question
     ) {
-        return ApiResponse.ok(conversationApi.loadContext(workspaceId, sessionId, question));
+        return ApiResponse.ok(conversationApi.loadContext(sessionId, question));
     }
 
     @PatchMapping("/{sessionId}")
     public ApiResponse<SessionInfo> rename(
-            @PathVariable long workspaceId,
             @PathVariable long sessionId,
             @Valid @RequestBody RenameSessionRequest request
     ) {
-        return ApiResponse.ok(conversationApi.renameSession(workspaceId, sessionId, request.title()));
+        return ApiResponse.ok(conversationApi.renameSession(sessionId, request.title()));
     }
 
     @DeleteMapping("/{sessionId}")
     public ApiResponse<Void> delete(
-            @PathVariable long workspaceId,
             @PathVariable long sessionId
     ) {
-        conversationApi.deleteSession(workspaceId, sessionId);
+        conversationApi.deleteSession(sessionId);
         return ApiResponse.ok();
     }
 }

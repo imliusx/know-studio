@@ -8,7 +8,6 @@ import know.studio.arag.platform.core.ratelimit.RateLimit;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +17,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.time.Duration;
 
 @RestController
-@RequestMapping("/api/workspaces/{workspaceId}/agent")
+@RequestMapping("/api/agent")
 @RequiredArgsConstructor
 public class AgentController {
 
@@ -30,14 +29,13 @@ public class AgentController {
     @RateLimit(key = "agent.chat", permits = 5, windowSeconds = 1)
     @RagTraceNode("api.agent.stream")
     public SseEmitter streamChat(
-            @PathVariable long workspaceId,
             @Valid @RequestBody StreamChatRequest request
     ) {
         SseEmitterSender sender = new SseEmitterSender(SSE_TIMEOUT_MILLIS);
         agentApi.streamChat(new ChatRequest(
                         request.sessionId(),
-                        workspaceId,
                         request.message(),
+                        request.knowledgeBaseIds(),
                         request.toolMode(),
                         request.deepThinking()
                 ))

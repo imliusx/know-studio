@@ -35,9 +35,9 @@ public class MockBusinessTool implements AgentTool {
 
     @Override
     @RagTraceNode("agent.tool.mock-business")
-    public ToolResult execute(long workspaceId, String question) {
-        String content = "模拟业务系统返回：workspace=" + workspaceId
+    public ToolResult execute(long userId, String question) {
+        String content = "模拟业务系统返回：user=" + userId
                 + "，查询条件=" + question + "，状态=正常";
-        return new ToolResult(name(), content, Map.of("mock", true, "workspaceId", workspaceId));
+        return new ToolResult(name(), content, Map.of("mock", true, "userId", userId));
     }
 }

@@ -38,13 +38,11 @@ public class ConversationService implements ConversationApi {
     @Override
     @Transactional
     public SessionInfo createSession(CreateSessionCommand command) {
-        identityApi.requireWorkspaceReadable(command.workspaceId());
         CurrentIdentity identity = identityApi.currentUser();
         String title = normalizeTitle(command.title());
         Instant now = Instant.now();
         ConversationSession session = new ConversationSession(
                 idGenerator.nextId(),
-                command.workspaceId(),
                 identity.userId(),
                 title,
                 command.toolMode(),
@@ -59,32 +57,31 @@ public class ConversationService implements ConversationApi {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SessionInfo> listSessions(long workspaceId) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+    public List<SessionInfo> listSessions() {
         CurrentIdentity identity = identityApi.currentUser();
-        return repository.findOwnedSessions(workspaceId, identity.userId()).stream()
+        return repository.findOwnedSessions(identity.userId()).stream()
                 .map(ConversationService::toInfo)
                 .toList();
     }
 
     @Override
     @Transactional
-    public SessionInfo renameSession(long workspaceId, long sessionId, String title) {
-        CurrentIdentity identity = requireOwnedSession(workspaceId, sessionId);
+    public SessionInfo renameSession(long sessionId, String title) {
+        CurrentIdentity identity = requireOwnedSession(sessionId);
         String normalizedTitle = normalizeTitle(title);
-        if (!repository.renameOwnedSession(workspaceId, identity.userId(), sessionId, normalizedTitle)) {
+        if (!repository.renameOwnedSession(identity.userId(), sessionId, normalizedTitle)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "会话不存在");
         }
-        return repository.findOwnedSession(workspaceId, identity.userId(), sessionId)
+        return repository.findOwnedSession(identity.userId(), sessionId)
                 .map(ConversationService::toInfo)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
     }
 
     @Override
     @Transactional
-    public void deleteSession(long workspaceId, long sessionId) {
-        CurrentIdentity identity = requireOwnedSession(workspaceId, sessionId);
-        if (!repository.deleteOwnedSession(workspaceId, identity.userId(), sessionId)) {
+    public void deleteSession(long sessionId) {
+        CurrentIdentity identity = requireOwnedSession(sessionId);
+        if (!repository.deleteOwnedSession(identity.userId(), sessionId)) {
             throw new BusinessException(ErrorCode.NOT_FOUND, "会话不存在");
         }
     }
@@ -92,14 +89,14 @@ public class ConversationService implements ConversationApi {
     @Override
     @Transactional
     public ConversationMessage appendMessage(AppendMessageCommand command) {
-        CurrentIdentity identity = requireOwnedSession(command.workspaceId(), command.sessionId());
+        CurrentIdentity identity = requireOwnedSession(command.sessionId());
         return appendMessageForOwner(command, identity.userId());
     }
 
     @Override
     @Transactional
     public ConversationMessage appendMessageForOwner(AppendMessageCommand command, long ownerUserId) {
-        requireOwnedSession(command.workspaceId(), ownerUserId, command.sessionId());
+        requireOwnedSession(ownerUserId, command.sessionId());
         if (command.content() == null || command.content().isBlank()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "消息内容不能为空");
         }
@@ -115,29 +112,27 @@ public class ConversationService implements ConversationApi {
                 Instant.now()
         );
         repository.insertMessage(command.sessionId(), message);
-        summarizeIfNeeded(command.workspaceId(), ownerUserId, command.sessionId());
+        summarizeIfNeeded(ownerUserId, command.sessionId());
         return message;
     }
 
     @Override
     @Transactional(readOnly = true)
-    public ConversationContext loadContext(long workspaceId, long sessionId, String currentQuestion) {
-        CurrentIdentity identity = requireOwnedSession(workspaceId, sessionId);
-        return loadContextForOwner(workspaceId, identity.userId(), sessionId, currentQuestion);
+    public ConversationContext loadContext(long sessionId, String currentQuestion) {
+        CurrentIdentity identity = requireOwnedSession(sessionId);
+        return loadContextForOwner(identity.userId(), sessionId, currentQuestion);
     }
 
     @Override
     @Transactional(readOnly = true)
     public ConversationContext loadContextForOwner(
-            long workspaceId,
             long ownerUserId,
             long sessionId,
             String currentQuestion
     ) {
-        requireOwnedSession(workspaceId, ownerUserId, sessionId);
-        ConversationMemory memory = repository.findMemory(workspaceId, ownerUserId, sessionId);
+        requireOwnedSession(ownerUserId, sessionId);
+        ConversationMemory memory = repository.findMemory(ownerUserId, sessionId);
         List<ConversationMessage> recent = repository.findRecentMessages(
-                workspaceId,
                 ownerUserId,
                 sessionId,
                 RECENT_MESSAGE_LIMIT
@@ -153,22 +148,21 @@ public class ConversationService implements ConversationApi {
 
     @Override
     @Transactional
-    public void summarizeIfNeeded(long workspaceId, long sessionId) {
-        CurrentIdentity identity = requireOwnedSession(workspaceId, sessionId);
-        summarizeIfNeeded(workspaceId, identity.userId(), sessionId);
+    public void summarizeIfNeeded(long sessionId) {
+        CurrentIdentity identity = requireOwnedSession(sessionId);
+        summarizeIfNeeded(identity.userId(), sessionId);
     }
 
-    private void summarizeIfNeeded(long workspaceId, long userId, long sessionId) {
-        int messageCount = repository.countMessages(workspaceId, userId, sessionId);
-        long tokenCount = repository.sumTokens(workspaceId, userId, sessionId);
-        ConversationMemory current = repository.findMemory(workspaceId, userId, sessionId);
+    private void summarizeIfNeeded(long userId, long sessionId) {
+        int messageCount = repository.countMessages(userId, sessionId);
+        long tokenCount = repository.sumTokens(userId, sessionId);
+        ConversationMemory current = repository.findMemory(userId, sessionId);
         if (current.summarizedThroughMessageId() == 0
                 && messageCount <= SUMMARY_MESSAGE_THRESHOLD
                 && tokenCount <= SUMMARY_TOKEN_THRESHOLD) {
             return;
         }
         List<ConversationMessage> messages = repository.findMessagesForSummary(
-                workspaceId,
                 userId,
                 sessionId,
                 current.summarizedThroughMessageId()
@@ -202,16 +196,15 @@ public class ConversationService implements ConversationApi {
         );
     }
 
-    private CurrentIdentity requireOwnedSession(long workspaceId, long sessionId) {
-        identityApi.requireWorkspaceReadable(workspaceId);
+    private CurrentIdentity requireOwnedSession(long sessionId) {
         CurrentIdentity identity = identityApi.currentUser();
-        repository.findOwnedSession(workspaceId, identity.userId(), sessionId)
+        repository.findOwnedSession(identity.userId(), sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
         return identity;
     }
 
-    private void requireOwnedSession(long workspaceId, long ownerUserId, long sessionId) {
-        repository.findOwnedSession(workspaceId, ownerUserId, sessionId)
+    private void requireOwnedSession(long ownerUserId, long sessionId) {
+        repository.findOwnedSession(ownerUserId, sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "会话不存在"));
     }
 
@@ -226,7 +219,6 @@ public class ConversationService implements ConversationApi {
     private static SessionInfo toInfo(ConversationSession session) {
         return new SessionInfo(
                 session.id(),
-                session.workspaceId(),
                 session.userId(),
                 session.title(),
                 session.toolMode(),

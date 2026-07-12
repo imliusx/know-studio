@@ -4,7 +4,6 @@ import java.time.Instant;
 
 public record SessionInfo(
         long id,
-        long workspaceId,
         long userId,
         String title,
         boolean toolMode,
