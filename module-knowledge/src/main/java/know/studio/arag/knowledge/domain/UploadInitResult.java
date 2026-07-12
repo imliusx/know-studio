@@ -1,11 +1,13 @@
 package know.studio.arag.knowledge.domain;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 import java.util.List;
 
 public record UploadInitResult(
         boolean instantUpload,
-        Long documentId,
-        Long uploadSessionId,
+        @JsonLongId Long documentId,
+        @JsonLongId Long uploadSessionId,
         List<Integer> uploadedChunks
 ) {
 

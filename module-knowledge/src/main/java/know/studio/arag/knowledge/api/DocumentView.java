@@ -1,8 +1,10 @@
 package know.studio.arag.knowledge.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 public record DocumentView(
-        long id,
-        long knowledgeBaseId,
+        @JsonLongId long id,
+        @JsonLongId long knowledgeBaseId,
         String fileName,
         String contentType,
         long fileSize,

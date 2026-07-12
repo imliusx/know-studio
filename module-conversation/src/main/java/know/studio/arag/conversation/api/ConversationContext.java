@@ -1,9 +1,11 @@
 package know.studio.arag.conversation.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 import java.util.List;
 
 public record ConversationContext(
-        long sessionId,
+        @JsonLongId long sessionId,
         String compactSummary,
         String sessionSummary,
         List<ConversationMessage> recentMessages,

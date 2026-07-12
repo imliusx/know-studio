@@ -1,7 +1,9 @@
 package know.studio.arag.identity.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 public record CurrentIdentity(
-        long userId,
+        @JsonLongId long userId,
         String email,
         String displayName,
         SystemRole systemRole

@@ -1,16 +1,17 @@
 import http, { unwrapApiResponse } from './http'
+import type { EntityId } from './id'
 
 export type TeamRole = 'TEAM_ADMIN' | 'MEMBER'
 
 export interface TeamInfo {
-  teamId: number
+  teamId: EntityId
   name: string
   description: string | null
   role: TeamRole
 }
 
 export interface TeamMemberInfo {
-  userId: number
+  userId: EntityId
   email: string
   displayName: string
   role: TeamRole
@@ -23,28 +24,28 @@ export async function listTeams() {
 
 export async function createTeam(request: { name: string; description?: string }) {
   const response = await http.post('/teams', request)
-  return unwrapApiResponse<{ teamId: number }>(response.data, '创建团队失败')
+  return unwrapApiResponse<{ teamId: EntityId }>(response.data, '创建团队失败')
 }
 
-export async function listTeamMembers(teamId: number) {
+export async function listTeamMembers(teamId: EntityId) {
   const response = await http.get(`/teams/${teamId}/members`)
   return unwrapApiResponse<TeamMemberInfo[]>(response.data, '获取团队成员失败')
 }
 
 export async function addTeamMember(
-  teamId: number,
+  teamId: EntityId,
   request: { email: string; role: TeamRole }
 ) {
   const response = await http.post(`/teams/${teamId}/members`, request)
   return unwrapApiResponse<void>(response.data, '添加团队成员失败')
 }
 
-export async function updateTeamMember(teamId: number, userId: number, role: TeamRole) {
+export async function updateTeamMember(teamId: EntityId, userId: EntityId, role: TeamRole) {
   const response = await http.put(`/teams/${teamId}/members/${userId}`, { role })
   return unwrapApiResponse<void>(response.data, '更新成员角色失败')
 }
 
-export async function removeTeamMember(teamId: number, userId: number) {
+export async function removeTeamMember(teamId: EntityId, userId: EntityId) {
   const response = await http.delete(`/teams/${teamId}/members/${userId}`)
   return unwrapApiResponse<void>(response.data, '移除团队成员失败')
 }

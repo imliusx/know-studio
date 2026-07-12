@@ -37,7 +37,7 @@ public class KnowledgeBaseController {
     }
 
     @PostMapping
-    public ApiResponse<Map<String, Long>> create(
+    public ApiResponse<Map<String, String>> create(
             @Valid @RequestBody CreateKnowledgeBaseRequest request
     ) {
         long knowledgeBaseId = knowledgeBaseService.create(
@@ -46,7 +46,7 @@ public class KnowledgeBaseController {
                 request.visibility(),
                 request.ownerTeamId()
         );
-        return ApiResponse.ok(Map.of("knowledgeBaseId", knowledgeBaseId));
+        return ApiResponse.ok(Map.of("knowledgeBaseId", Long.toString(knowledgeBaseId)));
     }
 
     @PatchMapping("/{knowledgeBaseId}")

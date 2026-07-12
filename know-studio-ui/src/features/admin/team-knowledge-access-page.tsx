@@ -46,10 +46,12 @@ export function TeamKnowledgeAccessPage() {
     () => knowledgeBasesQuery.data ?? [],
     [knowledgeBasesQuery.data]
   )
-  const effectiveTeamId = Number(selectedTeamId || teams[0]?.teamId || 0)
-  const effectiveKnowledgeBaseId = Number(
-    selectedKnowledgeBaseId || knowledgeBases.find((item) => item.permission === 'MANAGE')?.knowledgeBaseId || 0
-  )
+  const effectiveTeamId = selectedTeamId || teams[0]?.teamId || ''
+  const effectiveKnowledgeBaseId =
+    selectedKnowledgeBaseId ||
+    knowledgeBases.find((item) => item.permission === 'MANAGE')
+      ?.knowledgeBaseId ||
+    ''
   const selectedTeam = teams.find((team) => team.teamId === effectiveTeamId)
   const manageableKnowledgeBases = useMemo(
     () => knowledgeBases.filter((item) => item.permission === 'MANAGE'),
@@ -63,12 +65,12 @@ export function TeamKnowledgeAccessPage() {
   const membersQuery = useQuery({
     queryKey: ['teams', effectiveTeamId, 'members'],
     queryFn: () => listTeamMembers(effectiveTeamId),
-    enabled: effectiveTeamId > 0 && selectedTeam?.role === 'TEAM_ADMIN',
+    enabled: Boolean(effectiveTeamId && selectedTeam?.role === 'TEAM_ADMIN'),
   })
   const grantsQuery = useQuery({
     queryKey: ['knowledge-base-grants', effectiveKnowledgeBaseId],
     queryFn: () => listKnowledgeBaseTeamGrants(effectiveKnowledgeBaseId),
-    enabled: effectiveKnowledgeBaseId > 0,
+    enabled: Boolean(effectiveKnowledgeBaseId),
   })
 
   const refresh = () => {

@@ -32,9 +32,9 @@ public class TeamController {
     }
 
     @PostMapping
-    public ApiResponse<Map<String, Long>> create(@Valid @RequestBody CreateTeamRequest request) {
+    public ApiResponse<Map<String, String>> create(@Valid @RequestBody CreateTeamRequest request) {
         long teamId = identityService.createTeam(request.name(), request.description(), request.parentId());
-        return ApiResponse.ok(Map.of("teamId", teamId));
+        return ApiResponse.ok(Map.of("teamId", Long.toString(teamId)));
     }
 
     @PatchMapping("/{teamId}")

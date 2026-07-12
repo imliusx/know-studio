@@ -1,4 +1,5 @@
 import http, { unwrapApiResponse } from './http'
+import type { EntityId } from './id'
 
 export type DocumentStatus =
   | 'PENDING'
@@ -7,8 +8,8 @@ export type DocumentStatus =
   | 'FAILED'
 
 interface DocumentView {
-  id: number
-  knowledgeBaseId: number
+  id: EntityId
+  knowledgeBaseId: EntityId
   fileName: string
   contentType: string | null
   fileSize: number
@@ -20,8 +21,8 @@ interface DocumentView {
 }
 
 export interface DocumentListItem {
-  documentId: number
-  groupId: number
+  documentId: EntityId
+  groupId: EntityId
   fileName: string
   fileExt: string | null
   contentType: string | null
@@ -29,14 +30,14 @@ export interface DocumentListItem {
   status: DocumentStatus
   failureReason: string | null
   uploadedAt: string
-  uploaderUserId: number
+  uploaderUserId: EntityId
   uploaderUserCode: string
   uploaderDisplayName: string
   previewText: string | null
 }
 
 export interface DocumentPreview {
-  documentId: number
+  documentId: EntityId
   fileName: string
   previewText: string
 }
@@ -48,21 +49,21 @@ export interface DocumentQuery {
 
 export interface UploadInitResult {
   instantUpload: boolean
-  documentId: number | null
-  uploadSessionId: number | null
+  documentId: EntityId | null
+  uploadSessionId: EntityId | null
   uploadedChunks: number[]
 }
 
 export interface UploadStatusResult {
-  uploadSessionId: number
+  uploadSessionId: EntityId
   totalChunks: number
   uploadedChunks: number[]
   status: 'UPLOADING' | 'COMPLETED' | 'EXPIRED'
-  documentId: number | null
+  documentId: EntityId | null
 }
 
 export async function listDocuments(
-  knowledgeBaseId: number,
+  knowledgeBaseId: EntityId,
   query: DocumentQuery = {}
 ) {
   const response = await http.get(`/knowledge-bases/${knowledgeBaseId}/documents`, {
@@ -73,7 +74,7 @@ export async function listDocuments(
 }
 
 export async function initDocumentUpload(
-  knowledgeBaseId: number,
+  knowledgeBaseId: EntityId,
   payload: {
     fileName: string
     fileSize: number
@@ -90,9 +91,9 @@ export async function initDocumentUpload(
 }
 
 export async function uploadDocumentChunk(
-  knowledgeBaseId: number,
+  knowledgeBaseId: EntityId,
   payload: {
-    uploadSessionId: number
+    uploadSessionId: EntityId
     chunkIndex: number
     chunkHash: string
     chunk: Blob
@@ -113,8 +114,8 @@ export async function uploadDocumentChunk(
 }
 
 export async function getUploadStatus(
-  knowledgeBaseId: number,
-  uploadSessionId: number
+  knowledgeBaseId: EntityId,
+  uploadSessionId: EntityId
 ) {
   const response = await http.get(
     `/knowledge-bases/${knowledgeBaseId}/documents/uploads/${uploadSessionId}`
@@ -123,20 +124,20 @@ export async function getUploadStatus(
 }
 
 export async function completeDocumentUpload(
-  knowledgeBaseId: number,
-  uploadSessionId: number
+  knowledgeBaseId: EntityId,
+  uploadSessionId: EntityId
 ) {
   const response = await http.post(
     `/knowledge-bases/${knowledgeBaseId}/documents/uploads/${uploadSessionId}/complete`
   )
-  const result = unwrapApiResponse<{ documentId: number }>(
+  const result = unwrapApiResponse<{ documentId: EntityId }>(
     response.data,
     '完成上传失败'
   )
   return result.documentId
 }
 
-export async function deleteDocument(documentId: number, knowledgeBaseId: number) {
+export async function deleteDocument(documentId: EntityId, knowledgeBaseId: EntityId) {
   const response = await http.delete(
     `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`
   )
@@ -144,8 +145,8 @@ export async function deleteDocument(documentId: number, knowledgeBaseId: number
 }
 
 export async function retryDocumentIngestion(
-  documentId: number,
-  knowledgeBaseId: number
+  documentId: EntityId,
+  knowledgeBaseId: EntityId
 ) {
   const response = await http.post(
     `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/retry-ingestion`
@@ -153,7 +154,7 @@ export async function retryDocumentIngestion(
   return unwrapApiResponse<void>(response.data, '重试入库失败')
 }
 
-export async function previewDocument(documentId: number, knowledgeBaseId: number) {
+export async function previewDocument(documentId: EntityId, knowledgeBaseId: EntityId) {
   const response = await http.get(
     `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`
   )
@@ -166,8 +167,8 @@ export async function previewDocument(documentId: number, knowledgeBaseId: numbe
 }
 
 export async function downloadDocumentContent(
-  documentId: number,
-  knowledgeBaseId: number
+  documentId: EntityId,
+  knowledgeBaseId: EntityId
 ) {
   const response = await http.get(
     `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/content`,
@@ -189,7 +190,7 @@ function toListItem(document: DocumentView): DocumentListItem {
     status: document.status,
     failureReason: document.failureReason,
     uploadedAt: new Date(0).toISOString(),
-    uploaderUserId: 0,
+    uploaderUserId: '0',
     uploaderUserCode: '-',
     uploaderDisplayName: '-',
     previewText: document.previewText,

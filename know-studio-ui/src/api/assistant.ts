@@ -1,16 +1,17 @@
 import http, { HttpStatusError, unwrapApiResponse } from './http'
+import { asEntityId, type EntityId } from './id'
 import type { Citation } from './qa'
 
 export type AssistantToolMode = 'CHAT' | 'KB_SEARCH'
 
 export interface AssistantSessionListItem {
-  sessionId: number
+  sessionId: EntityId
   title: string
   lastMessageAt: string | null
 }
 
 export interface AssistantSessionDetail {
-  sessionId: number
+  sessionId: EntityId
   title: string
   status: string
   lastMessageAt: string | null
@@ -18,11 +19,11 @@ export interface AssistantSessionDetail {
 }
 
 export interface AssistantMessage {
-  messageId: number
-  sessionId: number
+  messageId: EntityId
+  sessionId: EntityId
   role: string
   toolMode: AssistantToolMode | null
-  groupId: number | null
+  groupId: EntityId | null
   content: string
   structuredPayload: string | null
   createdAt: string
@@ -53,7 +54,7 @@ export type AssistantStreamEvent =
   | { event: 'error'; error: string }
 
 interface SessionInfoWire {
-  id: number
+  id: EntityId
   title: string
   status: string
   createdAt: string
@@ -64,7 +65,7 @@ interface ConversationContextWire {
   compactSummary: string
   sessionSummary: string
   recentMessages: Array<{
-    id: number
+    id: EntityId
     role: string
     content: string
     metadata: Record<string, unknown>
@@ -100,7 +101,7 @@ export async function listAssistantSessions() {
 }
 
 export async function getAssistantContext(
-  sessionId: number,
+  sessionId: EntityId,
   recentLimit = 20
 ) {
   const response = await http.get(
@@ -127,7 +128,7 @@ export async function getAssistantContext(
 }
 
 export async function renameAssistantSession(
-  sessionId: number,
+  sessionId: EntityId,
   title: string
 ) {
   const response = await http.patch(
@@ -140,7 +141,7 @@ export async function renameAssistantSession(
 }
 
 export async function deleteAssistantSession(
-  sessionId: number
+  sessionId: EntityId
 ) {
   const response = await http.delete(`/conversations/${sessionId}`)
   return unwrapApiResponse<void>(response.data, '删除会话失败')
@@ -148,11 +149,11 @@ export async function deleteAssistantSession(
 
 export async function streamAssistantChat(
   request: {
-    sessionId: number
+    sessionId: EntityId
     message: string
     toolMode: AssistantToolMode
     deepThinking: boolean
-    knowledgeBaseIds?: number[]
+    knowledgeBaseIds?: EntityId[]
   },
   accessToken: string,
   onEvent: (event: AssistantStreamEvent) => void,
@@ -208,7 +209,7 @@ export async function streamAssistantChat(
 
 function firstKnowledgeBaseId(metadata: Record<string, unknown>) {
   const ids = metadata.knowledgeBaseIds
-  return Array.isArray(ids) && typeof ids[0] === 'number' ? ids[0] : null
+  return Array.isArray(ids) ? asEntityId(ids[0]) : null
 }
 
 function parseSseEvent(frame: string): AssistantStreamEvent | null {
@@ -256,12 +257,16 @@ function parseSseEvent(frame: string): AssistantStreamEvent | null {
   }
   if (event === 'citation') {
     const record = asRecord(payload)
+    const knowledgeBaseId = asEntityId(record.knowledgeBaseId)
+    const documentId = asEntityId(record.documentId)
+    const chunkId = asEntityId(record.chunkId)
+    if (!knowledgeBaseId || !documentId || !chunkId) return null
     return {
       event,
       citation: {
-        knowledgeBaseId: Number(record.knowledgeBaseId),
-        documentId: Number(record.documentId),
-        chunkId: Number(record.chunkId),
+        knowledgeBaseId,
+        documentId,
+        chunkId,
         chunkIndex: Number(record.chunkIndex ?? 0),
         fileName: String(record.fileName ?? ''),
         score: Number(record.score ?? 0),

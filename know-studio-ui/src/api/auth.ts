@@ -1,7 +1,8 @@
 import http, { unwrapApiResponse } from './http'
+import type { EntityId } from './id'
 
 export interface CurrentIdentity {
-  userId: number
+  userId: EntityId
   email: string
   displayName: string
   systemRole: 'ADMIN' | 'USER'

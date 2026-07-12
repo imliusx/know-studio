@@ -6,5 +6,5 @@ export function KnowledgeBaseRoute() {
     from: '/_authenticated/admin/documents/$groupId',
   })
 
-  return <KnowledgeBaseDocumentsPage groupId={Number(groupId)} />
+  return <KnowledgeBaseDocumentsPage groupId={groupId} />
 }

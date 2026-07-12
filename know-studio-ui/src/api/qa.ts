@@ -1,9 +1,10 @@
 import http, { unwrapBareResponse } from './http'
+import type { EntityId } from './id'
 
 export interface Citation {
-  knowledgeBaseId: number
-  documentId: number
-  chunkId: number
+  knowledgeBaseId: EntityId
+  documentId: EntityId
+  chunkId: EntityId
   chunkIndex: number
   fileName: string
   score: number

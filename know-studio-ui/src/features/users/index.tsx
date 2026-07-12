@@ -39,12 +39,13 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatDateTime } from '@/features/ddrag/shared'
+import type { EntityId } from '@/api/id'
 
 export function Users() {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((state) => state.auth.user)
   const [keyword, setKeyword] = useState('')
-  const [detailUserId, setDetailUserId] = useState<number | null>(null)
+  const [detailUserId, setDetailUserId] = useState<EntityId | null>(null)
   const usersQuery = useQuery({
     queryKey: ['admin-users'],
     queryFn: listAdminUsers,
@@ -56,7 +57,7 @@ export function Users() {
     enabled: currentUser?.systemRole === 'ADMIN' && detailUserId !== null,
   })
   const statusMutation = useMutation({
-    mutationFn: ({ userId, status }: { userId: number; status: string }) =>
+    mutationFn: ({ userId, status }: { userId: EntityId; status: string }) =>
       updateUserStatus(userId, status),
     onSuccess: () => {
       toast.success('用户状态已更新')

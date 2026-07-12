@@ -1,19 +1,20 @@
 import http, { unwrapApiResponse } from './http'
+import type { EntityId } from './id'
 
 export type KnowledgeBasePermission = 'READ' | 'MANAGE'
 export type KnowledgeBaseVisibility = 'COMPANY' | 'TEAM' | 'PRIVATE'
 
 export interface KnowledgeBaseInfo {
-  knowledgeBaseId: number
+  knowledgeBaseId: EntityId
   name: string
   description: string | null
   visibility: KnowledgeBaseVisibility
-  ownerTeamId: number | null
+  ownerTeamId: EntityId | null
   permission: KnowledgeBasePermission
 }
 
 export interface KnowledgeBaseTeamGrantInfo {
-  teamId: number
+  teamId: EntityId
   permission: KnowledgeBasePermission
 }
 
@@ -26,16 +27,16 @@ export async function createKnowledgeBase(request: {
   name: string
   description?: string
   visibility: KnowledgeBaseVisibility
-  ownerTeamId?: number
+  ownerTeamId?: EntityId
 }) {
   const response = await http.post('/knowledge-bases', request)
-  return unwrapApiResponse<{ knowledgeBaseId: number }>(
+  return unwrapApiResponse<{ knowledgeBaseId: EntityId }>(
     response.data,
     '创建知识库失败'
   )
 }
 
-export async function listKnowledgeBaseTeamGrants(knowledgeBaseId: number) {
+export async function listKnowledgeBaseTeamGrants(knowledgeBaseId: EntityId) {
   const response = await http.get(`/knowledge-bases/${knowledgeBaseId}/teams`)
   return unwrapApiResponse<KnowledgeBaseTeamGrantInfo[]>(
     response.data,
@@ -44,8 +45,8 @@ export async function listKnowledgeBaseTeamGrants(knowledgeBaseId: number) {
 }
 
 export async function saveKnowledgeBaseTeamGrant(
-  knowledgeBaseId: number,
-  teamId: number,
+  knowledgeBaseId: EntityId,
+  teamId: EntityId,
   permission: KnowledgeBasePermission
 ) {
   const response = await http.put(

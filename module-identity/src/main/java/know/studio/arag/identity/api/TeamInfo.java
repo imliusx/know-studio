@@ -1,7 +1,9 @@
 package know.studio.arag.identity.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 public record TeamInfo(
-        long teamId,
+        @JsonLongId long teamId,
         String name,
         String description,
         TeamRole role

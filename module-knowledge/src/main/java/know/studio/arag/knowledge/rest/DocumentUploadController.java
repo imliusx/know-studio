@@ -89,11 +89,14 @@ public class DocumentUploadController {
     }
 
     @PostMapping("/documents/uploads/{sessionId}/complete")
-    public ApiResponse<Map<String, Long>> complete(
+    public ApiResponse<Map<String, String>> complete(
             @PathVariable long knowledgeBaseId,
             @PathVariable long sessionId
     ) {
-        return ApiResponse.ok(Map.of("documentId", uploadService.complete(knowledgeBaseId, sessionId)));
+        return ApiResponse.ok(Map.of(
+                "documentId",
+                Long.toString(uploadService.complete(knowledgeBaseId, sessionId))
+        ));
     }
 
     @GetMapping("/documents/{documentId}")

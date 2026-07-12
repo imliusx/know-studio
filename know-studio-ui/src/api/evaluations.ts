@@ -1,29 +1,30 @@
 import http, { unwrapApiResponse } from './http'
+import type { EntityId } from './id'
 
 export type RetrievalMode = 'VECTOR_ONLY' | 'HYBRID' | 'HYBRID_RERANK'
 
 export interface EvaluationDataset {
-  id: number
-  knowledgeBaseId: number
-  userId: number
+  id: EntityId
+  knowledgeBaseId: EntityId
+  userId: EntityId
   name: string
   description: string | null
   createdAt: string
 }
 
 export interface EvaluationSample {
-  id: number
-  datasetId: number
+  id: EntityId
+  datasetId: EntityId
   question: string
-  relevantChunkIds: number[]
+  relevantChunkIds: EntityId[]
   expectedAnswer: string | null
   createdAt: string
 }
 
 export interface EvaluationRun {
-  id: number
-  datasetId: number
-  userId: number
+  id: EntityId
+  datasetId: EntityId
+  userId: EntityId
   mode: RetrievalMode
   recallAtK: number
   sampleCount: number
@@ -40,22 +41,22 @@ export interface EvaluationMetric {
 }
 
 export interface EvaluationReport {
-  datasetId: number
+  datasetId: EntityId
   topK: number
   metrics: EvaluationMetric[]
   completedAt: string
 }
 
-const evaluationBase = (knowledgeBaseId: number) =>
+const evaluationBase = (knowledgeBaseId: EntityId) =>
   `/knowledge-bases/${knowledgeBaseId}/evaluations`
 
-export async function listEvaluationDatasets(knowledgeBaseId: number) {
+export async function listEvaluationDatasets(knowledgeBaseId: EntityId) {
   const response = await http.get(`${evaluationBase(knowledgeBaseId)}/datasets`)
   return unwrapApiResponse<EvaluationDataset[]>(response.data, '获取评测数据集失败')
 }
 
 export async function createEvaluationDataset(
-  knowledgeBaseId: number,
+  knowledgeBaseId: EntityId,
   request: { name: string; description?: string }
 ) {
   const response = await http.post(
@@ -66,8 +67,8 @@ export async function createEvaluationDataset(
 }
 
 export async function listEvaluationSamples(
-  knowledgeBaseId: number,
-  datasetId: number
+  knowledgeBaseId: EntityId,
+  datasetId: EntityId
 ) {
   const response = await http.get(
     `${evaluationBase(knowledgeBaseId)}/datasets/${datasetId}/samples`
@@ -76,11 +77,11 @@ export async function listEvaluationSamples(
 }
 
 export async function addEvaluationSample(
-  knowledgeBaseId: number,
-  datasetId: number,
+  knowledgeBaseId: EntityId,
+  datasetId: EntityId,
   request: {
     question: string
-    relevantChunkIds: number[]
+    relevantChunkIds: EntityId[]
     expectedAnswer?: string
   }
 ) {
@@ -92,8 +93,8 @@ export async function addEvaluationSample(
 }
 
 export async function listEvaluationRuns(
-  knowledgeBaseId: number,
-  datasetId: number
+  knowledgeBaseId: EntityId,
+  datasetId: EntityId
 ) {
   const response = await http.get(
     `${evaluationBase(knowledgeBaseId)}/datasets/${datasetId}/runs`
@@ -102,8 +103,8 @@ export async function listEvaluationRuns(
 }
 
 export async function runEvaluationAblation(
-  knowledgeBaseId: number,
-  datasetId: number,
+  knowledgeBaseId: EntityId,
+  datasetId: EntityId,
   topK: number
 ) {
   const response = await http.post(

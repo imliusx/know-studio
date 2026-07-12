@@ -56,6 +56,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAuthStore } from '@/stores/auth-store'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 import { cn } from '@/lib/utils'
+import type { EntityId } from '@/api/id'
 
 const MODES: RetrievalMode[] = [
   'VECTOR_ONLY',
@@ -83,7 +84,7 @@ export function EvaluationPage() {
   const canManage =
     currentUser?.systemRole === 'ADMIN' ||
     currentKnowledgeBase?.permission === 'MANAGE'
-  const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null)
+  const [selectedDatasetId, setSelectedDatasetId] = useState<EntityId | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [sampleDialogOpen, setSampleDialogOpen] = useState(false)
   const [datasetName, setDatasetName] = useState('')
@@ -94,7 +95,7 @@ export function EvaluationPage() {
   const [topK, setTopK] = useState(5)
   const [cooldownSeconds, setCooldownSeconds] = useState(0)
   const [latestReport, setLatestReport] = useState<{
-    datasetId: number
+    datasetId: EntityId
     topK: number
     metrics: EvaluationMetric[]
   } | null>(null)
@@ -151,7 +152,7 @@ export function EvaluationPage() {
   })
 
   const addSampleMutation = useMutation({
-    mutationFn: (relevantChunkIds: number[]) =>
+    mutationFn: (relevantChunkIds: EntityId[]) =>
       addEvaluationSample(currentKnowledgeBaseId!, activeDatasetId!, {
         question: sampleQuestion.trim(),
         relevantChunkIds,
@@ -228,8 +229,7 @@ export function EvaluationPage() {
       new Set(
         sampleChunkIds
           .split(/[\s,，]+/)
-          .map(Number)
-          .filter((value) => Number.isSafeInteger(value) && value > 0)
+          .filter((value) => /^\d+$/.test(value))
       )
     )
     if (!sampleQuestion.trim() || chunkIds.length === 0) {

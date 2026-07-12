@@ -38,6 +38,7 @@ import {
 } from '@/api/http'
 import { downloadDocumentContent } from '@/api/documents'
 import { type Citation } from '@/api/qa'
+import { asEntityId, type EntityId } from '@/api/id'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
 import { useAuthStore } from '@/stores/auth-store'
@@ -213,7 +214,7 @@ type ChatConversation = {
   id: string
   title: string
   description: string
-  assistantSessionId?: number
+  assistantSessionId?: EntityId
   updatedAt: string
   createdAt?: number
   updatedAtValue?: number
@@ -468,7 +469,7 @@ function parseTimeValue(value?: string | null) {
   return Number.isNaN(parsed) ? undefined : parsed
 }
 
-function getConversationId(sessionId: number) {
+function getConversationId(sessionId: EntityId) {
   return `session-${sessionId}`
 }
 
@@ -550,10 +551,10 @@ function parseMessageCitations(structuredPayload: string | null): Citation[] {
     return parsed.citations.flatMap((citation) => {
       if (!citation || typeof citation !== 'object') return []
       const candidate = citation as Record<string, unknown>
-      const knowledgeBaseId = Number(candidate.knowledgeBaseId)
-      const documentId = Number(candidate.documentId)
-      const chunkId = Number(candidate.chunkId)
-      if (![knowledgeBaseId, documentId, chunkId].every(Number.isFinite)) return []
+      const knowledgeBaseId = asEntityId(candidate.knowledgeBaseId)
+      const documentId = asEntityId(candidate.documentId)
+      const chunkId = asEntityId(candidate.chunkId)
+      if (!knowledgeBaseId || !documentId || !chunkId) return []
 
       return [{
         knowledgeBaseId,
@@ -570,12 +571,15 @@ function parseMessageCitations(structuredPayload: string | null): Citation[] {
   }
 }
 
-function buildMessageFromApiMessage(message: ApiAssistantMessage): ChatMessage {
+function buildMessageFromApiMessage(
+  message: ApiAssistantMessage,
+  localMessageId: number
+): ChatMessage {
   const role = message.role === 'USER' ? 'user' : 'assistant'
   const mode = message.toolMode ?? 'CHAT'
 
   return {
-    id: message.messageId,
+    id: localMessageId,
     role,
     mode,
     variant: role === 'assistant' && mode === 'KB_SEARCH' ? 'rag' : undefined,
@@ -720,9 +724,10 @@ export function ChatHome() {
   const { collapsible, variant } = useLayout()
   const reduceMotion = useReducedMotion()
   const accessToken = useAuthStore((state) => state.auth.accessToken)
+  const currentUserId = useAuthStore((state) => state.auth.user?.userId)
   const refreshSession = useAuthStore((state) => state.auth.refreshSession)
   const sessionsQuery = useQuery({
-    queryKey: ['assistant', 'sessions'],
+    queryKey: ['assistant', 'sessions', currentUserId],
     queryFn: listAssistantSessions,
     enabled: Boolean(accessToken),
   })
@@ -936,7 +941,9 @@ export function ChatHome() {
       if (messageLoadRequestRef.current !== requestId) return
 
       const nextMessages = insertModeChangeEvents(
-        context.recentMessages.map(buildMessageFromApiMessage)
+        context.recentMessages.map((message, index) =>
+          buildMessageFromApiMessage(message, index + 1)
+        )
       )
       const nextMaxMessageId = Math.max(
         messageIdRef.current,
@@ -1170,7 +1177,7 @@ export function ChatHome() {
       await Promise.all(
         archivedConversations
           .map((conversation) => conversation.assistantSessionId)
-          .filter((sessionId): sessionId is number => Boolean(sessionId))
+          .filter((sessionId): sessionId is EntityId => Boolean(sessionId))
           .map((sessionId) => deleteAssistantSession(sessionId))
       )
     } catch (error) {
@@ -1295,7 +1302,7 @@ export function ChatHome() {
 
   function updateConversationSession(
     conversationId: string,
-    assistantSessionId: number
+    assistantSessionId: EntityId
   ) {
     setConversations((prev) =>
       prev.map((conversation) =>
@@ -1340,7 +1347,7 @@ export function ChatHome() {
     targetConversationId: string
     assistantMessageId: number
     question: string
-    assistantSessionId: number | null
+    assistantSessionId: EntityId | null
     initialAccessToken: string
     toolMode: ChatAssistantMode
     useDeepThinking: boolean
@@ -1349,7 +1356,7 @@ export function ChatHome() {
     streamAbortControllerRef.current = abortController
     let receivedTerminalEvent = false
     let currentAccessToken = initialAccessToken
-    let currentAssistantSessionId = assistantSessionId
+    let currentAssistantSessionId: EntityId | null = assistantSessionId
 
     const runAssistantStream = async (streamAccessToken: string) => {
       if (!currentAssistantSessionId) {

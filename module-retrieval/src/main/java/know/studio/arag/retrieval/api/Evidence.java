@@ -1,11 +1,13 @@
 package know.studio.arag.retrieval.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 import java.util.Set;
 
 public record Evidence(
-        long knowledgeBaseId,
-        long documentId,
-        long chunkId,
+        @JsonLongId long knowledgeBaseId,
+        @JsonLongId long documentId,
+        @JsonLongId long chunkId,
         int chunkIndex,
         String fileName,
         String text,

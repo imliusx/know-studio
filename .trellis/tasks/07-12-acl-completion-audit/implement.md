@@ -5,5 +5,6 @@
 - [x] Add citation download action and error feedback.
 - [x] Make admin navigation role-aware for system admin, Team Admin and MEMBER.
 - [x] Run backend/frontend gates and API authorization E2E.
+- [x] Preserve Snowflake IDs as strings across REST, SSE, persisted citations and frontend state; verify a real chat round trip.
 - [ ] Run desktop/mobile browser screenshots and interaction checks. Blocked on 2026-07-12 after the approved browser runtime reported no available browser and discovery returned `[]`; backend and frontend health checks passed.
 - [ ] Commit, archive task and update the completion audit record.

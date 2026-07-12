@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 import type { KnowledgeBaseInfo } from '@/api/knowledge-bases'
+import type { EntityId } from '@/api/id'
 
 const CURRENT_KNOWLEDGE_BASE_ID = 'know-studio.current-knowledge-base-id'
 
 interface KnowledgeBaseState {
   knowledgeBases: KnowledgeBaseInfo[]
-  currentKnowledgeBaseId: number | null
+  currentKnowledgeBaseId: EntityId | null
   setKnowledgeBases: (knowledgeBases: KnowledgeBaseInfo[]) => void
-  setCurrentKnowledgeBaseId: (knowledgeBaseId: number | null) => void
+  setCurrentKnowledgeBaseId: (knowledgeBaseId: EntityId | null) => void
   reset: () => void
 }
 
@@ -52,12 +53,10 @@ export function getCurrentKnowledgeBase() {
 
 function readKnowledgeBaseId() {
   const value = window.localStorage.getItem(CURRENT_KNOWLEDGE_BASE_ID)
-  if (!value) return null
-  const knowledgeBaseId = Number(value)
-  return Number.isSafeInteger(knowledgeBaseId) && knowledgeBaseId > 0 ? knowledgeBaseId : null
+  return value && /^\d+$/.test(value) ? value : null
 }
 
-function writeKnowledgeBaseId(knowledgeBaseId: number | null) {
+function writeKnowledgeBaseId(knowledgeBaseId: EntityId | null) {
   if (knowledgeBaseId === null) {
     window.localStorage.removeItem(CURRENT_KNOWLEDGE_BASE_ID)
     return

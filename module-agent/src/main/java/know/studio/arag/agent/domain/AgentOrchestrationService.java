@@ -244,9 +244,9 @@ public class AgentOrchestrationService implements AgentApi {
     private static Flux<ChatStreamEvent> citationEvents(List<Evidence> evidence) {
         return Flux.fromIterable(evidence)
                 .map(item -> new ChatStreamEvent(ChatStreamEvent.Type.CITATION, Map.of(
-                        "knowledgeBaseId", item.knowledgeBaseId(),
-                        "documentId", item.documentId(),
-                        "chunkId", item.chunkId(),
+                        "knowledgeBaseId", Long.toString(item.knowledgeBaseId()),
+                        "documentId", Long.toString(item.documentId()),
+                        "chunkId", Long.toString(item.chunkId()),
                         "chunkIndex", item.chunkIndex(),
                         "fileName", item.fileName(),
                         "score", item.score(),
@@ -296,8 +296,8 @@ public class AgentOrchestrationService implements AgentApi {
         if (citations.isEmpty()) {
             return Map.of();
         }
-        List<Long> knowledgeBaseIds = citations.stream()
-                .map(citation -> (Long) citation.get("knowledgeBaseId"))
+        List<String> knowledgeBaseIds = citations.stream()
+                .map(citation -> String.valueOf(citation.get("knowledgeBaseId")))
                 .distinct()
                 .toList();
         return Map.of(

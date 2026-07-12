@@ -52,6 +52,7 @@ import {
 } from "@/api/documents"
 import { createKnowledgeBase, listKnowledgeBases } from "@/api/knowledge-bases"
 import { extractApiError } from "@/api/http"
+import type { EntityId } from "@/api/id"
 import { useKnowledgeBaseStore } from "@/stores/knowledge-base-store"
 import { Header } from "@/components/layout/header"
 import { HeaderActions } from "@/components/layout/header-actions"
@@ -200,7 +201,7 @@ export function DocumentsPage() {
   )
 }
 
-export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
+export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: EntityId }) {
   const documentManager = useDocumentManagement()
   const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
   const groups = useMemo(() => toManagedGroups(knowledgeBases), [knowledgeBases])
@@ -418,7 +419,7 @@ type KnowledgeBaseStat = {
 }
 
 type KnowledgeBaseItem = {
-  groupId: number
+  groupId: EntityId
   name: string
   embeddingModel: string
   documentCount: number
@@ -430,7 +431,7 @@ type KnowledgeBaseItem = {
   uploaderNames: string[]
 }
 
-type ManagedGroup = { groupId: number; groupCode: string; groupName: string }
+type ManagedGroup = { groupId: EntityId; groupCode: string; groupName: string }
 
 function toManagedGroups(knowledgeBases: import("@/api/knowledge-bases").KnowledgeBaseInfo[]): ManagedGroup[] {
   return knowledgeBases.map((knowledgeBase) => ({
@@ -440,7 +441,7 @@ function toManagedGroups(knowledgeBases: import("@/api/knowledge-bases").Knowled
   }))
 }
 
-function formatKnowledgeBaseName(groupId: number) {
+function formatKnowledgeBaseName(groupId: EntityId) {
   return `知识库 ${groupId}`
 }
 
@@ -449,8 +450,8 @@ function formatKnowledgeBaseEmbeddingModel() {
 }
 
 function getKnowledgeBaseDisplayName(
-  groupId: number,
-  groupNameById?: Map<number, string>
+  groupId: EntityId,
+  groupNameById?: Map<EntityId, string>
 ) {
   return groupNameById?.get(groupId) ?? formatKnowledgeBaseName(groupId)
 }
@@ -463,7 +464,7 @@ function getKnowledgeBases(
   groups: ManagedGroup[],
   documents: DocumentListItem[]
 ) {
-  const byGroupId = new Map<number, KnowledgeBaseItem>()
+  const byGroupId = new Map<EntityId, KnowledgeBaseItem>()
 
   for (const group of groups) {
     byGroupId.set(group.groupId, {
@@ -515,7 +516,7 @@ function getKnowledgeBases(
   return Array.from(byGroupId.values()).sort(
     (a, b) =>
       new Date(b.updatedAt ?? 0).getTime() -
-        new Date(a.updatedAt ?? 0).getTime() || b.groupId - a.groupId
+        new Date(a.updatedAt ?? 0).getTime() || b.groupId.localeCompare(a.groupId)
   )
 }
 
@@ -748,7 +749,7 @@ type UploadDocumentDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   groups: ManagedGroup[]
-  defaultGroupId?: number
+  defaultGroupId?: EntityId
 }
 
 function UploadDocumentDialog({
@@ -768,8 +769,8 @@ function UploadDocumentDialog({
 
   const uploadMutation = useMutation({
     mutationFn: async () => {
-      const groupId = Number(resolvedSelectedGroupId)
-      if (!Number.isFinite(groupId) || groupId <= 0) {
+      const groupId = resolvedSelectedGroupId
+      if (!/^\d+$/.test(groupId)) {
         throw new Error("请选择知识库")
       }
       if (!selectedFile) {
@@ -1346,7 +1347,7 @@ type KnowledgeBaseTableProps = {
   data: DocumentListItem[]
   isLoading: boolean
   knowledgeBaseName?: string | null
-  groupNameById?: Map<number, string>
+  groupNameById?: Map<EntityId, string>
   searchPlaceholder?: string
   isActionPending: boolean
   isPreviewPending: boolean

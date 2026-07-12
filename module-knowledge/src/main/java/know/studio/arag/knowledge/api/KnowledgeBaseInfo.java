@@ -1,11 +1,13 @@
 package know.studio.arag.knowledge.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+
 public record KnowledgeBaseInfo(
-        long knowledgeBaseId,
+        @JsonLongId long knowledgeBaseId,
         String name,
         String description,
         KnowledgeBaseVisibility visibility,
-        Long ownerTeamId,
+        @JsonLongId Long ownerTeamId,
         KnowledgeBasePermission permission
 ) {
 }

@@ -4,6 +4,7 @@ import {
   initDocumentUpload,
   uploadDocumentChunk,
 } from '@/api/documents'
+import type { EntityId } from '@/api/id'
 
 const DEFAULT_CHUNK_SIZE = 5 * 1024 * 1024
 const DEFAULT_CONCURRENCY = 3
@@ -18,7 +19,7 @@ export interface UploadProgressPayload {
 }
 
 export async function uploadDocumentWithResume(
-  groupId: number,
+  groupId: EntityId,
   file: File,
   onProgress: (payload: UploadProgressPayload) => void
 ) {
@@ -36,7 +37,7 @@ export async function uploadDocumentWithResume(
     totalChunks: chunkCount,
   })
 
-  if (initResponse.instantUpload && typeof initResponse.documentId === 'number') {
+  if (initResponse.instantUpload && initResponse.documentId) {
     onProgress({ percent: 100, stage: 'completing', mode: 'resumable' })
     return initResponse.documentId
   }

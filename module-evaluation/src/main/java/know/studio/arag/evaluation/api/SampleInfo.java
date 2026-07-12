@@ -1,13 +1,16 @@
 package know.studio.arag.evaluation.api;
 
+import know.studio.arag.platform.core.json.JsonLongId;
+import know.studio.arag.platform.core.json.JsonLongIds;
+
 import java.time.Instant;
 import java.util.List;
 
 public record SampleInfo(
-        long id,
-        long datasetId,
+        @JsonLongId long id,
+        @JsonLongId long datasetId,
         String question,
-        List<Long> relevantChunkIds,
+        @JsonLongIds List<Long> relevantChunkIds,
         String expectedAnswer,
         Instant createdAt
 ) {
