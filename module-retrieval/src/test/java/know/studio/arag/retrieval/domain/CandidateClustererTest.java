@@ -25,6 +25,21 @@ class CandidateClustererTest {
         assertThat(result.get(1).chunkId()).isEqualTo(13L);
     }
 
+    @Test
+    void doesNotChainAnEntireDocumentIntoOneEvidenceItem() {
+        List<FusedCandidate> candidates = java.util.stream.IntStream.range(0, 9)
+                .mapToObj(index -> candidate(100L + index, index, "chunk-" + index, index == 4 ? 0.20 : 0.01))
+                .toList();
+
+        List<FusedCandidate> result = clusterer.cluster(candidates, 10);
+
+        assertThat(result).hasSizeGreaterThan(1);
+        assertThat(result.getFirst().chunkId()).isEqualTo(104L);
+        assertThat(result.getFirst().text()).isEqualTo("chunk-3\n\nchunk-4\n\nchunk-5");
+        assertThat(result).allSatisfy(cluster ->
+                assertThat(cluster.text().split("\\n\\n")).hasSizeLessThanOrEqualTo(3));
+    }
+
     private static FusedCandidate candidate(long chunkId, int index, String text, double score) {
         return new FusedCandidate(
                 11L,

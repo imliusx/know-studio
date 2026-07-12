@@ -113,6 +113,67 @@ class AgentOrchestrationServiceTest {
         assertThat(persistedCitation.get("snippet")).isEqualTo("RAG combines retrieval and generation.");
     }
 
+    @Test
+    void focusesLongEvidenceAroundQuestionTerms() {
+        String evidence = "x".repeat(1_500)
+                + "类名使用 UpperCamelCase 风格，正例为 UserService。"
+                + "y".repeat(1_500);
+
+        String focused = AgentOrchestrationService.focusEvidence("Java 类名如何命名？", evidence);
+
+        assertThat(focused).contains("类名使用 UpperCamelCase");
+        assertThat(focused.length()).isLessThanOrEqualTo(702);
+    }
+
+    @Test
+    void ranksExplicitSubjectRuleAboveGeneralNamingAdvice() {
+        int explicitRule = AgentOrchestrationService.evidenceRelevance(
+                "Java 类名如何命名？",
+                "类名使用 UpperCamelCase 风格，正例为 UserService。"
+        );
+        int generalAdvice = AgentOrchestrationService.evidenceRelevance(
+                "Java 类名如何命名？",
+                "为了代码自解释，命名时应使用完整单词。常量和变量的命名应表达类型。"
+        );
+
+        assertThat(explicitRule).isGreaterThan(generalAdvice);
+    }
+
+    @Test
+    void extractsExplicitNamingRuleWithoutModelExpansion() {
+        Evidence evidence = new Evidence(
+                11L,
+                101L,
+                1001L,
+                7,
+                "java-guide.pdf",
+                """
+                        4. 【强制】类名使用 UpperCamelCase 风格，但以下情形例外：DO / BO / DTO / VO / AO /
+                        PO / UID 等。
+                        正例：ForceCode / UserDO / HtmlDTO / XmlService
+                        反例：forcecode / UserDo / HTMLDto / XMLService
+                        5. 【强制】方法名统一使用 lowerCamelCase 风格。
+                        """,
+                0.9,
+                Set.of("KEYWORD")
+        );
+
+        assertThat(AgentOrchestrationService.extractNamingRule(
+                "Java 类名如何命名？",
+                List.of(evidence)
+        ).orElseThrow()).isEqualTo("""
+                根据知识库规范：
+
+                4. 【强制】类名使用 UpperCamelCase 风格，但以下情形例外：DO / BO / DTO / VO / AO /
+
+                PO / UID 等。
+
+                正例：ForceCode / UserDO / HtmlDTO / XmlService
+
+                反例：forcecode / UserDo / HTMLDto / XMLService
+                """.strip());
+    }
+
     private AgentOrchestrationService service() {
         return new AgentOrchestrationService(
                 identityApi,

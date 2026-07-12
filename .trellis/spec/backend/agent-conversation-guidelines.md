@@ -54,6 +54,12 @@ events.
 - MCP `CallToolResult.isError=true` -> controlled business error.
 - Intent classifier timeout or malformed output -> deterministic heuristic
   fallback; do not block the chat request indefinitely.
+- A single-intent retrieval question -> keep the normalized original query;
+  do not let LLM expansion replace it with broader document-summary queries.
+- Contiguous retrieval hits -> cluster only around a scored anchor and its
+  immediate neighbors; never chain an entire document into one evidence item.
+- Short explicit-rule question with a matching source rule -> prefer a bounded
+  extractive answer with citations over asking a small local model to expand it.
 
 ### 5. Good/Base/Bad Cases
 
@@ -81,6 +87,9 @@ events.
   round-trip, and representative SSE event ordering.
 - Integration test authorized document download, revoked/unauthorized 403, and
   citation metadata round-trip.
+- Regression test that a long contiguous candidate run produces multiple
+  bounded evidence items, and that explicit naming rules are extracted without
+  unrelated model-generated advice.
 - Configure a real MCP server and chat/reasoning provider before claiming remote
   MCP or full generated-answer end-to-end verification.
 

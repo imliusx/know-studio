@@ -27,6 +27,21 @@ function normalizeMarkdownCodeFences(markdown: string): string {
     .replace(/([^\n`])```(?=\s*(?:\n|$))/g, "$1\n```")
 }
 
+function normalizeMarkdownHeadings(markdown: string): string {
+  let inFence = false
+
+  return markdown
+    .split("\n")
+    .map((line) => {
+      if (line.trimStart().startsWith("```")) {
+        inFence = !inFence
+        return line
+      }
+      return inFence ? line : line.replace(/^(\s*#{1,6})(?=\S)/, "$1 ")
+    })
+    .join("\n")
+}
+
 function normalizeStrongDelimiters(markdown: string): string {
   let result = ""
   let index = 0
@@ -229,7 +244,10 @@ function MarkdownComponent({
   const generatedId = useId()
   const blockId = id ?? generatedId
   const normalizedChildren = useMemo(
-    () => normalizeStrongDelimiters(normalizeMarkdownCodeFences(children)),
+    () =>
+      normalizeStrongDelimiters(
+        normalizeMarkdownHeadings(normalizeMarkdownCodeFences(children))
+      ),
     [children]
   )
   const blocks = useMemo(

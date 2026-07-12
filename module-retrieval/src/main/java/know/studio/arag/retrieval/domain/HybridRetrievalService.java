@@ -74,20 +74,20 @@ public class HybridRetrievalService implements RetrievalApi {
                 .filter(ranking -> !ranking.isEmpty())
                 .toList();
         List<FusedCandidate> fused = rrfFusion.fuse(rankings, RERANK_LIMIT);
-        List<NeighborChunk> neighbors = fused.isEmpty()
+        List<FusedCandidate> rankedSeeds = query.mode() == RetrievalMode.HYBRID_RERANK
+                ? rerank(query.question(), fused)
+                : fused;
+        List<NeighborChunk> neighbors = rankedSeeds.isEmpty()
                 ? List.of()
                 : neighborPort.findNeighbors(
                         knowledgeBaseIds,
-                        fused.stream().map(FusedCandidate::chunkId).toList(),
+                        rankedSeeds.stream().map(FusedCandidate::chunkId).toList(),
                         1
                 );
-        List<FusedCandidate> expanded = neighborExpander.expand(fused, neighbors, RERANK_LIMIT);
+        List<FusedCandidate> expanded = neighborExpander.expand(rankedSeeds, neighbors, RERANK_LIMIT);
         List<FusedCandidate> clustered = candidateClusterer.cluster(expanded, RERANK_LIMIT);
-        List<FusedCandidate> ranked = query.mode() == RetrievalMode.HYBRID_RERANK
-                ? rerank(query.question(), clustered)
-                : clustered;
-        EvidenceLevel level = evidenceGrader.grade(ranked);
-        List<Evidence> evidence = ranked.stream()
+        EvidenceLevel level = evidenceGrader.grade(clustered);
+        List<Evidence> evidence = clustered.stream()
                 .limit(query.topK())
                 .map(HybridRetrievalService::toEvidence)
                 .toList();

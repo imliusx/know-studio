@@ -33,8 +33,12 @@ public class LlmQueryPlanner implements QueryPlanner {
 
     @Override
     public List<String> plan(String question) {
+        List<String> deterministicQueries = fallback.plan(question);
+        if (deterministicQueries.size() <= 1) {
+            return deterministicQueries;
+        }
         if (providers.stream().noneMatch(provider -> provider.supports(AiCapability.CHAT))) {
-            return fallback.plan(question);
+            return deterministicQueries;
         }
         try {
             String output = chatModelRouter.stream(ChatRequest.chat(SYSTEM_PROMPT, question))
@@ -43,12 +47,23 @@ public class LlmQueryPlanner implements QueryPlanner {
                     .collectList()
                     .map(parts -> String.join("", parts))
                     .block(PLAN_TIMEOUT);
-            List<String> queries = parse(output);
-            return queries.isEmpty() ? fallback.plan(question) : queries;
+            return combine(question, parse(output));
         } catch (RuntimeException exception) {
             log.warn("LLM query planning failed, using deterministic fallback", exception);
-            return fallback.plan(question);
+            return deterministicQueries;
         }
+    }
+
+    static List<String> combine(String question, List<String> generatedQueries) {
+        LinkedHashSet<String> queries = new LinkedHashSet<>();
+        String normalizedQuestion = question == null
+                ? ""
+                : question.replaceAll("[?？!！]+$", "").trim();
+        if (!normalizedQuestion.isBlank()) {
+            queries.add(normalizedQuestion);
+        }
+        queries.addAll(generatedQueries);
+        return queries.stream().filter(query -> !query.isBlank()).limit(MAX_QUERIES).toList();
     }
 
     static List<String> parse(String output) {
