@@ -24,6 +24,7 @@ Close Team Admin navigation, secure citation download, persisted citation metada
 
 ## Notes
 
+- 2026-07-12 final visual verification retry: backend `/actuator/health` returned `UP` and frontend `http://127.0.0.1:5174` returned HTTP 200, but the approved in-app browser runtime returned `No browser is available`; runtime discovery returned an empty browser list (`[]`). Desktop/mobile screenshot acceptance remains blocked and incomplete.
 - Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
 - Lightweight tasks can remain PRD-only.
 - For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.
