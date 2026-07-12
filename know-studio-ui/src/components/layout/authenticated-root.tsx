@@ -2,26 +2,25 @@ import { Outlet, useNavigate } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { useEffect } from 'react'
 import { getCurrentUser } from '@/api/auth'
-import { listWorkspaces } from '@/api/workspaces'
+import { listKnowledgeBases } from '@/api/knowledge-bases'
 import { isUnauthorizedError } from '@/api/http'
 import { useAuthStore } from '@/stores/auth-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
-import { WorkspaceEmptyState } from '@/components/workspace/workspace-empty-state'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 
 export function AuthenticatedRoot() {
   const navigate = useNavigate()
   const accessToken = useAuthStore((state) => state.auth.accessToken)
   const setUser = useAuthStore((state) => state.auth.setUser)
   const resetAuth = useAuthStore((state) => state.auth.reset)
-  const setWorkspaces = useWorkspaceStore((state) => state.setWorkspaces)
+  const setKnowledgeBases = useKnowledgeBaseStore((state) => state.setKnowledgeBases)
   const currentUserQuery = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: getCurrentUser,
     enabled: Boolean(accessToken),
   })
-  const workspacesQuery = useQuery({
-    queryKey: ['workspaces'],
-    queryFn: listWorkspaces,
+  const knowledgeBasesQuery = useQuery({
+    queryKey: ['knowledge-bases'],
+    queryFn: listKnowledgeBases,
     enabled: Boolean(accessToken) && currentUserQuery.isSuccess,
   })
 
@@ -32,10 +31,10 @@ export function AuthenticatedRoot() {
   }, [currentUserQuery.data, setUser])
 
   useEffect(() => {
-    if (workspacesQuery.data) {
-      setWorkspaces(workspacesQuery.data)
+    if (knowledgeBasesQuery.data) {
+      setKnowledgeBases(knowledgeBasesQuery.data)
     }
-  }, [setWorkspaces, workspacesQuery.data])
+  }, [setKnowledgeBases, knowledgeBasesQuery.data])
 
   useEffect(() => {
     if (!currentUserQuery.error || !isUnauthorizedError(currentUserQuery.error)) {
@@ -45,12 +44,8 @@ export function AuthenticatedRoot() {
     navigate({ to: '/sign-in', replace: true })
   }, [currentUserQuery.error, navigate, resetAuth])
 
-  if (currentUserQuery.isPending || workspacesQuery.isPending) {
+  if (currentUserQuery.isPending || knowledgeBasesQuery.isPending) {
     return null
-  }
-
-  if (workspacesQuery.isSuccess && workspacesQuery.data.length === 0) {
-    return <WorkspaceEmptyState />
   }
 
   return <Outlet />

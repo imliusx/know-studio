@@ -24,7 +24,7 @@ import {
 } from 'recharts'
 import { motion, useReducedMotion } from 'motion/react'
 import { useAuthStore } from '@/stores/auth-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 import { listAdminUsers } from '@/api/admin-users'
 import { listAssistantSessions } from '@/api/assistant'
 import {
@@ -306,8 +306,8 @@ const qualityChartConfig = {
 
 export function Dashboard() {
   const currentUser = useAuthStore((state) => state.auth.user)
-  const currentWorkspaceId = useWorkspaceStore(
-    (state) => state.currentWorkspaceId
+  const currentKnowledgeBaseId = useKnowledgeBaseStore(
+    (state) => state.currentKnowledgeBaseId
   )
   const groupsQuery = useQuery({
     queryKey: ['groups', 'my'],
@@ -315,14 +315,14 @@ export function Dashboard() {
     enabled: Boolean(currentUser),
   })
   const documentsQuery = useQuery({
-    queryKey: ['documents', currentWorkspaceId, 'dashboard'],
-    queryFn: () => listDocuments(currentWorkspaceId!),
-    enabled: Boolean(currentUser && currentWorkspaceId),
+    queryKey: ['documents', currentKnowledgeBaseId, 'dashboard'],
+    queryFn: () => listDocuments(currentKnowledgeBaseId!),
+    enabled: Boolean(currentUser && currentKnowledgeBaseId),
   })
   const sessionsQuery = useQuery({
-    queryKey: ['assistant', 'sessions', currentWorkspaceId],
-    queryFn: () => listAssistantSessions(currentWorkspaceId!),
-    enabled: Boolean(currentUser && currentWorkspaceId),
+    queryKey: ['assistant', 'sessions'],
+    queryFn: listAssistantSessions,
+    enabled: Boolean(currentUser),
   })
   const usersQuery = useQuery({
     queryKey: ['admin-users'],

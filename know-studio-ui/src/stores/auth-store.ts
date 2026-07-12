@@ -2,7 +2,7 @@ import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 import { setAuthToken } from '@/api/http'
 import { getCurrentUser, type CurrentIdentity } from '@/api/auth'
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 
 const ACCESS_TOKEN = 'ddrag_access_token'
 const CURRENT_USER = 'ddrag_current_user'
@@ -68,7 +68,7 @@ export const useAuthStore = create<AuthState>()((set) => {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },
           }))
-          useWorkspaceStore.getState().reset()
+          useKnowledgeBaseStore.getState().reset()
           throw error
         }
       },
@@ -78,7 +78,7 @@ export const useAuthStore = create<AuthState>()((set) => {
           removeCookie(ACCESS_TOKEN)
           writeStoredUser(null)
           setAuthToken(null)
-          useWorkspaceStore.getState().reset()
+          useKnowledgeBaseStore.getState().reset()
           return {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },
@@ -90,7 +90,7 @@ export const useAuthStore = create<AuthState>()((set) => {
           removeCookie(ACCESS_TOKEN)
           writeStoredUser(null)
           setAuthToken(null)
-          useWorkspaceStore.getState().reset()
+          useKnowledgeBaseStore.getState().reset()
           return {
             ...state,
             auth: { ...state.auth, user: null, accessToken: '' },

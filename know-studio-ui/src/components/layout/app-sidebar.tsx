@@ -1,7 +1,7 @@
 import { Fragment } from 'react'
 import { useLayout } from '@/context/layout-provider'
 import { useAuthStore } from '@/stores/auth-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 import {
   Sidebar,
   SidebarContent,
@@ -20,11 +20,11 @@ export function AppSidebar() {
   const isSystemAdmin = useAuthStore(
     (state) => state.auth.user?.systemRole === 'ADMIN'
   )
-  const canManageEvaluations = useWorkspaceStore((state) => {
-    const workspace = state.workspaces.find(
-      (item) => item.workspaceId === state.currentWorkspaceId
+  const canManageEvaluations = useKnowledgeBaseStore((state) => {
+    const knowledgeBase = state.knowledgeBases.find(
+      (item) => item.knowledgeBaseId === state.currentKnowledgeBaseId
     )
-    return workspace?.role === 'OWNER' || workspace?.role === 'ADMIN'
+    return knowledgeBase?.permission === 'MANAGE'
   })
   const navGroups = sidebarData.navGroups.map((group) => ({
     ...group,

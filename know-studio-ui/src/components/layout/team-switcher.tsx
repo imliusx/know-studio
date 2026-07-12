@@ -1,8 +1,7 @@
 import type { ElementType } from 'react'
 import { Link, type LinkProps } from '@tanstack/react-router'
-import { Check, ChevronsUpDown, Plus } from 'lucide-react'
-import { useWorkspaceStore } from '@/stores/workspace-store'
-import { CreateWorkspaceDialog } from '@/components/workspace/create-workspace-dialog'
+import { Check, ChevronsUpDown } from 'lucide-react'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,15 +34,15 @@ export function TeamSwitcher({
 }: TeamSwitcherProps) {
   const activeTeam = teams[0]
   const { setOpenMobile } = useSidebar()
-  const workspaces = useWorkspaceStore((state) => state.workspaces)
-  const currentWorkspaceId = useWorkspaceStore(
-    (state) => state.currentWorkspaceId
+  const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
+  const currentKnowledgeBaseId = useKnowledgeBaseStore(
+    (state) => state.currentKnowledgeBaseId
   )
-  const setCurrentWorkspaceId = useWorkspaceStore(
-    (state) => state.setCurrentWorkspaceId
+  const setCurrentKnowledgeBaseId = useKnowledgeBaseStore(
+    (state) => state.setCurrentKnowledgeBaseId
   )
-  const currentWorkspace = workspaces.find(
-    (workspace) => workspace.workspaceId === currentWorkspaceId
+  const currentKnowledgeBase = knowledgeBases.find(
+    (knowledgeBase) => knowledgeBase.knowledgeBaseId === currentKnowledgeBaseId
   )
 
   return (
@@ -60,10 +59,10 @@ export function TeamSwitcher({
               </div>
               <div className='grid min-w-0 flex-1 text-start leading-tight'>
                 <span className='truncate font-semibold'>
-                  {currentWorkspace?.name ?? activeTeam.name}
+                  {currentKnowledgeBase?.name ?? activeTeam.name}
                 </span>
                 <span className='truncate text-xs text-muted-foreground'>
-                  {currentWorkspace?.role ?? activeTeam.plan}
+                  {currentKnowledgeBase?.permission ?? activeTeam.plan}
                 </span>
               </div>
               <ChevronsUpDown className='ml-auto size-4' />
@@ -76,38 +75,29 @@ export function TeamSwitcher({
             sideOffset={4}
           >
             <DropdownMenuLabel className='text-xs text-muted-foreground'>
-              工作空间
+              知识库
             </DropdownMenuLabel>
-            {workspaces.length ? (
-              workspaces.map((workspace) => (
+            {knowledgeBases.length ? (
+              knowledgeBases.map((knowledgeBase) => (
                 <DropdownMenuItem
-                  key={workspace.workspaceId}
+                  key={knowledgeBase.knowledgeBaseId}
                   onClick={() => {
-                    setCurrentWorkspaceId(workspace.workspaceId)
+                    setCurrentKnowledgeBaseId(knowledgeBase.knowledgeBaseId)
                     setOpenMobile(false)
                   }}
                 >
-                  <span className='min-w-0 flex-1 truncate'>{workspace.name}</span>
+                  <span className='min-w-0 flex-1 truncate'>{knowledgeBase.name}</span>
                   <span className='text-xs text-muted-foreground'>
-                    {workspace.role}
+                    {knowledgeBase.permission}
                   </span>
-                  {workspace.workspaceId === currentWorkspaceId ? (
+                  {knowledgeBase.knowledgeBaseId === currentKnowledgeBaseId ? (
                     <Check className='size-4' />
                   ) : null}
                 </DropdownMenuItem>
               ))
             ) : (
-              <DropdownMenuItem disabled>暂无工作空间</DropdownMenuItem>
+              <DropdownMenuItem disabled>暂无可用知识库</DropdownMenuItem>
             )}
-            <DropdownMenuSeparator />
-            <CreateWorkspaceDialog
-              trigger={
-                <DropdownMenuItem onSelect={(event) => event.preventDefault()}>
-                  <span className='flex-1'>创建工作空间</span>
-                  <Plus className='size-4' />
-                </DropdownMenuItem>
-              }
-            />
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               <Link

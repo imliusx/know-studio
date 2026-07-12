@@ -8,7 +8,7 @@ export type DocumentStatus =
 
 interface DocumentView {
   id: number
-  workspaceId: number
+  knowledgeBaseId: number
   fileName: string
   contentType: string | null
   fileSize: number
@@ -62,10 +62,10 @@ export interface UploadStatusResult {
 }
 
 export async function listDocuments(
-  workspaceId: number,
+  knowledgeBaseId: number,
   query: DocumentQuery = {}
 ) {
-  const response = await http.get(`/workspaces/${workspaceId}/documents`, {
+  const response = await http.get(`/knowledge-bases/${knowledgeBaseId}/documents`, {
     params: query,
   })
   const documents = unwrapApiResponse<DocumentView[]>(response.data, '获取文档失败')
@@ -73,7 +73,7 @@ export async function listDocuments(
 }
 
 export async function initDocumentUpload(
-  workspaceId: number,
+  knowledgeBaseId: number,
   payload: {
     fileName: string
     fileSize: number
@@ -83,14 +83,14 @@ export async function initDocumentUpload(
   }
 ) {
   const response = await http.post(
-    `/workspaces/${workspaceId}/documents/uploads`,
+    `/knowledge-bases/${knowledgeBaseId}/documents/uploads`,
     payload
   )
   return unwrapApiResponse<UploadInitResult>(response.data, '初始化上传失败')
 }
 
 export async function uploadDocumentChunk(
-  workspaceId: number,
+  knowledgeBaseId: number,
   payload: {
     uploadSessionId: number
     chunkIndex: number
@@ -102,7 +102,7 @@ export async function uploadDocumentChunk(
   const formData = new FormData()
   formData.append('file', payload.chunk)
   const response = await http.put(
-    `/workspaces/${workspaceId}/documents/uploads/${payload.uploadSessionId}/chunks/${payload.chunkIndex}`,
+    `/knowledge-bases/${knowledgeBaseId}/documents/uploads/${payload.uploadSessionId}/chunks/${payload.chunkIndex}`,
     formData,
     {
       headers: { 'X-Chunk-SHA256': payload.chunkHash },
@@ -113,21 +113,21 @@ export async function uploadDocumentChunk(
 }
 
 export async function getUploadStatus(
-  workspaceId: number,
+  knowledgeBaseId: number,
   uploadSessionId: number
 ) {
   const response = await http.get(
-    `/workspaces/${workspaceId}/documents/uploads/${uploadSessionId}`
+    `/knowledge-bases/${knowledgeBaseId}/documents/uploads/${uploadSessionId}`
   )
   return unwrapApiResponse<UploadStatusResult>(response.data, '获取上传状态失败')
 }
 
 export async function completeDocumentUpload(
-  workspaceId: number,
+  knowledgeBaseId: number,
   uploadSessionId: number
 ) {
   const response = await http.post(
-    `/workspaces/${workspaceId}/documents/uploads/${uploadSessionId}/complete`
+    `/knowledge-bases/${knowledgeBaseId}/documents/uploads/${uploadSessionId}/complete`
   )
   const result = unwrapApiResponse<{ documentId: number }>(
     response.data,
@@ -136,26 +136,26 @@ export async function completeDocumentUpload(
   return result.documentId
 }
 
-export async function deleteDocument(documentId: number, workspaceId: number) {
+export async function deleteDocument(documentId: number, knowledgeBaseId: number) {
   const response = await http.delete(
-    `/workspaces/${workspaceId}/documents/${documentId}`
+    `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`
   )
   return unwrapApiResponse<void>(response.data, '删除文档失败')
 }
 
 export async function retryDocumentIngestion(
   documentId: number,
-  workspaceId: number
+  knowledgeBaseId: number
 ) {
   const response = await http.post(
-    `/workspaces/${workspaceId}/documents/${documentId}/retry-ingestion`
+    `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/retry-ingestion`
   )
   return unwrapApiResponse<void>(response.data, '重试入库失败')
 }
 
-export async function previewDocument(documentId: number, workspaceId: number) {
+export async function previewDocument(documentId: number, knowledgeBaseId: number) {
   const response = await http.get(
-    `/workspaces/${workspaceId}/documents/${documentId}`
+    `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}`
   )
   const document = unwrapApiResponse<DocumentView>(response.data, '获取文档详情失败')
   return {
@@ -169,7 +169,7 @@ function toListItem(document: DocumentView): DocumentListItem {
   const extensionIndex = document.fileName.lastIndexOf('.')
   return {
     documentId: document.id,
-    groupId: document.workspaceId,
+    groupId: document.knowledgeBaseId,
     fileName: document.fileName,
     fileExt:
       extensionIndex >= 0 ? document.fileName.slice(extensionIndex + 1) : null,

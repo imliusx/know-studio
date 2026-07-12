@@ -36,7 +36,6 @@ import {
   HttpStatusError,
   isUnauthorizedError,
 } from '@/api/http'
-import { useWorkspaceStore } from '@/stores/workspace-store'
 import { type Citation } from '@/api/qa'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
@@ -276,7 +275,7 @@ const CHAT_SIDEBAR_TEAMS = [
   {
     ...sidebarData.teams[0],
     name: 'KnowStudio',
-    plan: 'Chat Workspace',
+    plan: 'Knowledge Assistant',
   },
 ]
 
@@ -716,24 +715,11 @@ export function ChatHome() {
   const reduceMotion = useReducedMotion()
   const accessToken = useAuthStore((state) => state.auth.accessToken)
   const refreshSession = useAuthStore((state) => state.auth.refreshSession)
-  const workspaces = useWorkspaceStore((state) => state.workspaces)
-  const currentWorkspaceId = useWorkspaceStore(
-    (state) => state.currentWorkspaceId
-  )
   const sessionsQuery = useQuery({
-    queryKey: ['assistant', 'sessions', currentWorkspaceId],
-    queryFn: () => listAssistantSessions(currentWorkspaceId!),
-    enabled: Boolean(currentWorkspaceId),
+    queryKey: ['assistant', 'sessions'],
+    queryFn: listAssistantSessions,
+    enabled: Boolean(accessToken),
   })
-  const groups = useMemo(
-    () =>
-      workspaces.map((workspace) => ({
-        groupId: workspace.workspaceId,
-        groupCode: String(workspace.workspaceId),
-        groupName: workspace.name,
-      })),
-    [workspaces]
-  )
   const [initialChatState] = useState(createInitialChatState)
   const initialMessageId = Math.max(
     0,
@@ -743,7 +729,6 @@ export function ChatHome() {
   )
   const [input, setInput] = useState('')
   const [files, setFiles] = useState<File[]>([])
-  const [selectedGroupId, setSelectedGroupId] = useState('')
   const [assistantMode, setAssistantMode] =
     useState<ChatAssistantMode>('CHAT')
   const [deepThinking, setDeepThinking] = useState(false)
@@ -797,11 +782,6 @@ export function ChatHome() {
   }, [messages])
   const activeConversationTitle =
     activeConversation?.title ?? DEFAULT_CONVERSATION_TITLE
-  const resolvedSelectedGroupId = selectedGroupId || String(groups[0]?.groupId ?? '')
-  const selectedGroup = groups.find(
-    (group) => String(group.groupId) === resolvedSelectedGroupId
-  )
-  const activeGroupId = selectedGroup?.groupId ?? groups[0]?.groupId ?? null
   const activeMode =
     CHAT_ASSISTANT_MODE_OPTIONS.find((mode) => mode.value === assistantMode) ??
     CHAT_ASSISTANT_MODE_OPTIONS[0]
@@ -865,23 +845,6 @@ export function ChatHome() {
 
     return () => window.clearTimeout(timer)
   }, [isLoadingActiveConversation, resolvedActiveConversationId])
-
-  useEffect(
-    () =>
-      useWorkspaceStore.subscribe((state, previousState) => {
-        if (state.currentWorkspaceId === previousState.currentWorkspaceId) return
-        streamAbortControllerRef.current?.abort()
-        streamAbortControllerRef.current = null
-        messageLoadRequestRef.current += 1
-        setLoadingConversationId(null)
-        setConversations([])
-        setActiveConversationId(null)
-        setSelectedGroupId('')
-        setInput('')
-        setFiles([])
-      }),
-    []
-  )
 
   useEffect(() => () => streamAbortControllerRef.current?.abort(), [])
 
@@ -963,8 +926,7 @@ export function ChatHome() {
     setLoadingConversationId(conversationId)
 
     try {
-      if (!currentWorkspaceId) return
-      const context = await getAssistantContext(currentWorkspaceId, sessionId, 100)
+      const context = await getAssistantContext(sessionId, 100)
       if (messageLoadRequestRef.current !== requestId) return
 
       const nextMessages = insertModeChangeEvents(
@@ -1023,10 +985,7 @@ export function ChatHome() {
 
     try {
       if (deletedConversation.assistantSessionId) {
-        await deleteAssistantSession(
-          currentWorkspaceId!,
-          deletedConversation.assistantSessionId
-        )
+        await deleteAssistantSession(deletedConversation.assistantSessionId)
       }
     } catch (error) {
       toast.error(extractApiError(error, '删除对话失败'))
@@ -1063,11 +1022,7 @@ export function ChatHome() {
 
     try {
       if (target?.assistantSessionId) {
-        await renameAssistantSession(
-          currentWorkspaceId!,
-          target.assistantSessionId,
-          normalizedTitle
-        )
+        await renameAssistantSession(target.assistantSessionId, normalizedTitle)
       }
     } catch (error) {
       toast.error(extractApiError(error, '重命名对话失败'))
@@ -1210,7 +1165,7 @@ export function ChatHome() {
         archivedConversations
           .map((conversation) => conversation.assistantSessionId)
           .filter((sessionId): sessionId is number => Boolean(sessionId))
-          .map((sessionId) => deleteAssistantSession(currentWorkspaceId!, sessionId))
+          .map((sessionId) => deleteAssistantSession(sessionId))
       )
     } catch (error) {
       toast.error(extractApiError(error, '清空归档失败'))
@@ -1384,24 +1339,6 @@ export function ChatHome() {
     toolMode: ChatAssistantMode
     useDeepThinking: boolean
   }) {
-    const targetGroupId = toolMode === 'KB_SEARCH' ? activeGroupId : null
-    if (toolMode === 'KB_SEARCH' && !targetGroupId) {
-      const errorMessage = '请先在管理后台创建知识库并上传文档'
-      toast.error(errorMessage)
-      updateConversationMessage(
-        targetConversationId,
-        assistantMessageId,
-        (message) => ({
-          ...message,
-          isStreaming: false,
-          isResponseComplete: true,
-          content: `请求失败：${errorMessage}`,
-          citations: [],
-        })
-      )
-      return
-    }
-
     const abortController = new AbortController()
     streamAbortControllerRef.current = abortController
     let receivedTerminalEvent = false
@@ -1410,9 +1347,7 @@ export function ChatHome() {
 
     const runAssistantStream = async (streamAccessToken: string) => {
       if (!currentAssistantSessionId) {
-        if (!currentWorkspaceId) throw new Error('请先选择工作空间')
         const session = await createAssistantSession(
-          currentWorkspaceId,
           question,
           toolMode,
           useDeepThinking
@@ -1421,9 +1356,7 @@ export function ChatHome() {
         updateConversationSession(targetConversationId, currentAssistantSessionId)
       }
 
-      if (!currentWorkspaceId) throw new Error('请先选择工作空间')
       await streamAssistantChat(
-        currentWorkspaceId,
         {
           sessionId: currentAssistantSessionId,
           message: question,
@@ -1635,11 +1568,6 @@ export function ChatHome() {
     }
 
     const requestMode = targetMessage.mode ?? assistantMode
-    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
-      toast.error('请先在管理后台创建知识库并上传文档')
-      return
-    }
-
     const currentAccessToken = await getStreamAccessToken()
     if (!currentAccessToken) return
 
@@ -1688,11 +1616,6 @@ export function ChatHome() {
     const trimmedInput = nextInput.trim()
     if ((!trimmedInput && nextFiles.length === 0) || isStreaming) return
     const requestMode = assistantMode
-    if (requestMode === 'KB_SEARCH' && !activeGroupId) {
-      toast.error('请先在管理后台创建知识库并上传文档')
-      return
-    }
-
     const currentAccessToken = await getStreamAccessToken()
     if (!currentAccessToken) return
 
@@ -1725,7 +1648,7 @@ export function ChatHome() {
         title: userMessage.content.slice(0, 24),
         description:
           requestMode === 'KB_SEARCH'
-            ? selectedGroup?.groupName ?? '知识问答'
+            ? '知识问答'
             : '通用助手',
         messages: [userMessage, assistantMessage],
       })

@@ -4,7 +4,7 @@ export type RetrievalMode = 'VECTOR_ONLY' | 'HYBRID' | 'HYBRID_RERANK'
 
 export interface EvaluationDataset {
   id: number
-  workspaceId: number
+  knowledgeBaseId: number
   userId: number
   name: string
   description: string | null
@@ -46,37 +46,37 @@ export interface EvaluationReport {
   completedAt: string
 }
 
-const evaluationBase = (workspaceId: number) =>
-  `/workspaces/${workspaceId}/evaluations`
+const evaluationBase = (knowledgeBaseId: number) =>
+  `/knowledge-bases/${knowledgeBaseId}/evaluations`
 
-export async function listEvaluationDatasets(workspaceId: number) {
-  const response = await http.get(`${evaluationBase(workspaceId)}/datasets`)
+export async function listEvaluationDatasets(knowledgeBaseId: number) {
+  const response = await http.get(`${evaluationBase(knowledgeBaseId)}/datasets`)
   return unwrapApiResponse<EvaluationDataset[]>(response.data, '获取评测数据集失败')
 }
 
 export async function createEvaluationDataset(
-  workspaceId: number,
+  knowledgeBaseId: number,
   request: { name: string; description?: string }
 ) {
   const response = await http.post(
-    `${evaluationBase(workspaceId)}/datasets`,
+    `${evaluationBase(knowledgeBaseId)}/datasets`,
     request
   )
   return unwrapApiResponse<EvaluationDataset>(response.data, '创建评测数据集失败')
 }
 
 export async function listEvaluationSamples(
-  workspaceId: number,
+  knowledgeBaseId: number,
   datasetId: number
 ) {
   const response = await http.get(
-    `${evaluationBase(workspaceId)}/datasets/${datasetId}/samples`
+    `${evaluationBase(knowledgeBaseId)}/datasets/${datasetId}/samples`
   )
   return unwrapApiResponse<EvaluationSample[]>(response.data, '获取评测样本失败')
 }
 
 export async function addEvaluationSample(
-  workspaceId: number,
+  knowledgeBaseId: number,
   datasetId: number,
   request: {
     question: string
@@ -85,29 +85,29 @@ export async function addEvaluationSample(
   }
 ) {
   const response = await http.post(
-    `${evaluationBase(workspaceId)}/datasets/${datasetId}/samples`,
+    `${evaluationBase(knowledgeBaseId)}/datasets/${datasetId}/samples`,
     request
   )
   return unwrapApiResponse<EvaluationSample>(response.data, '添加评测样本失败')
 }
 
 export async function listEvaluationRuns(
-  workspaceId: number,
+  knowledgeBaseId: number,
   datasetId: number
 ) {
   const response = await http.get(
-    `${evaluationBase(workspaceId)}/datasets/${datasetId}/runs`
+    `${evaluationBase(knowledgeBaseId)}/datasets/${datasetId}/runs`
   )
   return unwrapApiResponse<EvaluationRun[]>(response.data, '获取评测记录失败')
 }
 
 export async function runEvaluationAblation(
-  workspaceId: number,
+  knowledgeBaseId: number,
   datasetId: number,
   topK: number
 ) {
   const response = await http.post(
-    `${evaluationBase(workspaceId)}/datasets/${datasetId}/runs/ablation`,
+    `${evaluationBase(knowledgeBaseId)}/datasets/${datasetId}/runs/ablation`,
     undefined,
     { params: { topK } }
   )

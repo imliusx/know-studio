@@ -54,7 +54,7 @@ import {
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
 import { useAuthStore } from '@/stores/auth-store'
-import { useWorkspaceStore } from '@/stores/workspace-store'
+import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
 import { cn } from '@/lib/utils'
 
 const MODES: RetrievalMode[] = [
@@ -72,18 +72,17 @@ const MODE_LABELS: Record<RetrievalMode, string> = {
 export function EvaluationPage() {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((state) => state.auth.user)
-  const currentWorkspaceId = useWorkspaceStore(
-    (state) => state.currentWorkspaceId
+  const currentKnowledgeBaseId = useKnowledgeBaseStore(
+    (state) => state.currentKnowledgeBaseId
   )
-  const currentWorkspace = useWorkspaceStore((state) =>
-    state.workspaces.find(
-      (workspace) => workspace.workspaceId === state.currentWorkspaceId
+  const currentKnowledgeBase = useKnowledgeBaseStore((state) =>
+    state.knowledgeBases.find(
+      (knowledgeBase) => knowledgeBase.knowledgeBaseId === state.currentKnowledgeBaseId
     )
   )
   const canManage =
     currentUser?.systemRole === 'ADMIN' ||
-    currentWorkspace?.role === 'OWNER' ||
-    currentWorkspace?.role === 'ADMIN'
+    currentKnowledgeBase?.permission === 'MANAGE'
   const [selectedDatasetId, setSelectedDatasetId] = useState<number | null>(null)
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [sampleDialogOpen, setSampleDialogOpen] = useState(false)
@@ -101,9 +100,9 @@ export function EvaluationPage() {
   } | null>(null)
 
   const datasetsQuery = useQuery({
-    queryKey: ['evaluation-datasets', currentWorkspaceId],
-    queryFn: () => listEvaluationDatasets(currentWorkspaceId!),
-    enabled: Boolean(currentWorkspaceId && canManage),
+    queryKey: ['evaluation-datasets', currentKnowledgeBaseId],
+    queryFn: () => listEvaluationDatasets(currentKnowledgeBaseId!),
+    enabled: Boolean(currentKnowledgeBaseId && canManage),
   })
   const activeDataset =
     datasetsQuery.data?.find((dataset) => dataset.id === selectedDatasetId) ??
@@ -111,15 +110,15 @@ export function EvaluationPage() {
     null
   const activeDatasetId = activeDataset?.id ?? null
   const samplesQuery = useQuery({
-    queryKey: ['evaluation-samples', currentWorkspaceId, activeDatasetId],
+    queryKey: ['evaluation-samples', currentKnowledgeBaseId, activeDatasetId],
     queryFn: () =>
-      listEvaluationSamples(currentWorkspaceId!, activeDatasetId!),
-    enabled: Boolean(currentWorkspaceId && activeDatasetId && canManage),
+      listEvaluationSamples(currentKnowledgeBaseId!, activeDatasetId!),
+    enabled: Boolean(currentKnowledgeBaseId && activeDatasetId && canManage),
   })
   const runsQuery = useQuery({
-    queryKey: ['evaluation-runs', currentWorkspaceId, activeDatasetId],
-    queryFn: () => listEvaluationRuns(currentWorkspaceId!, activeDatasetId!),
-    enabled: Boolean(currentWorkspaceId && activeDatasetId && canManage),
+    queryKey: ['evaluation-runs', currentKnowledgeBaseId, activeDatasetId],
+    queryFn: () => listEvaluationRuns(currentKnowledgeBaseId!, activeDatasetId!),
+    enabled: Boolean(currentKnowledgeBaseId && activeDatasetId && canManage),
   })
 
   useEffect(() => {
@@ -133,13 +132,13 @@ export function EvaluationPage() {
 
   const createDatasetMutation = useMutation({
     mutationFn: () =>
-      createEvaluationDataset(currentWorkspaceId!, {
+      createEvaluationDataset(currentKnowledgeBaseId!, {
         name: datasetName.trim(),
         description: datasetDescription.trim() || undefined,
       }),
     onSuccess: (dataset) => {
       void queryClient.invalidateQueries({
-        queryKey: ['evaluation-datasets', currentWorkspaceId],
+        queryKey: ['evaluation-datasets', currentKnowledgeBaseId],
       })
       setSelectedDatasetId(dataset.id)
       setDatasetName('')
@@ -153,7 +152,7 @@ export function EvaluationPage() {
 
   const addSampleMutation = useMutation({
     mutationFn: (relevantChunkIds: number[]) =>
-      addEvaluationSample(currentWorkspaceId!, activeDatasetId!, {
+      addEvaluationSample(currentKnowledgeBaseId!, activeDatasetId!, {
         question: sampleQuestion.trim(),
         relevantChunkIds,
         expectedAnswer: sampleExpectedAnswer.trim() || undefined,
@@ -162,7 +161,7 @@ export function EvaluationPage() {
       void queryClient.invalidateQueries({
         queryKey: [
           'evaluation-samples',
-          currentWorkspaceId,
+          currentKnowledgeBaseId,
           activeDatasetId,
         ],
       })
@@ -177,11 +176,11 @@ export function EvaluationPage() {
 
   const runMutation = useMutation({
     mutationFn: () =>
-      runEvaluationAblation(currentWorkspaceId!, activeDatasetId!, topK),
+      runEvaluationAblation(currentKnowledgeBaseId!, activeDatasetId!, topK),
     onSuccess: (report) => {
       setLatestReport(report)
       void queryClient.invalidateQueries({
-        queryKey: ['evaluation-runs', currentWorkspaceId, activeDatasetId],
+        queryKey: ['evaluation-runs', currentKnowledgeBaseId, activeDatasetId],
       })
       toast.success('消融评测已完成')
     },
@@ -240,7 +239,7 @@ export function EvaluationPage() {
     addSampleMutation.mutate(chunkIds)
   }
 
-  if (!currentWorkspaceId) {
+  if (!currentKnowledgeBaseId) {
     return <EvaluationState title='尚未选择工作空间' description='请先创建或选择工作空间。' />
   }
 

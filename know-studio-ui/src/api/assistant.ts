@@ -73,12 +73,11 @@ interface ConversationContextWire {
 }
 
 export async function createAssistantSession(
-  workspaceId: number,
   title?: string,
   toolMode: AssistantToolMode = 'CHAT',
   deepThinking = false
 ) {
-  const response = await http.post(`/workspaces/${workspaceId}/sessions`, {
+  const response = await http.post('/conversations', {
     title,
     toolMode: toolMode === 'KB_SEARCH',
     deepThinking,
@@ -88,8 +87,8 @@ export async function createAssistantSession(
   )
 }
 
-export async function listAssistantSessions(workspaceId: number) {
-  const response = await http.get(`/workspaces/${workspaceId}/sessions`)
+export async function listAssistantSessions() {
+  const response = await http.get('/conversations')
   return unwrapApiResponse<SessionInfoWire[]>(
     response.data,
     '获取助手会话失败'
@@ -101,12 +100,11 @@ export async function listAssistantSessions(workspaceId: number) {
 }
 
 export async function getAssistantContext(
-  workspaceId: number,
   sessionId: number,
   recentLimit = 20
 ) {
   const response = await http.get(
-    `/workspaces/${workspaceId}/sessions/${sessionId}/context`,
+    `/conversations/${sessionId}/context`,
     { params: { question: '', recentLimit } }
   )
   const context = unwrapApiResponse<ConversationContextWire>(
@@ -120,7 +118,7 @@ export async function getAssistantContext(
       sessionId,
       role: message.role,
       toolMode: null,
-      groupId: workspaceId,
+      groupId: firstKnowledgeBaseId(message.metadata),
       content: message.content,
       structuredPayload: JSON.stringify(message.metadata ?? {}),
       createdAt: message.createdAt,
@@ -129,12 +127,11 @@ export async function getAssistantContext(
 }
 
 export async function renameAssistantSession(
-  workspaceId: number,
   sessionId: number,
   title: string
 ) {
   const response = await http.patch(
-    `/workspaces/${workspaceId}/sessions/${sessionId}`,
+    `/conversations/${sessionId}`,
     { title }
   )
   return toSessionDetail(
@@ -143,22 +140,19 @@ export async function renameAssistantSession(
 }
 
 export async function deleteAssistantSession(
-  workspaceId: number,
   sessionId: number
 ) {
-  const response = await http.delete(
-    `/workspaces/${workspaceId}/sessions/${sessionId}`
-  )
+  const response = await http.delete(`/conversations/${sessionId}`)
   return unwrapApiResponse<void>(response.data, '删除会话失败')
 }
 
 export async function streamAssistantChat(
-  workspaceId: number,
   request: {
     sessionId: number
     message: string
     toolMode: AssistantToolMode
     deepThinking: boolean
+    knowledgeBaseIds?: number[]
   },
   accessToken: string,
   onEvent: (event: AssistantStreamEvent) => void,
@@ -166,7 +160,7 @@ export async function streamAssistantChat(
 ) {
   const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? '/api'
   const response = await fetch(
-    `${apiBaseUrl.replace(/\/$/, '')}/workspaces/${workspaceId}/agent/chat/stream`,
+    `${apiBaseUrl.replace(/\/$/, '')}/agent/chat/stream`,
     {
       method: 'POST',
       credentials: 'include',
@@ -180,6 +174,7 @@ export async function streamAssistantChat(
         message: request.message,
         toolMode: request.toolMode === 'KB_SEARCH',
         deepThinking: request.deepThinking,
+        knowledgeBaseIds: request.knowledgeBaseIds,
       }),
     }
   )
@@ -209,6 +204,11 @@ export async function streamAssistantChat(
   buffer += decoder.decode()
   const tail = parseSseEvent(buffer)
   if (tail) onEvent(tail)
+}
+
+function firstKnowledgeBaseId(metadata: Record<string, unknown>) {
+  const ids = metadata.knowledgeBaseIds
+  return Array.isArray(ids) && typeof ids[0] === 'number' ? ids[0] : null
 }
 
 function parseSseEvent(frame: string): AssistantStreamEvent | null {

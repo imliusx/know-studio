@@ -50,9 +50,9 @@ import {
   type DocumentListItem,
   type DocumentPreview,
 } from "@/api/documents"
-import { createWorkspace, listWorkspaces } from "@/api/workspaces"
+import { createKnowledgeBase, listKnowledgeBases } from "@/api/knowledge-bases"
 import { extractApiError } from "@/api/http"
-import { useWorkspaceStore } from "@/stores/workspace-store"
+import { useKnowledgeBaseStore } from "@/stores/knowledge-base-store"
 import { Header } from "@/components/layout/header"
 import { HeaderActions } from "@/components/layout/header-actions"
 import { Main } from "@/components/layout/main"
@@ -124,22 +124,22 @@ import { formatDateTime, formatFileSize } from "./shared"
 
 export function DocumentsPage() {
   const documentManager = useDocumentManagement()
-  const workspaces = useWorkspaceStore((state) => state.workspaces)
-  const currentWorkspaceId = useWorkspaceStore((state) => state.currentWorkspaceId)
-  const currentWorkspace = workspaces.find((item) => item.workspaceId === currentWorkspaceId)
-  const groups = useMemo(() => toManagedGroups(workspaces), [workspaces])
+  const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
+  const currentKnowledgeBaseId = useKnowledgeBaseStore((state) => state.currentKnowledgeBaseId)
+  const currentKnowledgeBase = knowledgeBases.find((item) => item.knowledgeBaseId === currentKnowledgeBaseId)
+  const groups = useMemo(() => toManagedGroups(knowledgeBases), [knowledgeBases])
   const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
   const [activeView, setActiveView] = useState("knowledge-bases")
   const stats = useMemo(
     () => getKnowledgeBaseStats(groups, documentManager.documents),
     [groups, documentManager.documents]
   )
-  const knowledgeBases = useMemo(
+  const knowledgeBaseItems = useMemo(
     () => getKnowledgeBases(groups, documentManager.documents),
     [groups, documentManager.documents]
   )
   const isLoading = documentManager.isLoading
-  const canManage = currentWorkspace?.role !== "MEMBER"
+  const canManage = currentKnowledgeBase?.permission === "MANAGE"
 
   return (
     <>
@@ -169,7 +169,7 @@ export function DocumentsPage() {
           </TabsList>
           <TabsContent value="knowledge-bases" className="m-0 flex flex-col">
             <KnowledgeBaseList
-              data={knowledgeBases}
+              data={knowledgeBaseItems}
               isLoading={isLoading}
             />
           </TabsContent>
@@ -202,8 +202,8 @@ export function DocumentsPage() {
 
 export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
   const documentManager = useDocumentManagement()
-  const workspaces = useWorkspaceStore((state) => state.workspaces)
-  const groups = useMemo(() => toManagedGroups(workspaces), [workspaces])
+  const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
+  const groups = useMemo(() => toManagedGroups(knowledgeBases), [knowledgeBases])
   const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
   const knowledgeBase = groups.find((item) => item.groupId === groupId)
   const knowledgeBaseName =
@@ -217,7 +217,7 @@ export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: number }) {
   )
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false)
   const isLoading = documentManager.isLoading
-  const canManage = workspaces.find((item) => item.workspaceId === groupId)?.role !== "MEMBER"
+  const canManage = knowledgeBases.find((item) => item.knowledgeBaseId === groupId)?.permission === "MANAGE"
 
   return (
     <>
@@ -321,15 +321,15 @@ function KnowledgeBaseBreadcrumb({
 
 function useDocumentManagement() {
   const queryClient = useQueryClient()
-  const currentWorkspaceId = useWorkspaceStore(
-    (state) => state.currentWorkspaceId
+  const currentKnowledgeBaseId = useKnowledgeBaseStore(
+    (state) => state.currentKnowledgeBaseId
   )
   const [preview, setPreview] = useState<DocumentPreview | null>(null)
 
   const documentsQuery = useQuery({
-    queryKey: ["documents", currentWorkspaceId],
-    queryFn: () => listDocuments(currentWorkspaceId!),
-    enabled: Boolean(currentWorkspaceId),
+    queryKey: ["documents", currentKnowledgeBaseId],
+    queryFn: () => listDocuments(currentKnowledgeBaseId!),
+    enabled: Boolean(currentKnowledgeBaseId),
     refetchInterval: (query) =>
       query.state.data?.some(
         (document) =>
@@ -344,7 +344,7 @@ function useDocumentManagement() {
     onSuccess: () => {
       toast.success("操作成功")
       queryClient.invalidateQueries({
-        queryKey: ["documents", currentWorkspaceId],
+        queryKey: ["documents", currentKnowledgeBaseId],
       })
     },
     onError: (error) => toast.error(extractApiError(error, "操作失败")),
@@ -432,11 +432,11 @@ type KnowledgeBaseItem = {
 
 type ManagedGroup = { groupId: number; groupCode: string; groupName: string }
 
-function toManagedGroups(workspaces: import("@/api/workspaces").WorkspaceInfo[]): ManagedGroup[] {
-  return workspaces.map((workspace) => ({
-    groupId: workspace.workspaceId,
-    groupCode: String(workspace.workspaceId),
-    groupName: workspace.name,
+function toManagedGroups(knowledgeBases: import("@/api/knowledge-bases").KnowledgeBaseInfo[]): ManagedGroup[] {
+  return knowledgeBases.map((knowledgeBase) => ({
+    groupId: knowledgeBase.knowledgeBaseId,
+    groupCode: String(knowledgeBase.knowledgeBaseId),
+    groupName: knowledgeBase.name,
   }))
 }
 
@@ -644,19 +644,22 @@ function CreateKnowledgeBaseDialog({
 
   const createMutation = useMutation({
     mutationFn: async (request: { name: string; description?: string }) => {
-      const created = await createWorkspace(request)
-      return { created, workspaces: await listWorkspaces() }
+      const created = await createKnowledgeBase({
+        ...request,
+        visibility: "COMPANY",
+      })
+      return { created, knowledgeBases: await listKnowledgeBases() }
     },
-    onSuccess: ({ created, workspaces }) => {
+    onSuccess: ({ created, knowledgeBases }) => {
       toast.success("知识库已创建")
       setValues({ name: "", description: "" })
       onOpenChange(false)
-      useWorkspaceStore.getState().setWorkspaces(workspaces)
-      useWorkspaceStore.getState().setCurrentWorkspaceId(created.workspaceId)
+      useKnowledgeBaseStore.getState().setKnowledgeBases(knowledgeBases)
+      useKnowledgeBaseStore.getState().setCurrentKnowledgeBaseId(created.knowledgeBaseId)
       queryClient.invalidateQueries({ queryKey: ["documents"] })
       navigate({
         to: "/admin/documents/$groupId",
-        params: { groupId: String(created.workspaceId) },
+        params: { groupId: String(created.knowledgeBaseId) },
       })
     },
     onError: (error) => toast.error(extractApiError(error, "创建知识库失败")),

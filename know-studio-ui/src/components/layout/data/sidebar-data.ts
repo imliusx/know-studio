@@ -103,7 +103,7 @@ export const sidebarData: SidebarData = {
           icon: Users,
         },
         {
-          title: '小组协作',
+          title: '团队与授权',
           url: '/admin/groups',
           icon: SquareStack,
         },

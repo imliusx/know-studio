@@ -66,12 +66,12 @@
 
 ## Stage 5 · Frontend Workspace Removal
 
-- [ ] 删除 Workspace store、创建引导、切换器和 Workspace API。
-- [ ] 普通用户登录后直接进入 Chat，并只加载自己的会话。
-- [ ] 文档和评测 Query key 改为 knowledgeBaseId。
-- [ ] 管理端接入 Team、成员、知识库和授权管理。
-- [ ] 文档、Chat、Evaluation 适配新 API。
-- [ ] 保留其他正式功能入口和现有登录注册视觉。
+- [x] 删除 Workspace store、创建引导、切换器和 Workspace API。
+- [x] 普通用户登录后直接进入 Chat，并只加载自己的会话。
+- [x] 文档和评测 Query key 改为 knowledgeBaseId。
+- [x] 管理端接入 Team、成员、知识库和授权管理。
+- [x] 文档、Chat、Evaluation 适配新 API。
+- [x] 保留其他正式功能入口和现有登录注册视觉。
 
 验证：前端 lint/typecheck/build，ADMIN/USER 路由与操作可见性。
 
@@ -132,3 +132,11 @@
 - System ADMIN created two Teams and a Team-owned KnowledgeBase, then granted the second Team READ access.
 - The owner Team retained MANAGE, updated the KnowledgeBase, and updated a Team member role through the new APIs.
 - A MANAGE user created a KnowledgeBase evaluation dataset; a READ-only Team member received HTTP 403.
+
+### Frontend Workspace removal batch (2026-07-12)
+
+- Removed the Workspace API, store, persisted selection key, creation gate and empty-state components.
+- Chat sessions now load by user and stream through `/api/agent/chat/stream` without requiring a selected scope.
+- Documents and Evaluation use KnowledgeBase-scoped endpoints and query keys.
+- `/admin/groups` now provides Team creation, member role management and KnowledgeBase Team grants.
+- Frontend lint, typecheck and production build passed with only the two existing TanStack Table compatibility warnings.
