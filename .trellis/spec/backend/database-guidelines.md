@@ -13,7 +13,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 - Domain boundary: infrastructure repositories implement domain repository interfaces and convert between entities and domain records.
 - Complex SQL: place methods in a dedicated mapper and statements under `src/main/resources/mapper/**/*.xml`.
 - Migrations: `bootstrap/src/main/resources/db/migration/V<version>__<description>.sql`.
-- Final ownership schema: content and evaluation tables contain `knowledge_base_id`; sessions contain `user_id`; no business table contains `workspace_id`.
+- Final ownership schema: content and evaluation tables contain `knowledge_base_id`; sessions contain `user_id`; no legacy ownership column remains in business tables.
 
 ### 3. Contracts
 

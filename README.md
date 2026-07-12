@@ -64,13 +64,23 @@ default. Set `VITE_DEV_PROXY_TARGET` before starting Vite to use another backend
 
 ## Local demo flow
 
-1. Register or sign in, then create/select a workspace.
-2. Upload a text, PDF, Markdown, or Office document and wait for `READY`.
-3. Open Chat, select local knowledge, and ask a question that should cite the document.
-4. Enable deep thinking to inspect `thinking`, citation, and answer events.
-5. Open **检索评测**, create a dataset, add relevant Chunk IDs, and run the
-   three-mode ablation comparison.
+1. Register or sign in. Ordinary users can open Chat immediately without selecting an organization context.
+2. A system administrator creates Teams and a KnowledgeBase, then adds Team members and grants `READ` or `MANAGE` access.
+3. A system administrator or authorized Team Admin uploads a text, PDF, Markdown, or Office document and waits for `READY`.
+4. A Team member opens Chat and asks a question. The backend derives all readable KnowledgeBases and returns only authorized citations.
+5. Enable deep thinking to inspect `thinking`, citation, and answer events.
+6. An administrator opens **检索评测**, creates a dataset, adds relevant Chunk IDs, and runs the three-mode ablation comparison.
 
-Workspace permissions are enforced by the backend: OWNER has all operations,
-ADMIN can manage members/documents/Chat/evaluation, and MEMBER can use Chat and
-read READY documents/citations.
+The product is a single-company internal assistant. System `ADMIN` users manage
+all Teams and KnowledgeBases. A Team `MEMBER` receives read access from Team
+grants; only `TEAM_ADMIN` users can exercise a `MANAGE` grant. Conversations are
+owned directly by users, and content/evaluation data is isolated by
+`knowledge_base_id` throughout storage and retrieval.
+
+## Core API boundaries
+
+- Identity and administration: `/api/auth`, `/api/teams`, `/api/knowledge-bases`
+- Documents: `/api/knowledge-bases/{knowledgeBaseId}/documents/**`
+- Conversations and Chat: `/api/conversations`, `/api/agent/chat/stream`
+- Retrieval: `/api/retrieval/search`
+- Evaluation: `/api/knowledge-bases/{knowledgeBaseId}/evaluations/**`

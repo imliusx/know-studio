@@ -80,13 +80,13 @@
 ## Stage 6 · Migration and End-to-End Acceptance
 
 - [x] 从现有 V5 数据库执行 V6+ 升级并核对数据数量。
-- [ ] 验证管理员创建 Team、知识库、文档和跨 Team 授权。
-- [ ] 验证普通用户无需切换上下文直接问答。
-- [ ] 验证多 Team 用户、公司公开库、Team 私有库和失权场景。
-- [ ] 验证 Chat 引用、深度思考、评测和会话隔离。
+- [x] 验证管理员创建 Team、知识库、文档和跨 Team 授权。
+- [x] 验证普通用户无需切换上下文直接问答。
+- [x] 验证多 Team 用户、公司公开库、Team 私有库和失权场景。
+- [x] 验证 Chat 引用、深度思考、评测和会话隔离。
 - [ ] 完成桌面/移动端交互与截图验收。
-- [ ] 更新 README 和本地演示流程。
-- [ ] 全量 Maven、前端质量门禁、Compose 配置和 diff check 通过。
+- [x] 更新 README 和本地演示流程。
+- [x] 全量 Maven、前端质量门禁、Compose 配置和 diff check 通过。
 
 回滚点：E2E 修复与文档独立提交。
 
@@ -147,3 +147,15 @@
 - Existing V10 data upgraded without count changes; a clean database applied V1-V11 and started successfully.
 - Legacy identity controllers, APIs, entities and mappers were removed; request context now carries only user and trace identity.
 - Team `MANAGE` grants are effective as MANAGE only for `TEAM_ADMIN`; ordinary members retain READ access.
+
+### Final end-to-end batch (2026-07-12)
+
+- A system admin created two Teams, a Team KnowledgeBase and a company-visible KnowledgeBase, then granted the
+  second Team READ access.
+- A multi-Team member saw both KnowledgeBases as READ, retrieved the ingested document and received citation,
+  thinking, token and done SSE events without selecting context.
+- The same member received 403 for KnowledgeBase mutation and evaluation creation; an outsider received 403 for
+  Team KnowledgeBase read/retrieval and 404 for another user's conversation.
+- The uploaded validation document reached READY and all retrieval evidence remained in the authorized KnowledgeBase.
+- Evaluation persisted VECTOR_ONLY, HYBRID and HYBRID_RERANK runs. Browser screenshot validation was unavailable
+  because the browser runtime exposed no browser instance; the Vite server started successfully on port 5174.
