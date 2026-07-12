@@ -22,6 +22,7 @@ import { useAuthStore } from '@/stores/auth-store'
 import { Header } from '@/components/layout/header'
 import { HeaderActions } from '@/components/layout/header-actions'
 import { Main } from '@/components/layout/main'
+import { ForbiddenError } from '@/features/errors/forbidden'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -54,6 +55,10 @@ export function TeamKnowledgeAccessPage() {
     () => knowledgeBases.filter((item) => item.permission === 'MANAGE'),
     [knowledgeBases]
   )
+  const canManageAccess =
+    isSystemAdmin ||
+    teams.some((team) => team.role === 'TEAM_ADMIN') ||
+    manageableKnowledgeBases.length > 0
 
   const membersQuery = useQuery({
     queryKey: ['teams', effectiveTeamId, 'members'],
@@ -103,6 +108,10 @@ export function TeamKnowledgeAccessPage() {
     event.preventDefault()
     if (!teamValues.name.trim()) return
     createMutation.mutate({ name: teamValues.name.trim(), description: teamValues.description.trim() || undefined })
+  }
+
+  if (!teamsQuery.isPending && !knowledgeBasesQuery.isPending && !canManageAccess) {
+    return <ForbiddenError />
   }
 
   return (

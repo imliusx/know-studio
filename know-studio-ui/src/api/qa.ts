@@ -1,6 +1,7 @@
 import http, { unwrapBareResponse } from './http'
 
 export interface Citation {
+  knowledgeBaseId: number
   documentId: number
   chunkId: number
   chunkIndex: number

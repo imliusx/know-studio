@@ -1,6 +1,7 @@
 package know.studio.arag.knowledge.domain;
 
 import know.studio.arag.knowledge.api.KnowledgeAccessApi;
+import know.studio.arag.knowledge.api.KnowledgeBasePermission;
 import know.studio.arag.knowledge.api.DocumentView;
 import know.studio.arag.knowledge.api.DocumentStatus;
 import know.studio.arag.knowledge.api.KnowledgeApi;
@@ -20,22 +21,50 @@ public class KnowledgeQueryService implements KnowledgeApi {
     private final KnowledgeRepository repository;
     private final KnowledgeAccessApi knowledgeAccessApi;
     private final DocumentIndexPort indexPort;
+    private final ObjectStoragePort objectStoragePort;
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
     public DocumentView getDocument(long knowledgeBaseId, long documentId) {
-        knowledgeAccessApi.requireReadable(knowledgeBaseId);
-        DocumentRecord document = repository.findDocument(knowledgeBaseId, documentId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "文档不存在"));
+        KnowledgeBasePermission permission = knowledgeAccessApi.requireReadable(knowledgeBaseId);
+        DocumentRecord document = requireVisibleDocument(knowledgeBaseId, documentId, permission);
         return toView(document);
     }
 
     @Override
     public List<DocumentView> listDocuments(long knowledgeBaseId, DocumentStatus status, String fileName) {
-        knowledgeAccessApi.requireReadable(knowledgeBaseId);
-        return repository.findDocuments(knowledgeBaseId, status, normalize(fileName)).stream()
+        KnowledgeBasePermission permission = knowledgeAccessApi.requireReadable(knowledgeBaseId);
+        DocumentStatus effectiveStatus = permission == KnowledgeBasePermission.READ
+                ? DocumentStatus.READY
+                : status;
+        return repository.findDocuments(knowledgeBaseId, effectiveStatus, normalize(fileName)).stream()
                 .map(KnowledgeQueryService::toView)
                 .toList();
+    }
+
+    public DocumentContent openDocumentContent(long knowledgeBaseId, long documentId) {
+        KnowledgeBasePermission permission = knowledgeAccessApi.requireReadable(knowledgeBaseId);
+        DocumentRecord document = requireVisibleDocument(knowledgeBaseId, documentId, permission);
+        return new DocumentContent(
+                document.fileName(),
+                document.contentType(),
+                document.fileSize(),
+                objectStoragePort.open(document.objectKey())
+        );
+    }
+
+    private DocumentRecord requireVisibleDocument(
+            long knowledgeBaseId,
+            long documentId,
+            KnowledgeBasePermission permission
+    ) {
+        DocumentRecord document = repository.findDocument(knowledgeBaseId, documentId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "文档不存在"));
+        if (document.status() == DocumentStatus.DELETED
+                || (permission == KnowledgeBasePermission.READ && document.status() != DocumentStatus.READY)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "文档不存在");
+        }
+        return document;
     }
 
     @Override

@@ -1,4 +1,6 @@
 import { Fragment } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { listTeams } from '@/api/teams'
 import { useLayout } from '@/context/layout-provider'
 import { useAuthStore } from '@/stores/auth-store'
 import { useKnowledgeBaseStore } from '@/stores/knowledge-base-store'
@@ -20,19 +22,23 @@ export function AppSidebar() {
   const isSystemAdmin = useAuthStore(
     (state) => state.auth.user?.systemRole === 'ADMIN'
   )
-  const canManageEvaluations = useKnowledgeBaseStore((state) => {
-    const knowledgeBase = state.knowledgeBases.find(
-      (item) => item.knowledgeBaseId === state.currentKnowledgeBaseId
-    )
-    return knowledgeBase?.permission === 'MANAGE'
-  })
+  const teamsQuery = useQuery({ queryKey: ['teams'], queryFn: listTeams })
+  const canManageTeams = teamsQuery.data?.some(
+    (team) => team.role === 'TEAM_ADMIN'
+  )
+  const canManageKnowledge = useKnowledgeBaseStore((state) =>
+    state.knowledgeBases.some((item) => item.permission === 'MANAGE')
+  )
+  const managementUrls = new Set([
+    ...(canManageKnowledge
+      ? ['/admin', '/admin/documents', '/admin/evaluations']
+      : []),
+    ...(canManageTeams || canManageKnowledge ? ['/admin/groups'] : []),
+  ])
   const navGroups = sidebarData.navGroups.map((group) => ({
     ...group,
     items: group.items.filter(
-      (item) =>
-        item.url !== '/admin/evaluations' ||
-        isSystemAdmin ||
-        canManageEvaluations
+      (item) => isSystemAdmin || (item.url && managementUrls.has(item.url))
     ),
   }))
 

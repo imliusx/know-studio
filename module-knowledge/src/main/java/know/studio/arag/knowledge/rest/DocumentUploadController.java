@@ -3,13 +3,18 @@ package know.studio.arag.knowledge.rest;
 import jakarta.validation.Valid;
 import know.studio.arag.knowledge.api.DocumentView;
 import know.studio.arag.knowledge.api.DocumentStatus;
+import know.studio.arag.knowledge.domain.DocumentContent;
 import know.studio.arag.knowledge.domain.DocumentUploadService;
 import know.studio.arag.knowledge.domain.KnowledgeQueryService;
 import know.studio.arag.knowledge.domain.UploadInitResult;
 import know.studio.arag.knowledge.domain.UploadProgress;
 import know.studio.arag.platform.core.response.ApiResponse;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.InvalidMediaTypeException;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -22,9 +27,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/knowledge-bases/{knowledgeBaseId}")
@@ -95,6 +102,42 @@ public class DocumentUploadController {
             @PathVariable long documentId
     ) {
         return ApiResponse.ok(queryService.getDocument(knowledgeBaseId, documentId));
+    }
+
+    @GetMapping("/documents/{documentId}/content")
+    public ResponseEntity<StreamingResponseBody> downloadDocument(
+            @PathVariable long knowledgeBaseId,
+            @PathVariable long documentId
+    ) {
+        DocumentContent content = queryService.openDocumentContent(knowledgeBaseId, documentId);
+        MediaType mediaType = safeMediaType(content.contentType());
+        StreamingResponseBody body = outputStream -> {
+            try (var inputStream = content.inputStream()) {
+                inputStream.transferTo(outputStream);
+            }
+        };
+        return ResponseEntity.ok()
+                .contentType(mediaType)
+                .contentLength(content.fileSize())
+                .header(
+                        HttpHeaders.CONTENT_DISPOSITION,
+                        ContentDisposition.attachment()
+                                .filename(content.fileName(), StandardCharsets.UTF_8)
+                                .build()
+                                .toString()
+                )
+                .body(body);
+    }
+
+    private static MediaType safeMediaType(String contentType) {
+        if (contentType == null || contentType.isBlank()) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        try {
+            return MediaType.parseMediaType(contentType);
+        } catch (InvalidMediaTypeException exception) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
     }
 
     @GetMapping("/documents")

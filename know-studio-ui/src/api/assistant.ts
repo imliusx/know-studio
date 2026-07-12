@@ -259,12 +259,13 @@ function parseSseEvent(frame: string): AssistantStreamEvent | null {
     return {
       event,
       citation: {
+        knowledgeBaseId: Number(record.knowledgeBaseId),
         documentId: Number(record.documentId),
         chunkId: Number(record.chunkId),
-        chunkIndex: Number(record.chunkIndex),
+        chunkIndex: Number(record.chunkIndex ?? 0),
         fileName: String(record.fileName ?? ''),
         score: Number(record.score ?? 0),
-        snippet: String(record.text ?? ''),
+        snippet: String(record.snippet ?? record.text ?? ''),
       },
     }
   }

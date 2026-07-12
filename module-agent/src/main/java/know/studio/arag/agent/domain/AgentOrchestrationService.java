@@ -247,8 +247,10 @@ public class AgentOrchestrationService implements AgentApi {
                         "knowledgeBaseId", item.knowledgeBaseId(),
                         "documentId", item.documentId(),
                         "chunkId", item.chunkId(),
+                        "chunkIndex", item.chunkIndex(),
                         "fileName", item.fileName(),
-                        "score", item.score()
+                        "score", item.score(),
+                        "snippet", item.text()
                 )));
     }
 

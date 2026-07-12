@@ -1,0 +1,29 @@
+# ACL completion audit gaps
+
+## Goal
+
+Close Team Admin navigation, secure citation download, persisted citation metadata, and final visual verification gaps found after completion audit.
+
+## Requirements
+
+- Team Admin 或拥有可管理知识库的用户能看到对应管理入口；普通 MEMBER 不显示管理入口。
+- SSE 与持久化消息中的引用必须包含 knowledgeBaseId、documentId、chunkId、chunkIndex、fileName、score 和 snippet。
+- 提供按 knowledgeBaseId + documentId 授权的原文下载接口，失权后返回 403。
+- Chat 引用可触发受保护的原文下载，不通过公开对象 URL 绕过鉴权。
+- 保留全部现有正式导航和功能，仅调整管理入口可见性。
+- 完成桌面与移动端浏览器验收；若运行环境仍无浏览器实例，保留明确的未完成证据，不得宣称全部完成。
+
+## Acceptance Criteria
+
+- [x] 普通 MEMBER 的侧栏不显示知识库、评测、团队授权等管理入口。
+- [x] Team Admin 能进入团队成员管理；具备 MANAGE 的 Team Admin 能进入文档和评测管理。
+- [x] 新旧会话引用均能被前端解析并显示完整摘要。
+- [x] 授权用户可下载原文，失权用户和无权用户收到 403。
+- [x] 后端测试、前端 lint/typecheck/build、E2E 和 diff check 通过。
+- [ ] 桌面与移动端截图和交互验收完成。
+
+## Notes
+
+- Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
+- Lightweight tasks can remain PRD-only.
+- For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.

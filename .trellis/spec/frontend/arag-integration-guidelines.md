@@ -53,6 +53,11 @@ Required shape:
 - TEAM_ADMIN: Team membership plus KnowledgeBases with MANAGE grants.
 - USER/MEMBER: Chat and citations from COMPANY or granted KnowledgeBases.
 - Do not show management actions without MANAGE permission, but still handle backend 403 because UI visibility is not a security boundary.
+- System ADMIN sees the complete administration navigation. Team Admin sees Team
+  administration, and users with effective MANAGE permission see document and
+  evaluation administration. Ordinary members see none of these entries.
+- Citation downloads use the authenticated KnowledgeBase document-content API;
+  never render a direct object-storage URL.
 
 ## React and Query State
 

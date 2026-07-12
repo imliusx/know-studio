@@ -97,6 +97,8 @@ class AgentOrchestrationServiceTest {
         );
         Map<?, ?> citationEvent = (Map<?, ?>) events.getFirst().payload();
         assertThat(citationEvent.get("knowledgeBaseId")).isEqualTo(knowledgeBaseId);
+        assertThat(citationEvent.get("chunkIndex")).isEqualTo(0);
+        assertThat(citationEvent.get("snippet")).isEqualTo("RAG combines retrieval and generation.");
 
         ArgumentCaptor<AppendMessageCommand> commandCaptor = ArgumentCaptor.forClass(AppendMessageCommand.class);
         verify(conversationApi, org.mockito.Mockito.times(2))
@@ -105,7 +107,10 @@ class AgentOrchestrationServiceTest {
         assertThat(assistant.metadata()).containsEntry("knowledgeBaseIds", List.of(knowledgeBaseId));
         List<?> citations = (List<?>) assistant.metadata().get("citations");
         assertThat(citations).hasSize(1);
-        assertThat(((Map<?, ?>) citations.getFirst()).get("documentId")).isEqualTo(101L);
+        Map<?, ?> persistedCitation = (Map<?, ?>) citations.getFirst();
+        assertThat(persistedCitation.get("documentId")).isEqualTo(101L);
+        assertThat(persistedCitation.get("chunkIndex")).isEqualTo(0);
+        assertThat(persistedCitation.get("snippet")).isEqualTo("RAG combines retrieval and generation.");
     }
 
     private AgentOrchestrationService service() {

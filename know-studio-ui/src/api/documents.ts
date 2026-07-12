@@ -165,6 +165,17 @@ export async function previewDocument(documentId: number, knowledgeBaseId: numbe
   } satisfies DocumentPreview
 }
 
+export async function downloadDocumentContent(
+  documentId: number,
+  knowledgeBaseId: number
+) {
+  const response = await http.get(
+    `/knowledge-bases/${knowledgeBaseId}/documents/${documentId}/content`,
+    { responseType: 'blob' }
+  )
+  return response.data as Blob
+}
+
 function toListItem(document: DocumentView): DocumentListItem {
   const extensionIndex = document.fileName.lastIndexOf('.')
   return {

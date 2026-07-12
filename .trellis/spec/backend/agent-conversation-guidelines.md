@@ -30,6 +30,10 @@ events.
   citation, or generation steps run.
 - Vector SQL and Elasticsearch keyword queries must filter by the same effective
   `knowledge_base_id` set. Evidence and citation payloads carry `knowledgeBaseId`.
+- Citation SSE and persisted metadata use the same fields: `knowledgeBaseId`,
+  `documentId`, `chunkId`, `chunkIndex`, `fileName`, `score`, and `snippet`.
+- Source document content is streamed only after `requireReadable(knowledgeBaseId)`
+  and a repository lookup by both KnowledgeBase and document ID.
 - `session_memory.summarized_through_message_id` is the compression cursor.
   Subsequent compression only sends messages after that cursor to the model.
 - The request thread captures the authenticated user before returning a Flux.
@@ -75,6 +79,8 @@ events.
   message.
 - Integration test Flyway migrations, session creation/context loading, message JSONB
   round-trip, and representative SSE event ordering.
+- Integration test authorized document download, revoked/unauthorized 403, and
+  citation metadata round-trip.
 - Configure a real MCP server and chat/reasoning provider before claiming remote
   MCP or full generated-answer end-to-end verification.
 

@@ -36,6 +36,7 @@ import {
   HttpStatusError,
   isUnauthorizedError,
 } from '@/api/http'
+import { downloadDocumentContent } from '@/api/documents'
 import { type Citation } from '@/api/qa'
 import { useLayout, type Collapsible } from '@/context/layout-provider'
 import { getCookie } from '@/lib/cookies'
@@ -546,18 +547,23 @@ function parseMessageCitations(structuredPayload: string | null): Citation[] {
     }
     if (!Array.isArray(parsed.citations)) return []
 
-    return parsed.citations.filter((citation): citation is Citation => {
-      if (!citation || typeof citation !== 'object') return false
+    return parsed.citations.flatMap((citation) => {
+      if (!citation || typeof citation !== 'object') return []
       const candidate = citation as Record<string, unknown>
+      const knowledgeBaseId = Number(candidate.knowledgeBaseId)
+      const documentId = Number(candidate.documentId)
+      const chunkId = Number(candidate.chunkId)
+      if (![knowledgeBaseId, documentId, chunkId].every(Number.isFinite)) return []
 
-      return (
-        typeof candidate.documentId === 'number' &&
-        typeof candidate.chunkId === 'number' &&
-        typeof candidate.chunkIndex === 'number' &&
-        typeof candidate.fileName === 'string' &&
-        typeof candidate.score === 'number' &&
-        typeof candidate.snippet === 'string'
-      )
+      return [{
+        knowledgeBaseId,
+        documentId,
+        chunkId,
+        chunkIndex: Number(candidate.chunkIndex ?? 0),
+        fileName: String(candidate.fileName ?? ''),
+        score: Number(candidate.score ?? 0),
+        snippet: String(candidate.snippet ?? candidate.text ?? ''),
+      }]
     })
   } catch {
     return []
@@ -3041,6 +3047,23 @@ function AssistantMessage({
 }) {
   const showActions = !message.isStreaming && Boolean(message.content)
 
+  async function handleCitationDownload(citation: Citation) {
+    try {
+      const blob = await downloadDocumentContent(
+        citation.documentId,
+        citation.knowledgeBaseId
+      )
+      const objectUrl = URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = citation.fileName || `document-${citation.documentId}`
+      anchor.click()
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      toast.error(extractApiError(error, '下载引用文档失败'))
+    }
+  }
+
   return (
     <div className='flex flex-col gap-3'>
       {message.thinking ? (
@@ -3093,10 +3116,12 @@ function AssistantMessage({
           <div className='text-xs font-medium text-muted-foreground'>引用来源</div>
           <div className='flex flex-wrap gap-2'>
             {message.citations.map((citation, index) => (
-              <div
+              <button
+                type='button'
                 key={`${citation.documentId}-${citation.chunkId}`}
-                className='flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-xs'
-                title={citation.snippet || citation.fileName}
+                className='flex min-w-0 max-w-full items-center gap-2 rounded-md border bg-muted/30 px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-muted'
+                title={`下载引用文档：${citation.fileName || '知识文档'}`}
+                onClick={() => handleCitationDownload(citation)}
               >
                 <span className='shrink-0 font-medium'>[{index + 1}]</span>
                 <span className='truncate'>{citation.fileName || '知识文档'}</span>
@@ -3105,7 +3130,8 @@ function AssistantMessage({
                     {citation.score.toFixed(3)}
                   </span>
                 ) : null}
-              </div>
+                <Download className='size-3.5 shrink-0' />
+              </button>
             ))}
           </div>
         </div>
