@@ -67,6 +67,9 @@ const sessionId: EntityId = payload.id
 
 - Ordinary users do not select a tenant or Team context before Chat. The backend derives readable KnowledgeBases from the authenticated user.
 - Document and evaluation administration takes an explicit knowledgeBaseId.
+- The document administration overview loads documents for every manageable
+  KnowledgeBase. A KnowledgeBase detail route loads its route `knowledgeBaseId`;
+  neither view may depend on the unrelated globally selected KnowledgeBase.
 - Every knowledge-scoped TanStack Query key includes knowledgeBaseId. Forbidden examples:
 
 ```ts

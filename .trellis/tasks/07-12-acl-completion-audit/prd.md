@@ -29,6 +29,7 @@ Close Team Admin navigation, secure citation download, persisted citation metada
 - [x] 管理侧栏恢复静态 Logo，评测页面提供独立的可管理知识库选择器。
 - [x] “Java 类名如何命名？”真实问答直接返回 UpperCamelCase、例外和正反例，不再概括整本手册或混入方法/变量规则。
 - [x] “你好”等短问候语稳定进入普通聊天，不再返回“请补充查询对象”。
+- [x] 文档管理总览展示所有可管理知识库的文档，详情页按路由知识库加载，不受全局当前知识库误选影响。
 - [ ] 桌面与移动端截图和交互验收完成。
 
 ## Notes

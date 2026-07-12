@@ -4,7 +4,11 @@ import {
   type ChangeEvent,
   type FormEvent,
 } from "react"
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import {
+  useMutation,
+  useQueries,
+  useQueryClient,
+} from "@tanstack/react-query"
 import { Link, useNavigate } from "@tanstack/react-router"
 import {
   type ColumnDef,
@@ -124,11 +128,13 @@ import { DocumentStatusBadge } from "./document-status-badge"
 import { formatDateTime, formatFileSize } from "./shared"
 
 export function DocumentsPage() {
-  const documentManager = useDocumentManagement()
   const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
-  const currentKnowledgeBaseId = useKnowledgeBaseStore((state) => state.currentKnowledgeBaseId)
-  const currentKnowledgeBase = knowledgeBases.find((item) => item.knowledgeBaseId === currentKnowledgeBaseId)
   const groups = useMemo(() => toManagedGroups(knowledgeBases), [knowledgeBases])
+  const managedKnowledgeBaseIds = useMemo(
+    () => groups.map((group) => group.groupId),
+    [groups]
+  )
+  const documentManager = useDocumentManagement(managedKnowledgeBaseIds)
   const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
   const [activeView, setActiveView] = useState("knowledge-bases")
   const stats = useMemo(
@@ -140,7 +146,7 @@ export function DocumentsPage() {
     [groups, documentManager.documents]
   )
   const isLoading = documentManager.isLoading
-  const canManage = currentKnowledgeBase?.permission === "MANAGE"
+  const canManage = groups.length > 0
 
   return (
     <>
@@ -202,7 +208,7 @@ export function DocumentsPage() {
 }
 
 export function KnowledgeBaseDocumentsPage({ groupId }: { groupId: EntityId }) {
-  const documentManager = useDocumentManagement()
+  const documentManager = useDocumentManagement([groupId])
   const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
   const groups = useMemo(() => toManagedGroups(knowledgeBases), [knowledgeBases])
   const groupNameById = useMemo(() => getGroupNameById(groups), [groups])
@@ -320,33 +326,38 @@ function KnowledgeBaseBreadcrumb({
   )
 }
 
-function useDocumentManagement() {
+function useDocumentManagement(knowledgeBaseIds: EntityId[]) {
   const queryClient = useQueryClient()
-  const currentKnowledgeBaseId = useKnowledgeBaseStore(
-    (state) => state.currentKnowledgeBaseId
-  )
   const [preview, setPreview] = useState<DocumentPreview | null>(null)
 
-  const documentsQuery = useQuery({
-    queryKey: ["documents", currentKnowledgeBaseId],
-    queryFn: () => listDocuments(currentKnowledgeBaseId!),
-    enabled: Boolean(currentKnowledgeBaseId),
-    refetchInterval: (query) =>
-      query.state.data?.some(
-        (document) =>
-          document.status === "PENDING" || document.status === "PROCESSING"
-      )
-        ? 2_000
-        : false,
+  const documentQueries = useQueries({
+    queries: knowledgeBaseIds.map((knowledgeBaseId) => ({
+      queryKey: ["documents", knowledgeBaseId],
+      queryFn: () => listDocuments(knowledgeBaseId),
+      refetchInterval: (query: {
+        state: { data?: DocumentListItem[] }
+      }) =>
+        query.state.data?.some(
+          (document) =>
+            document.status === "PENDING" || document.status === "PROCESSING"
+        )
+          ? 2_000
+          : false,
+    })),
   })
 
   const actionMutation = useMutation({
-    mutationFn: async (fn: () => Promise<void>) => fn(),
-    onSuccess: () => {
+    mutationFn: async (action: {
+      knowledgeBaseIds: EntityId[]
+      run: () => Promise<void>
+    }) => action.run(),
+    onSuccess: (_, action) => {
       toast.success("操作成功")
-      queryClient.invalidateQueries({
-        queryKey: ["documents", currentKnowledgeBaseId],
-      })
+      for (const knowledgeBaseId of action.knowledgeBaseIds) {
+        queryClient.invalidateQueries({
+          queryKey: ["documents", knowledgeBaseId],
+        })
+      }
     },
     onError: (error) => toast.error(extractApiError(error, "操作失败")),
   })
@@ -358,8 +369,7 @@ function useDocumentManagement() {
     onError: (error) => toast.error(extractApiError(error, "获取预览失败")),
   })
 
-  const backendDocuments = documentsQuery.data ?? []
-  const documents = backendDocuments
+  const documents = documentQueries.flatMap((query) => query.data ?? [])
 
   function handlePreview(document: DocumentListItem) {
     if (document.previewText) {
@@ -375,31 +385,38 @@ function useDocumentManagement() {
   }
 
   function handleRetry(document: DocumentListItem) {
-    actionMutation.mutate(() =>
-      retryDocumentIngestion(document.documentId, document.groupId)
-    )
+    actionMutation.mutate({
+      knowledgeBaseIds: [document.groupId],
+      run: () => retryDocumentIngestion(document.documentId, document.groupId),
+    })
   }
 
   function handleDelete(document: DocumentListItem) {
-    actionMutation.mutate(() =>
-      deleteDocument(document.documentId, document.groupId)
-    )
+    actionMutation.mutate({
+      knowledgeBaseIds: [document.groupId],
+      run: () => deleteDocument(document.documentId, document.groupId),
+    })
   }
 
   function handleDeleteMany(documents: DocumentListItem[]) {
-    actionMutation.mutate(async () => {
-      await Promise.all(
-        documents.map((document) =>
-          deleteDocument(document.documentId, document.groupId)
+    actionMutation.mutate({
+      knowledgeBaseIds: [...new Set(documents.map((document) => document.groupId))],
+      run: async () => {
+        await Promise.all(
+          documents.map((document) =>
+            deleteDocument(document.documentId, document.groupId)
+          )
         )
-      )
+      },
     })
   }
 
   return {
     documents,
     preview,
-    isLoading: documentsQuery.isPending,
+    isLoading:
+      knowledgeBaseIds.length > 0 &&
+      documentQueries.some((query) => query.isPending),
     isActionPending: actionMutation.isPending,
     isPreviewPending: previewMutation.isPending,
     handlePreview,
@@ -434,11 +451,13 @@ type KnowledgeBaseItem = {
 type ManagedGroup = { groupId: EntityId; groupCode: string; groupName: string }
 
 function toManagedGroups(knowledgeBases: import("@/api/knowledge-bases").KnowledgeBaseInfo[]): ManagedGroup[] {
-  return knowledgeBases.map((knowledgeBase) => ({
-    groupId: knowledgeBase.knowledgeBaseId,
-    groupCode: String(knowledgeBase.knowledgeBaseId),
-    groupName: knowledgeBase.name,
-  }))
+  return knowledgeBases
+    .filter((knowledgeBase) => knowledgeBase.permission === "MANAGE")
+    .map((knowledgeBase) => ({
+      groupId: knowledgeBase.knowledgeBaseId,
+      groupCode: String(knowledgeBase.knowledgeBaseId),
+      groupName: knowledgeBase.name,
+    }))
 }
 
 function formatKnowledgeBaseName(groupId: EntityId) {
