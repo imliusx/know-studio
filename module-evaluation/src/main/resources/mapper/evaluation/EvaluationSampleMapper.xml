@@ -4,18 +4,20 @@
 <mapper namespace="know.studio.arag.evaluation.infra.persistence.mapper.EvaluationSampleMapper">
     <insert id="insertJson">
         INSERT INTO eval_samples(
-            id, knowledge_base_id, dataset_id, question, relevant_chunk_ids, expected_answer, created_at
+            id, knowledge_base_id, dataset_id, question, relevant_chunk_ids, expected_answer,
+            expect_refusal, created_at
         )
         VALUES (
             #{id}, #{knowledgeBaseId}, #{datasetId}, #{question}, CAST(#{relevantChunkIds} AS JSONB),
-            #{expectedAnswer}, #{createdAt}
+            #{expectedAnswer}, #{expectRefusal}, #{createdAt}
         )
     </insert>
 
     <select id="selectOwned"
             resultType="know.studio.arag.evaluation.infra.persistence.entity.EvaluationSampleEntity">
         SELECT id, knowledge_base_id, dataset_id, question,
-               relevant_chunk_ids::TEXT AS relevant_chunk_ids, expected_answer, created_at
+               relevant_chunk_ids::TEXT AS relevant_chunk_ids, expected_answer,
+               expect_refusal, created_at
         FROM eval_samples
         WHERE knowledge_base_id = #{knowledgeBaseId}
           AND dataset_id = #{datasetId}

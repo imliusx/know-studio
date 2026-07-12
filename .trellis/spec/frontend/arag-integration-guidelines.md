@@ -85,6 +85,10 @@ Required shape:
 ```
 
 - Switching the selected admin KnowledgeBase aborts uploads and resets document/evaluation selections.
+- Evaluation sample forms distinguish positive retrieval samples from expected
+  refusals. Positive samples require chunk IDs; refusal samples send an empty
+  chunk list with `expectRefusal=true`. Evaluation tables display Recall@K and
+  refusal accuracy separately and show `-` when a dataset has no sample of that type.
 - Chat sessions are user-owned and do not reset when a Team filter changes.
 - Frontend role and grant checks improve usability only. Backend authorization remains mandatory.
 

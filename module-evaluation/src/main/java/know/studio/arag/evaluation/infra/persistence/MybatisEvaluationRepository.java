@@ -68,6 +68,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
         entity.setQuestion(sample.question());
         entity.setRelevantChunkIds(write(sample.relevantChunkIds()));
         entity.setExpectedAnswer(sample.expectedAnswer());
+        entity.setExpectRefusal(sample.expectRefusal());
         entity.setCreatedAt(sample.createdAt());
         sampleMapper.insertJson(entity);
     }
@@ -90,7 +91,12 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
         entity.setRecallAtK(BigDecimal.valueOf(run.recallAtK()));
         entity.setSampleCount(run.sampleCount());
         entity.setAvgLatencyMs(run.averageLatencyMillis());
-        entity.setExtra(write(java.util.Map.of("topK", run.topK())));
+        entity.setExtra(write(java.util.Map.of(
+                "topK", run.topK(),
+                "refusalAccuracy", run.refusalAccuracy(),
+                "positiveSampleCount", run.positiveSampleCount(),
+                "refusalSampleCount", run.refusalSampleCount()
+        )));
         entity.setCreatedAt(run.createdAt());
         runMapper.insertJson(entity);
     }
@@ -140,6 +146,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
                 entity.getQuestion(),
                 readIds(entity.getRelevantChunkIds()),
                 entity.getExpectedAnswer(),
+                Boolean.TRUE.equals(entity.getExpectRefusal()),
                 entity.getCreatedAt()
         );
     }
@@ -152,7 +159,10 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
                 entity.getUserId(),
                 know.studio.arag.retrieval.api.RetrievalMode.valueOf(entity.getConfig()),
                 entity.getRecallAtK().doubleValue(),
+                readDouble(entity.getExtra(), "refusalAccuracy"),
                 entity.getSampleCount(),
+                readInt(entity.getExtra(), "positiveSampleCount", entity.getSampleCount()),
+                readInt(entity.getExtra(), "refusalSampleCount", 0),
                 entity.getAvgLatencyMs(),
                 readTopK(entity.getExtra()),
                 entity.getCreatedAt()
@@ -176,10 +186,24 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     }
 
     private int readTopK(String value) {
+        return readInt(value, "topK", 0);
+    }
+
+    private int readInt(String value, String key, int defaultValue) {
         try {
             Map<?, ?> extra = objectMapper.readValue(value, Map.class);
-            Object topK = extra.get("topK");
-            return topK instanceof Number number ? number.intValue() : 0;
+            Object result = extra.get(key);
+            return result instanceof Number number ? number.intValue() : defaultValue;
+        } catch (JsonProcessingException exception) {
+            throw new BusinessException("评测运行参数无法解析");
+        }
+    }
+
+    private double readDouble(String value, String key) {
+        try {
+            Map<?, ?> extra = objectMapper.readValue(value, Map.class);
+            Object result = extra.get(key);
+            return result instanceof Number number ? number.doubleValue() : 0.0;
         } catch (JsonProcessingException exception) {
             throw new BusinessException("评测运行参数无法解析");
         }

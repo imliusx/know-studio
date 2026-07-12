@@ -26,6 +26,7 @@ import { HeaderActions } from '@/components/layout/header-actions'
 import { Main } from '@/components/layout/main'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Dialog,
   DialogContent,
@@ -109,6 +110,7 @@ export function EvaluationPage() {
   const [sampleQuestion, setSampleQuestion] = useState('')
   const [sampleChunkIds, setSampleChunkIds] = useState('')
   const [sampleExpectedAnswer, setSampleExpectedAnswer] = useState('')
+  const [sampleExpectRefusal, setSampleExpectRefusal] = useState(false)
   const [topK, setTopK] = useState(5)
   const [cooldownSeconds, setCooldownSeconds] = useState(0)
   const [latestReport, setLatestReport] = useState<{
@@ -174,6 +176,7 @@ export function EvaluationPage() {
         question: sampleQuestion.trim(),
         relevantChunkIds,
         expectedAnswer: sampleExpectedAnswer.trim() || undefined,
+        expectRefusal: sampleExpectRefusal,
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({
@@ -186,6 +189,7 @@ export function EvaluationPage() {
       setSampleQuestion('')
       setSampleChunkIds('')
       setSampleExpectedAnswer('')
+      setSampleExpectRefusal(false)
       setSampleDialogOpen(false)
       toast.success('评测样本已添加')
     },
@@ -221,7 +225,13 @@ export function EvaluationPage() {
         return {
           mode,
           recallAtK: reportMetric?.recallAtK ?? historicalRun?.recallAtK,
+          refusalAccuracy:
+            reportMetric?.refusalAccuracy ?? historicalRun?.refusalAccuracy,
           sampleCount: reportMetric?.sampleCount ?? historicalRun?.sampleCount,
+          positiveSampleCount:
+            reportMetric?.positiveSampleCount ?? historicalRun?.positiveSampleCount,
+          refusalSampleCount:
+            reportMetric?.refusalSampleCount ?? historicalRun?.refusalSampleCount,
           averageLatencyMillis:
             reportMetric?.averageLatencyMillis ??
             historicalRun?.averageLatencyMillis,
@@ -249,11 +259,15 @@ export function EvaluationPage() {
           .filter((value) => /^\d+$/.test(value))
       )
     )
-    if (!sampleQuestion.trim() || chunkIds.length === 0) {
-      toast.error('请填写问题并输入至少一个有效的 Chunk ID')
+    if (!sampleQuestion.trim()) {
+      toast.error('请填写问题')
       return
     }
-    addSampleMutation.mutate(chunkIds)
+    if (!sampleExpectRefusal && chunkIds.length === 0) {
+      toast.error('普通样本至少需要一个有效的 Chunk ID')
+      return
+    }
+    addSampleMutation.mutate(sampleExpectRefusal ? [] : chunkIds)
   }
 
   if (!currentKnowledgeBaseId) {
@@ -445,6 +459,7 @@ export function EvaluationPage() {
                         <TableRow>
                           <TableHead>模式</TableHead>
                           <TableHead>Recall@K</TableHead>
+                          <TableHead>拒答准确率</TableHead>
                           <TableHead>平均延迟</TableHead>
                           <TableHead>样本数</TableHead>
                           <TableHead>Top K</TableHead>
@@ -459,7 +474,16 @@ export function EvaluationPage() {
                             <TableCell>
                               {row.recallAtK === undefined
                                 ? '-'
-                                : `${(row.recallAtK * 100).toFixed(1)}%`}
+                                : row.positiveSampleCount
+                                  ? `${(row.recallAtK * 100).toFixed(1)}%`
+                                  : '-'}
+                            </TableCell>
+                            <TableCell>
+                              {row.refusalAccuracy === undefined
+                                ? '-'
+                                : row.refusalSampleCount
+                                  ? `${(row.refusalAccuracy * 100).toFixed(1)}%`
+                                  : '-'}
                             </TableCell>
                             <TableCell>
                               {row.averageLatencyMillis === undefined
@@ -485,6 +509,7 @@ export function EvaluationPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead>问题</TableHead>
+                          <TableHead>类型</TableHead>
                           <TableHead>相关 Chunk</TableHead>
                           <TableHead>期望回答</TableHead>
                         </TableRow>
@@ -492,13 +517,13 @@ export function EvaluationPage() {
                       <TableBody>
                         {samplesQuery.isLoading ? (
                           <TableRow>
-                            <TableCell colSpan={3} className='h-24 text-center'>
+                            <TableCell colSpan={4} className='h-24 text-center'>
                               正在加载样本
                             </TableCell>
                           </TableRow>
                         ) : samplesQuery.isError ? (
                           <TableRow>
-                            <TableCell colSpan={3} className='h-24 text-center text-destructive'>
+                            <TableCell colSpan={4} className='h-24 text-center text-destructive'>
                               {extractApiError(samplesQuery.error, '样本加载失败')}
                             </TableCell>
                           </TableRow>
@@ -509,7 +534,14 @@ export function EvaluationPage() {
                                 {sample.question}
                               </TableCell>
                               <TableCell>
-                                {sample.relevantChunkIds.join(', ')}
+                                <Badge variant={sample.expectRefusal ? 'outline' : 'secondary'}>
+                                  {sample.expectRefusal ? '应拒答' : '应命中'}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                {sample.expectRefusal
+                                  ? '-'
+                                  : sample.relevantChunkIds.join(', ')}
                               </TableCell>
                               <TableCell className='max-w-96 whitespace-normal text-muted-foreground'>
                                 {sample.expectedAnswer || '-'}
@@ -518,7 +550,7 @@ export function EvaluationPage() {
                           ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={3} className='h-24 text-center'>
+                            <TableCell colSpan={4} className='h-24 text-center'>
                               暂无标注样本
                             </TableCell>
                           </TableRow>
@@ -537,19 +569,20 @@ export function EvaluationPage() {
                           <TableHead>时间</TableHead>
                           <TableHead>模式</TableHead>
                           <TableHead>Recall@K</TableHead>
+                          <TableHead>拒答准确率</TableHead>
                           <TableHead>延迟</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {runsQuery.isLoading ? (
                           <TableRow>
-                            <TableCell colSpan={4} className='h-24 text-center'>
+                            <TableCell colSpan={5} className='h-24 text-center'>
                               正在加载运行记录
                             </TableCell>
                           </TableRow>
                         ) : runsQuery.isError ? (
                           <TableRow>
-                            <TableCell colSpan={4} className='h-24 text-center text-destructive'>
+                            <TableCell colSpan={5} className='h-24 text-center text-destructive'>
                               {extractApiError(runsQuery.error, '运行记录加载失败')}
                             </TableCell>
                           </TableRow>
@@ -559,14 +592,21 @@ export function EvaluationPage() {
                               <TableCell>{formatTime(run.createdAt)}</TableCell>
                               <TableCell>{MODE_LABELS[run.mode]}</TableCell>
                               <TableCell>
-                                {(run.recallAtK * 100).toFixed(1)}%
+                                {run.positiveSampleCount
+                                  ? `${(run.recallAtK * 100).toFixed(1)}%`
+                                  : '-'}
+                              </TableCell>
+                              <TableCell>
+                                {run.refusalSampleCount
+                                  ? `${(run.refusalAccuracy * 100).toFixed(1)}%`
+                                  : '-'}
                               </TableCell>
                               <TableCell>{run.averageLatencyMillis} ms</TableCell>
                             </TableRow>
                           ))
                         ) : (
                           <TableRow>
-                            <TableCell colSpan={4} className='h-24 text-center'>
+                            <TableCell colSpan={5} className='h-24 text-center'>
                               暂无运行记录
                             </TableCell>
                           </TableRow>
@@ -643,7 +683,7 @@ export function EvaluationPage() {
             <DialogHeader>
               <DialogTitle>添加标注样本</DialogTitle>
               <DialogDescription>
-                Chunk ID 可用逗号或空格分隔，至少填写一个。
+                普通样本标注相关 Chunk；拒答样本不需要 Chunk。
               </DialogDescription>
             </DialogHeader>
             <div className='my-5 flex flex-col gap-4'>
@@ -663,7 +703,19 @@ export function EvaluationPage() {
                   value={sampleChunkIds}
                   onChange={(event) => setSampleChunkIds(event.target.value)}
                   placeholder='例如：101, 205, 309'
+                  disabled={sampleExpectRefusal}
                 />
+              </label>
+              <label className='flex items-center gap-2 text-sm font-medium'>
+                <Checkbox
+                  checked={sampleExpectRefusal}
+                  onCheckedChange={(checked) => {
+                    const expectRefusal = checked === true
+                    setSampleExpectRefusal(expectRefusal)
+                    if (expectRefusal) setSampleChunkIds('')
+                  }}
+                />
+                预期系统拒答
               </label>
               <label className='flex flex-col gap-2 text-sm font-medium'>
                 期望回答（可选）

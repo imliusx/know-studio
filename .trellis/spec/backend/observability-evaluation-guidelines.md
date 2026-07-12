@@ -31,8 +31,16 @@ evaluation datasets and runs.
   stable tag values. Never use user IDs, questions, or document names as tags.
 - Langfuse delivery is best effort, bounded, timed out, and never includes raw
   prompts or generated text in the built-in payload.
+- Retrieval spans expose bounded attributes for scope strategy, route confidence,
+  authorized/selected KnowledgeBase counts, evidence level/count, rerank usage,
+  and refusal outcome. They must not include raw questions, document names, or
+  evidence text.
 - Evaluation tables and queries explicitly filter `knowledge_base_id`. An ablation
   run must not hold one database transaction across model and retrieval calls.
+- Evaluation samples may be positive retrieval samples with one or more relevant
+  chunk IDs, or refusal samples with `expectRefusal=true` and no chunk IDs.
+  Reports persist Recall@K for positive samples and refusal accuracy for negative
+  samples independently.
 - Each ablation mode calls the real `RetrievalApi`; do not derive or copy one
   mode's result into another.
 - Knife4j 4.5 UI is retained with Springdoc 2.8, but its incompatible ordering
@@ -43,6 +51,8 @@ evaluation datasets and runs.
 - Rate permit unavailable -> HTTP 429 / `A0429`, rejected counter increments.
 - Dataset missing or outside the requested KnowledgeBase -> `NOT_FOUND`.
 - Empty dataset, invalid topK, or empty/non-positive relevant chunk IDs ->
+  `BAD_REQUEST`.
+- A positive sample without chunk IDs, or a refusal sample with chunk IDs ->
   `BAD_REQUEST`.
 - Missing static resource -> `NOT_FOUND`, not the unexpected-exception 500 path.
 - OTLP backend unavailable -> application continues; exporter retries/drops
@@ -66,6 +76,8 @@ evaluation datasets and runs.
 - Unit test provider observation on success and first-token failover behavior.
 - Unit test vector-only mode skips keyword retrieval and reranking.
 - Unit test ablation invokes all three modes and computes Recall@K.
+- Unit test refusal samples use `EvidenceLevel.NONE` and compute refusal accuracy
+  independently from positive-sample Recall@K.
 - Integration test Flyway V11, absence of legacy ownership columns, JSONB sample IDs/run metadata, real ablation rows,
   `/actuator/prometheus`, `/v3/api-docs`, `/doc.html`, Prometheus target health,
   Tempo trace search, and Grafana datasource provisioning.

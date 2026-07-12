@@ -13,5 +13,6 @@
 - [x] Load the document overview across all manageable KnowledgeBases and bind detail queries to the route KnowledgeBase ID.
 - [x] Require lexical question-term coverage when reranking is unavailable and reject unrelated hybrid retrieval hits.
 - [x] Route unscoped knowledge questions to a high-confidence readable KnowledgeBase subset, with secure low-confidence fallback.
+- [x] Add bounded retrieval trace attributes and refusal-aware offline evaluation across backend, migration and admin UI.
 - [ ] Run desktop/mobile browser screenshots and interaction checks. Blocked on 2026-07-12 after the approved browser runtime reported no available browser and discovery returned `[]`; backend and frontend health checks passed.
 - [ ] Commit, archive task and update the completion audit record.

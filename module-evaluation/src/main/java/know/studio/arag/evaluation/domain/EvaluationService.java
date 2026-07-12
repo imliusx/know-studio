@@ -17,6 +17,7 @@ import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
+import know.studio.arag.retrieval.api.EvidenceLevel;
 import know.studio.arag.retrieval.api.RetrievalApi;
 import know.studio.arag.retrieval.api.RetrievalMode;
 import know.studio.arag.retrieval.api.RetrievalQuery;
@@ -83,7 +84,13 @@ public class EvaluationService implements EvaluationApi {
         requireDataset(command.knowledgeBaseId(), command.datasetId());
         String question = requireText(command.question(), "评测问题不能为空");
         List<Long> relevantIds = command.relevantChunkIds().stream().distinct().toList();
-        if (relevantIds.isEmpty() || relevantIds.stream().anyMatch(id -> id == null || id <= 0)) {
+        if (relevantIds.stream().anyMatch(id -> id == null || id <= 0)) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "相关 chunk ID 必须为正数");
+        }
+        if (command.expectRefusal() && !relevantIds.isEmpty()) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "拒答样本不能包含相关 chunk ID");
+        }
+        if (!command.expectRefusal() && relevantIds.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "至少需要一个相关 chunk ID");
         }
         EvaluationSample sample = new EvaluationSample(
@@ -93,6 +100,7 @@ public class EvaluationService implements EvaluationApi {
                 question,
                 relevantIds,
                 normalize(command.expectedAnswer()),
+                command.expectRefusal(),
                 Instant.now()
         );
         repository.insertSample(sample);
@@ -140,7 +148,10 @@ public class EvaluationService implements EvaluationApi {
                     identity.userId(),
                     mode,
                     metric.recallAtK(),
+                    metric.refusalAccuracy(),
                     metric.sampleCount(),
+                    metric.positiveSampleCount(),
+                    metric.refusalSampleCount(),
                     metric.averageLatencyMillis(),
                     topK,
                     Instant.now()
@@ -156,6 +167,9 @@ public class EvaluationService implements EvaluationApi {
             int topK
     ) {
         double recallSum = 0;
+        int positiveSampleCount = 0;
+        int refusalSampleCount = 0;
+        int correctRefusalCount = 0;
         long latencyNanos = 0;
         for (EvaluationSample sample : samples) {
             long start = System.nanoTime();
@@ -166,14 +180,25 @@ public class EvaluationService implements EvaluationApi {
                     mode
             ));
             latencyNanos += System.nanoTime() - start;
+            if (sample.expectRefusal()) {
+                refusalSampleCount++;
+                if (result.level() == EvidenceLevel.NONE) {
+                    correctRefusalCount++;
+                }
+                continue;
+            }
+            positiveSampleCount++;
             Set<Long> retrieved = new HashSet<>(result.evidence().stream().map(Evidence::chunkId).toList());
             long hits = sample.relevantChunkIds().stream().filter(retrieved::contains).count();
             recallSum += (double) hits / sample.relevantChunkIds().size();
         }
         return new EvaluationMetric(
                 mode,
-                recallSum / samples.size(),
+                positiveSampleCount == 0 ? 0.0 : recallSum / positiveSampleCount,
+                refusalSampleCount == 0 ? 0.0 : (double) correctRefusalCount / refusalSampleCount,
                 samples.size(),
+                positiveSampleCount,
+                refusalSampleCount,
                 TimeUnit.NANOSECONDS.toMillis(latencyNanos) / samples.size()
         );
     }
@@ -213,6 +238,7 @@ public class EvaluationService implements EvaluationApi {
                 sample.question(),
                 sample.relevantChunkIds(),
                 sample.expectedAnswer(),
+                sample.expectRefusal(),
                 sample.createdAt()
         );
     }
@@ -224,7 +250,10 @@ public class EvaluationService implements EvaluationApi {
                 run.userId(),
                 run.mode(),
                 run.recallAtK(),
+                run.refusalAccuracy(),
                 run.sampleCount(),
+                run.positiveSampleCount(),
+                run.refusalSampleCount(),
                 run.averageLatencyMillis(),
                 run.topK(),
                 run.createdAt()

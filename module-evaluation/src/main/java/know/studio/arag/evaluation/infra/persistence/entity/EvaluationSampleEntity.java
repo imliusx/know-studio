@@ -21,5 +21,6 @@ public class EvaluationSampleEntity {
     private String question;
     private String relevantChunkIds;
     private String expectedAnswer;
+    private Boolean expectRefusal;
     private Instant createdAt;
 }

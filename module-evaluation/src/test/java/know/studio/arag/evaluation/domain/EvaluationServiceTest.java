@@ -36,17 +36,30 @@ class EvaluationServiceTest {
                 "question",
                 List.of(100L, 200L),
                 null,
+                false,
+                Instant.now()
+        ));
+        repository.samples.add(new EvaluationSample(
+                3L,
+                10L,
+                1L,
+                "unanswerable",
+                List.of(),
+                null,
+                true,
                 Instant.now()
         ));
         EvaluationService service = new EvaluationService(
                 repository,
-                query -> new EvidenceBundle(
-                        query.mode() == RetrievalMode.VECTOR_ONLY
-                                ? List.of(evidence(100L))
-                                : List.of(evidence(100L), evidence(200L)),
-                        EvidenceLevel.SUFFICIENT,
-                        "ok"
-                ),
+                query -> query.question().equals("unanswerable")
+                        ? new EvidenceBundle(List.of(), EvidenceLevel.NONE, "refuse")
+                        : new EvidenceBundle(
+                                query.mode() == RetrievalMode.VECTOR_ONLY
+                                        ? List.of(evidence(100L))
+                                        : List.of(evidence(100L), evidence(200L)),
+                                EvidenceLevel.SUFFICIENT,
+                                "ok"
+                        ),
                 new StubIdentityApi(),
                 new StubKnowledgeAccessApi(),
                 new SnowflakeIdGenerator(0, 0)
@@ -58,6 +71,12 @@ class EvaluationServiceTest {
                 .containsExactly(RetrievalMode.VECTOR_ONLY, RetrievalMode.HYBRID, RetrievalMode.HYBRID_RERANK);
         assertThat(report.metrics()).extracting(metric -> metric.recallAtK())
                 .containsExactly(0.5, 1.0, 1.0);
+        assertThat(report.metrics()).extracting(metric -> metric.refusalAccuracy())
+                .containsOnly(1.0);
+        assertThat(report.metrics()).extracting(metric -> metric.positiveSampleCount())
+                .containsOnly(1);
+        assertThat(report.metrics()).extracting(metric -> metric.refusalSampleCount())
+                .containsOnly(1);
         assertThat(repository.runs).hasSize(3);
     }
 

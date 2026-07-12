@@ -18,6 +18,7 @@ export interface EvaluationSample {
   question: string
   relevantChunkIds: EntityId[]
   expectedAnswer: string | null
+  expectRefusal: boolean
   createdAt: string
 }
 
@@ -27,7 +28,10 @@ export interface EvaluationRun {
   userId: EntityId
   mode: RetrievalMode
   recallAtK: number
+  refusalAccuracy: number
   sampleCount: number
+  positiveSampleCount: number
+  refusalSampleCount: number
   averageLatencyMillis: number
   topK: number
   createdAt: string
@@ -36,7 +40,10 @@ export interface EvaluationRun {
 export interface EvaluationMetric {
   mode: RetrievalMode
   recallAtK: number
+  refusalAccuracy: number
   sampleCount: number
+  positiveSampleCount: number
+  refusalSampleCount: number
   averageLatencyMillis: number
 }
 
@@ -83,6 +90,7 @@ export async function addEvaluationSample(
     question: string
     relevantChunkIds: EntityId[]
     expectedAnswer?: string
+    expectRefusal: boolean
   }
 ) {
   const response = await http.post(

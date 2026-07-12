@@ -60,7 +60,8 @@ public class EvaluationController {
                 datasetId,
                 request.question(),
                 request.relevantChunkIds(),
-                request.expectedAnswer()
+                request.expectedAnswer(),
+                request.expectRefusal()
         )));
     }
 

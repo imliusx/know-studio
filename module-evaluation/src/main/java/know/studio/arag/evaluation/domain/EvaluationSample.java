@@ -10,6 +10,7 @@ public record EvaluationSample(
         String question,
         List<Long> relevantChunkIds,
         String expectedAnswer,
+        boolean expectRefusal,
         Instant createdAt
 ) {
 

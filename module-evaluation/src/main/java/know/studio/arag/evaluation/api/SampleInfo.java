@@ -12,6 +12,7 @@ public record SampleInfo(
         String question,
         @JsonLongIds List<Long> relevantChunkIds,
         String expectedAnswer,
+        boolean expectRefusal,
         Instant createdAt
 ) {
 

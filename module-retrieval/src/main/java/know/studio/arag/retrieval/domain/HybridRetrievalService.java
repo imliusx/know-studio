@@ -4,6 +4,7 @@ import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.knowledge.api.KnowledgeBaseInfo;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
 import know.studio.arag.platform.core.exception.ForbiddenException;
+import know.studio.arag.platform.core.trace.RagTraceAttributes;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
@@ -50,7 +51,9 @@ public class HybridRetrievalService implements RetrievalApi {
     @RagTraceNode("retrieval.hybrid")
     public EvidenceBundle retrieve(RetrievalQuery query) {
         RetrievalScope scope = authorizedScope(query.question(), query.knowledgeBaseIds());
+        traceScope(scope);
         if (scope.noMatch()) {
+            traceEvidence(EvidenceLevel.NONE, 0, false);
             return new EvidenceBundle(List.of(), EvidenceLevel.NONE, guidance(EvidenceLevel.NONE));
         }
         Set<Long> knowledgeBaseIds = scope.knowledgeBaseIds();
@@ -101,6 +104,8 @@ public class HybridRetrievalService implements RetrievalApi {
                         .limit(query.topK())
                         .map(HybridRetrievalService::toEvidence)
                         .toList();
+        boolean reranked = clustered.stream().anyMatch(candidate -> candidate.rerankScore() != null);
+        traceEvidence(level, evidence.size(), reranked);
         return new EvidenceBundle(evidence, level, guidance(level));
     }
 
@@ -118,10 +123,10 @@ public class HybridRetrievalService implements RetrievalApi {
             if (effectiveIds.isEmpty()) {
                 throw new ForbiddenException("没有可用于检索的知识库");
             }
-            return new RetrievalScope(Set.copyOf(effectiveIds), false);
+            return new RetrievalScope(Set.copyOf(effectiveIds), false, "explicit", 1.0, authorizedIds.size());
         }
         if (readableKnowledgeBases.size() == 1) {
-            return new RetrievalScope(Set.copyOf(effectiveIds), false);
+            return new RetrievalScope(Set.copyOf(effectiveIds), false, "single", 1.0, authorizedIds.size());
         }
 
         KnowledgeBaseScopeDecision decision = knowledgeBaseScopeSelector.select(
@@ -135,10 +140,22 @@ public class HybridRetrievalService implements RetrievalApi {
                 authorizedIds.size()
         );
         if (decision.confidence() < SCOPE_CONFIDENCE_THRESHOLD) {
-            return new RetrievalScope(Set.copyOf(effectiveIds), false);
+            return new RetrievalScope(
+                    Set.copyOf(effectiveIds),
+                    false,
+                    "fallback",
+                    decision.confidence(),
+                    authorizedIds.size()
+            );
         }
         effectiveIds.retainAll(decision.knowledgeBaseIds());
-        return new RetrievalScope(Set.copyOf(effectiveIds), effectiveIds.isEmpty());
+        return new RetrievalScope(
+                Set.copyOf(effectiveIds),
+                effectiveIds.isEmpty(),
+                "metadata",
+                decision.confidence(),
+                authorizedIds.size()
+        );
     }
 
     private CompletableFuture<List<SearchCandidate>> searchAsync(
@@ -187,6 +204,26 @@ public class HybridRetrievalService implements RetrievalApi {
         };
     }
 
-    private record RetrievalScope(Set<Long> knowledgeBaseIds, boolean noMatch) {
+    private static void traceScope(RetrievalScope scope) {
+        RagTraceAttributes.put("retrieval.scope.strategy", scope.strategy());
+        RagTraceAttributes.put("retrieval.scope.confidence", scope.confidence());
+        RagTraceAttributes.put("retrieval.scope.authorized_count", scope.authorizedCount());
+        RagTraceAttributes.put("retrieval.scope.selected_count", scope.knowledgeBaseIds().size());
+    }
+
+    private static void traceEvidence(EvidenceLevel level, int evidenceCount, boolean reranked) {
+        RagTraceAttributes.put("retrieval.evidence.level", level.name());
+        RagTraceAttributes.put("retrieval.evidence.count", evidenceCount);
+        RagTraceAttributes.put("retrieval.reranked", reranked);
+        RagTraceAttributes.put("retrieval.refused", level == EvidenceLevel.NONE);
+    }
+
+    private record RetrievalScope(
+            Set<Long> knowledgeBaseIds,
+            boolean noMatch,
+            String strategy,
+            double confidence,
+            int authorizedCount
+    ) {
     }
 }

@@ -7,7 +7,8 @@ public record AddSampleCommand(
         long datasetId,
         String question,
         List<Long> relevantChunkIds,
-        String expectedAnswer
+        String expectedAnswer,
+        boolean expectRefusal
 ) {
 
     public AddSampleCommand {

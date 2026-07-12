@@ -11,7 +11,10 @@ public record EvaluationRunInfo(
         @JsonLongId long userId,
         RetrievalMode mode,
         double recallAtK,
+        double refusalAccuracy,
         int sampleCount,
+        int positiveSampleCount,
+        int refusalSampleCount,
         long averageLatencyMillis,
         int topK,
         Instant createdAt
