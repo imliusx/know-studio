@@ -17,7 +17,7 @@ public class ChunkSearchDocument {
     @Id
     private Long id;
     @Field(type = FieldType.Long)
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     @Field(type = FieldType.Long)
     private Long documentId;
     @Field(type = FieldType.Integer)

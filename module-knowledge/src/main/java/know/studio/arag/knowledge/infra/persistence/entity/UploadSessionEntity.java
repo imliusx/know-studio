@@ -16,7 +16,7 @@ public class UploadSessionEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     private String fileName;
     private String contentType;
     private Long fileSize;

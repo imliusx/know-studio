@@ -44,17 +44,17 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     private final ObjectMapper objectMapper;
 
     @Override
-    public Optional<DocumentRecord> findDocument(long workspaceId, long documentId) {
+    public Optional<DocumentRecord> findDocument(long knowledgeBaseId, long documentId) {
         DocumentEntity entity = documentMapper.selectOne(Wrappers.<DocumentEntity>lambdaQuery()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getId, documentId));
         return Optional.ofNullable(entity).map(MybatisKnowledgeRepository::toDomain);
     }
 
     @Override
-    public List<DocumentRecord> findDocuments(long workspaceId, DocumentStatus status, String fileName) {
+    public List<DocumentRecord> findDocuments(long knowledgeBaseId, DocumentStatus status, String fileName) {
         var query = Wrappers.<DocumentEntity>lambdaQuery()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .ne(DocumentEntity::getStatus, DocumentStatus.DELETED.name())
                 .orderByDesc(DocumentEntity::getUpdatedAt);
         if (status != null && status != DocumentStatus.DELETED) {
@@ -69,26 +69,26 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public Optional<DocumentRecord> findReadyDocumentByHash(long workspaceId, String contentHash) {
+    public Optional<DocumentRecord> findReadyDocumentByHash(long knowledgeBaseId, String contentHash) {
         DocumentEntity entity = documentMapper.selectOne(Wrappers.<DocumentEntity>lambdaQuery()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getContentHash, contentHash)
                 .eq(DocumentEntity::getStatus, DocumentStatus.READY.name()));
         return Optional.ofNullable(entity).map(MybatisKnowledgeRepository::toDomain);
     }
 
     @Override
-    public Optional<DocumentRecord> findDocumentByHash(long workspaceId, String contentHash) {
+    public Optional<DocumentRecord> findDocumentByHash(long knowledgeBaseId, String contentHash) {
         DocumentEntity entity = documentMapper.selectOne(Wrappers.<DocumentEntity>lambdaQuery()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getContentHash, contentHash));
         return Optional.ofNullable(entity).map(MybatisKnowledgeRepository::toDomain);
     }
 
     @Override
-    public Optional<UploadSession> findActiveUploadSessionByHash(long workspaceId, String contentHash) {
+    public Optional<UploadSession> findActiveUploadSessionByHash(long knowledgeBaseId, String contentHash) {
         UploadSessionEntity entity = uploadSessionMapper.selectOne(Wrappers.<UploadSessionEntity>lambdaQuery()
-                .eq(UploadSessionEntity::getWorkspaceId, workspaceId)
+                .eq(UploadSessionEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(UploadSessionEntity::getContentHash, contentHash)
                 .eq(UploadSessionEntity::getStatus, UploadStatus.UPLOADING.name())
                 .gt(UploadSessionEntity::getExpiresAt, Instant.now())
@@ -108,9 +108,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public Optional<UploadSession> findUploadSession(long workspaceId, long sessionId) {
+    public Optional<UploadSession> findUploadSession(long knowledgeBaseId, long sessionId) {
         UploadSessionEntity entity = uploadSessionMapper.selectOne(Wrappers.<UploadSessionEntity>lambdaQuery()
-                .eq(UploadSessionEntity::getWorkspaceId, workspaceId)
+                .eq(UploadSessionEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(UploadSessionEntity::getId, sessionId));
         return Optional.ofNullable(entity).map(MybatisKnowledgeRepository::toDomain);
     }
@@ -140,13 +140,13 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public void ensureIngestionJob(long jobId, long workspaceId, long documentId) {
-        commandMapper.ensureIngestionJob(jobId, workspaceId, documentId);
+    public void ensureIngestionJob(long jobId, long knowledgeBaseId, long documentId) {
+        commandMapper.ensureIngestionJob(jobId, knowledgeBaseId, documentId);
     }
 
     @Override
-    public boolean claimDocumentForProcessing(long workspaceId, long documentId) {
-        if (commandMapper.claimDocumentForProcessing(workspaceId, documentId) == 0) {
+    public boolean claimDocumentForProcessing(long knowledgeBaseId, long documentId) {
+        if (commandMapper.claimDocumentForProcessing(knowledgeBaseId, documentId) == 0) {
             return false;
         }
         ingestionJobMapper.update(Wrappers.<IngestionJobEntity>lambdaUpdate()
@@ -159,9 +159,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public void replaceDocumentChunks(long workspaceId, long documentId, List<DocumentChunk> chunks) {
+    public void replaceDocumentChunks(long knowledgeBaseId, long documentId, List<DocumentChunk> chunks) {
         documentChunkMapper.delete(Wrappers.<DocumentChunkEntity>lambdaQuery()
-                .eq(DocumentChunkEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentChunkEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentChunkEntity::getDocumentId, documentId));
         if (!chunks.isEmpty()) {
             commandMapper.insertDocumentChunks(chunks.stream().map(MybatisKnowledgeRepository::toEntity).toList());
@@ -169,9 +169,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public void markDocumentReady(long workspaceId, long documentId, String previewText, int chunkCount) {
+    public void markDocumentReady(long knowledgeBaseId, long documentId, String previewText, int chunkCount) {
         documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getId, documentId)
                 .set(DocumentEntity::getStatus, DocumentStatus.READY.name())
                 .set(DocumentEntity::getPreviewText, previewText)
@@ -182,9 +182,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public void markDocumentFailed(long workspaceId, long documentId, String reason) {
+    public void markDocumentFailed(long knowledgeBaseId, long documentId, String reason) {
         documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getId, documentId)
                 .set(DocumentEntity::getStatus, DocumentStatus.FAILED.name())
                 .set(DocumentEntity::getFailureReason, truncate(reason))
@@ -249,9 +249,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public void deferRecoveredDocument(long workspaceId, long documentId, String reason) {
+    public void deferRecoveredDocument(long knowledgeBaseId, long documentId, String reason) {
         documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getId, documentId)
                 .eq(DocumentEntity::getStatus, DocumentStatus.FAILED.name())
                 .set(DocumentEntity::getStatus, DocumentStatus.PROCESSING.name())
@@ -260,9 +260,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public boolean markDocumentDeleted(long workspaceId, long documentId) {
+    public boolean markDocumentDeleted(long knowledgeBaseId, long documentId) {
         return documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getId, documentId)
                 .in(DocumentEntity::getStatus, DocumentStatus.PENDING.name(), DocumentStatus.READY.name(),
                         DocumentStatus.FAILED.name())
@@ -271,9 +271,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public boolean resetFailedDocument(long workspaceId, long documentId) {
+    public boolean resetFailedDocument(long knowledgeBaseId, long documentId) {
         return documentMapper.update(Wrappers.<DocumentEntity>lambdaUpdate()
-                .eq(DocumentEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentEntity::getId, documentId)
                 .eq(DocumentEntity::getStatus, DocumentStatus.FAILED.name())
                 .set(DocumentEntity::getStatus, DocumentStatus.PENDING.name())
@@ -282,9 +282,9 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     }
 
     @Override
-    public void markDocumentChunksDeleted(long workspaceId, long documentId) {
+    public void markDocumentChunksDeleted(long knowledgeBaseId, long documentId) {
         documentChunkMapper.update(Wrappers.<DocumentChunkEntity>lambdaUpdate()
-                .eq(DocumentChunkEntity::getWorkspaceId, workspaceId)
+                .eq(DocumentChunkEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(DocumentChunkEntity::getDocumentId, documentId)
                 .set(DocumentChunkEntity::getDeleted, true));
     }
@@ -300,7 +300,7 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     private static DocumentEntity toEntity(DocumentRecord document) {
         DocumentEntity entity = new DocumentEntity();
         entity.setId(document.id());
-        entity.setWorkspaceId(document.workspaceId());
+        entity.setKnowledgeBaseId(document.knowledgeBaseId());
         entity.setFileName(document.fileName());
         entity.setObjectKey(document.objectKey());
         entity.setContentType(document.contentType());
@@ -317,7 +317,7 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     private static UploadSessionEntity toEntity(UploadSession session) {
         UploadSessionEntity entity = new UploadSessionEntity();
         entity.setId(session.id());
-        entity.setWorkspaceId(session.workspaceId());
+        entity.setKnowledgeBaseId(session.knowledgeBaseId());
         entity.setFileName(session.fileName());
         entity.setContentType(session.contentType());
         entity.setFileSize(session.fileSize());
@@ -344,7 +344,7 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     private static DocumentChunkEntity toEntity(DocumentChunk chunk) {
         DocumentChunkEntity entity = new DocumentChunkEntity();
         entity.setId(chunk.id());
-        entity.setWorkspaceId(chunk.workspaceId());
+        entity.setKnowledgeBaseId(chunk.knowledgeBaseId());
         entity.setDocumentId(chunk.documentId());
         entity.setChunkIndex(chunk.chunkIndex());
         entity.setChunkText(chunk.text());
@@ -359,7 +359,7 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     private static DocumentRecord toDomain(DocumentEntity entity) {
         return new DocumentRecord(
                 entity.getId(),
-                entity.getWorkspaceId(),
+                entity.getKnowledgeBaseId(),
                 entity.getFileName(),
                 entity.getObjectKey(),
                 entity.getContentType(),
@@ -376,7 +376,7 @@ public class MybatisKnowledgeRepository implements KnowledgeRepository {
     private static UploadSession toDomain(UploadSessionEntity entity) {
         return new UploadSession(
                 entity.getId(),
-                entity.getWorkspaceId(),
+                entity.getKnowledgeBaseId(),
                 entity.getFileName(),
                 entity.getContentType(),
                 entity.getFileSize(),

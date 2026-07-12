@@ -8,21 +8,21 @@ import java.util.Optional;
 
 public interface KnowledgeRepository {
 
-    Optional<DocumentRecord> findDocument(long workspaceId, long documentId);
+    Optional<DocumentRecord> findDocument(long knowledgeBaseId, long documentId);
 
-    List<DocumentRecord> findDocuments(long workspaceId, DocumentStatus status, String fileName);
+    List<DocumentRecord> findDocuments(long knowledgeBaseId, DocumentStatus status, String fileName);
 
-    Optional<DocumentRecord> findReadyDocumentByHash(long workspaceId, String contentHash);
+    Optional<DocumentRecord> findReadyDocumentByHash(long knowledgeBaseId, String contentHash);
 
-    Optional<DocumentRecord> findDocumentByHash(long workspaceId, String contentHash);
+    Optional<DocumentRecord> findDocumentByHash(long knowledgeBaseId, String contentHash);
 
-    Optional<UploadSession> findActiveUploadSessionByHash(long workspaceId, String contentHash);
+    Optional<UploadSession> findActiveUploadSessionByHash(long knowledgeBaseId, String contentHash);
 
     void insertDocument(DocumentRecord document);
 
     void insertUploadSession(UploadSession session);
 
-    Optional<UploadSession> findUploadSession(long workspaceId, long sessionId);
+    Optional<UploadSession> findUploadSession(long knowledgeBaseId, long sessionId);
 
     List<UploadChunk> findUploadChunks(long sessionId);
 
@@ -30,15 +30,15 @@ public interface KnowledgeRepository {
 
     void completeUploadSession(long sessionId, long documentId);
 
-    void ensureIngestionJob(long jobId, long workspaceId, long documentId);
+    void ensureIngestionJob(long jobId, long knowledgeBaseId, long documentId);
 
-    boolean claimDocumentForProcessing(long workspaceId, long documentId);
+    boolean claimDocumentForProcessing(long knowledgeBaseId, long documentId);
 
-    void replaceDocumentChunks(long workspaceId, long documentId, List<DocumentChunk> chunks);
+    void replaceDocumentChunks(long knowledgeBaseId, long documentId, List<DocumentChunk> chunks);
 
-    void markDocumentReady(long workspaceId, long documentId, String previewText, int chunkCount);
+    void markDocumentReady(long knowledgeBaseId, long documentId, String previewText, int chunkCount);
 
-    void markDocumentFailed(long workspaceId, long documentId, String reason);
+    void markDocumentFailed(long knowledgeBaseId, long documentId, String reason);
 
     void markIngestionCompleted(long documentId);
 
@@ -50,16 +50,16 @@ public interface KnowledgeRepository {
 
     List<DocumentRecord> recoverStaleProcessing(Instant updatedBefore, int limit);
 
-    void deferRecoveredDocument(long workspaceId, long documentId, String reason);
+    void deferRecoveredDocument(long knowledgeBaseId, long documentId, String reason);
 
-    boolean markDocumentDeleted(long workspaceId, long documentId);
+    boolean markDocumentDeleted(long knowledgeBaseId, long documentId);
 
-    boolean resetFailedDocument(long workspaceId, long documentId);
+    boolean resetFailedDocument(long knowledgeBaseId, long documentId);
 
-    void markDocumentChunksDeleted(long workspaceId, long documentId);
+    void markDocumentChunksDeleted(long knowledgeBaseId, long documentId);
 
-    default DocumentStatus status(long workspaceId, long documentId) {
-        return findDocument(workspaceId, documentId)
+    default DocumentStatus status(long knowledgeBaseId, long documentId) {
+        return findDocument(knowledgeBaseId, documentId)
                 .map(DocumentRecord::status)
                 .orElse(null);
     }

@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public record UploadSession(
         long id,
-        long workspaceId,
+        long knowledgeBaseId,
         String fileName,
         String contentType,
         long fileSize,

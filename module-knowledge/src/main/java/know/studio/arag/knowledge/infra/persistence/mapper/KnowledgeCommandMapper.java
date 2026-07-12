@@ -14,19 +14,19 @@ public interface KnowledgeCommandMapper {
 
     int ensureIngestionJob(
             @Param("jobId") long jobId,
-            @Param("workspaceId") long workspaceId,
+            @Param("knowledgeBaseId") long knowledgeBaseId,
             @Param("documentId") long documentId
     );
 
     int claimDocumentForProcessing(
-            @Param("workspaceId") long workspaceId,
+            @Param("knowledgeBaseId") long knowledgeBaseId,
             @Param("documentId") long documentId
     );
 
     int insertDocumentChunks(@Param("chunks") List<DocumentChunkEntity> chunks);
 
     int deleteChunkEmbeddings(
-            @Param("workspaceId") long workspaceId,
+            @Param("knowledgeBaseId") long knowledgeBaseId,
             @Param("documentId") long documentId
     );
 

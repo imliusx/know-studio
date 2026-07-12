@@ -28,12 +28,12 @@
 
 ## Stage 2 · Knowledge and Ingestion Ownership
 
-- [ ] 文档、Chunk、Embedding、上传和入库领域对象改为 knowledgeBaseId。
-- [ ] API 路径迁移到 `/api/knowledge-bases/{knowledgeBaseId}/documents`。
-- [ ] 管理操作使用 `requireKnowledgeBaseManageable`。
-- [ ] 读取、预览、下载和引用使用 `requireKnowledgeBaseReadable`。
-- [ ] MQ、恢复任务、MinIO object key、pgvector 与 ES metadata 同步迁移。
-- [ ] 文档去重约束改为 knowledgeBaseId + contentHash。
+- [x] 文档、Chunk、Embedding、上传和入库领域对象改为 knowledgeBaseId。
+- [x] API 路径迁移到 `/api/knowledge-bases/{knowledgeBaseId}/documents`。
+- [x] 管理操作使用 `requireManageable`。
+- [x] 文档读取使用 `requireReadable`，后续引用入口在 Stage 3 接入同一边界。
+- [x] MQ、恢复任务、MinIO object key、pgvector 与 ES metadata 同步迁移。
+- [x] 文档去重约束改为 knowledgeBaseId + contentHash。
 
 验证：上传、秒传、分片恢复、入库、删除、重试、跨 Team 越权。
 
@@ -106,3 +106,12 @@
 - `mvn -q -pl module-identity -am clean validate test` passed.
 - `mvn -q -pl module-knowledge -am clean validate test` passed.
 - `mvn -q clean validate test` passed; Java 26 ArchUnit fallback warnings remain baseline noise.
+
+### Knowledge ownership batch (2026-07-12)
+
+- V7 activated non-null `knowledge_base_id` ownership while retaining nullable legacy columns until final cleanup.
+- V8 temporarily deferred the Evaluation `knowledge_base_id` non-null constraint because Evaluation remains on
+  Workspace ownership until Stage 4; Stage 4 will backfill new writes and restore the constraint.
+- Existing E2E owner listed two granted KnowledgeBases and read the migrated READY document through the new API.
+- A newly registered user without Team grants received HTTP 403 when reading the same KnowledgeBase documents.
+- `mvn -q -pl module-knowledge -am validate test` passed.

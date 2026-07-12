@@ -2,7 +2,7 @@ package know.studio.arag.knowledge.api;
 
 public record DocumentView(
         long id,
-        long workspaceId,
+        long knowledgeBaseId,
         String fileName,
         String contentType,
         long fileSize,

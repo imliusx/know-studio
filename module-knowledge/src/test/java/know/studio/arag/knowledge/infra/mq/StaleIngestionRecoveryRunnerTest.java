@@ -45,10 +45,10 @@ class StaleIngestionRecoveryRunnerTest {
         );
     }
 
-    private static DocumentRecord document(long workspaceId, long documentId) {
+    private static DocumentRecord document(long knowledgeBaseId, long documentId) {
         return new DocumentRecord(
                 documentId,
-                workspaceId,
+                knowledgeBaseId,
                 "guide.md",
                 "documents/" + documentId,
                 "text/markdown",

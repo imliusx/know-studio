@@ -5,8 +5,8 @@
 <mapper namespace="know.studio.arag.knowledge.infra.persistence.mapper.KnowledgeCommandMapper">
 
     <insert id="ensureIngestionJob">
-        INSERT INTO ingestion_jobs (id, workspace_id, document_id, job_type, status)
-        VALUES (#{jobId}, #{workspaceId}, #{documentId}, 'DOCUMENT', 'PENDING')
+        INSERT INTO ingestion_jobs (id, knowledge_base_id, document_id, job_type, status)
+        VALUES (#{jobId}, #{knowledgeBaseId}, #{documentId}, 'DOCUMENT', 'PENDING')
         ON CONFLICT (document_id, job_type) DO NOTHING
     </insert>
 
@@ -15,20 +15,20 @@
         SET status = 'PROCESSING',
             failure_reason = NULL,
             updated_at = CURRENT_TIMESTAMP
-        WHERE workspace_id = #{workspaceId}
+        WHERE knowledge_base_id = #{knowledgeBaseId}
           AND id = #{documentId}
           AND status IN ('PENDING', 'FAILED')
     </update>
 
     <insert id="insertDocumentChunks">
         INSERT INTO document_chunks (
-            id, workspace_id, document_id, chunk_index, chunk_text,
+            id, knowledge_base_id, document_id, chunk_index, chunk_text,
             char_start, char_end, section_path, status, deleted
         )
         VALUES
         <foreach collection="chunks" item="chunk" separator=",">
             (
-                #{chunk.id}, #{chunk.workspaceId}, #{chunk.documentId}, #{chunk.chunkIndex},
+                #{chunk.id}, #{chunk.knowledgeBaseId}, #{chunk.documentId}, #{chunk.chunkIndex},
                 #{chunk.chunkText}, #{chunk.charStart}, #{chunk.charEnd}, #{chunk.sectionPath},
                 #{chunk.status}, #{chunk.deleted}
             )
@@ -37,18 +37,18 @@
 
     <delete id="deleteChunkEmbeddings">
         DELETE FROM chunk_embeddings
-        WHERE workspace_id = #{workspaceId}
+        WHERE knowledge_base_id = #{knowledgeBaseId}
           AND document_id = #{documentId}
     </delete>
 
     <insert id="insertChunkEmbeddings">
         INSERT INTO chunk_embeddings (
-            chunk_id, workspace_id, document_id, embedding, metadata
+            chunk_id, knowledge_base_id, document_id, embedding, metadata
         )
         VALUES
         <foreach collection="embeddings" item="item" separator=",">
             (
-                #{item.chunkId}, #{item.workspaceId}, #{item.documentId},
+                #{item.chunkId}, #{item.knowledgeBaseId}, #{item.documentId},
                 CAST(#{item.embedding} AS vector), CAST(#{item.metadata} AS jsonb)
             )
         </foreach>

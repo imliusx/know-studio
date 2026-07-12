@@ -26,11 +26,11 @@ public class IngestionMessageListener {
         String messageId = message.getMessageProperties().getMessageId();
         int retryCount = retryCount(message);
         try {
-            taskHandler.process(payload.workspaceId(), payload.documentId());
+            taskHandler.process(payload.knowledgeBaseId(), payload.documentId());
             channel.basicAck(deliveryTag, false);
             log.info(
-                    "Consumed ingestion task workspaceId={} documentId={} retryCount={}",
-                    payload.workspaceId(),
+                    "Consumed ingestion task knowledgeBaseId={} documentId={} retryCount={}",
+                    payload.knowledgeBaseId(),
                     payload.documentId(),
                     retryCount
             );
@@ -39,8 +39,8 @@ public class IngestionMessageListener {
                 retryDispatcher.dispatch(payload, retryCount, messageId);
                 channel.basicAck(deliveryTag, false);
                 log.warn(
-                        "Ingestion task failed and was dispatched for retry workspaceId={} documentId={} retryCount={}",
-                        payload.workspaceId(),
+                        "Ingestion task failed and was dispatched for retry knowledgeBaseId={} documentId={} retryCount={}",
+                        payload.knowledgeBaseId(),
                         payload.documentId(),
                         retryCount,
                         processingException
@@ -49,8 +49,8 @@ public class IngestionMessageListener {
                 processingException.addSuppressed(dispatchException);
                 channel.basicNack(deliveryTag, false, true);
                 log.error(
-                        "Failed to dispatch ingestion retry workspaceId={} documentId={}",
-                        payload.workspaceId(),
+                        "Failed to dispatch ingestion retry knowledgeBaseId={} documentId={}",
+                        payload.knowledgeBaseId(),
                         payload.documentId(),
                         processingException
                 );

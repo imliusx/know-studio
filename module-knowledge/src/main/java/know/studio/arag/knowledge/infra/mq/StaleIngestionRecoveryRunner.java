@@ -41,16 +41,16 @@ public class StaleIngestionRecoveryRunner {
         );
         for (DocumentRecord document : recovered) {
             try {
-                publisher.publish(document.workspaceId(), document.id());
+                publisher.publish(document.knowledgeBaseId(), document.id());
             } catch (RuntimeException exception) {
                 repository.deferRecoveredDocument(
-                        document.workspaceId(),
+                        document.knowledgeBaseId(),
                         document.id(),
                         "Recovery republish failed: " + exception.getMessage()
                 );
                 log.error(
-                        "Failed to republish recovered ingestion workspaceId={} documentId={}",
-                        document.workspaceId(),
+                        "Failed to republish recovered ingestion knowledgeBaseId={} documentId={}",
+                        document.knowledgeBaseId(),
                         document.id(),
                         exception
                 );

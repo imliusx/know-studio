@@ -14,7 +14,7 @@ public class IngestionJobEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     private Long documentId;
     private String jobType;
     private String status;

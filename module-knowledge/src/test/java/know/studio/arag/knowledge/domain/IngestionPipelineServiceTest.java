@@ -31,7 +31,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class IngestionPipelineServiceTest {
 
-    private static final long WORKSPACE_ID = 11L;
+    private static final long KNOWLEDGE_BASE_ID = 11L;
     private static final long DOCUMENT_ID = 22L;
 
     @Mock
@@ -44,23 +44,23 @@ class IngestionPipelineServiceTest {
     @Test
     void processesDocumentAndMarksItReady() {
         DocumentRecord document = document();
-        when(repository.claimDocumentForProcessing(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(true);
-        when(repository.findDocument(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(Optional.of(document));
+        when(repository.claimDocumentForProcessing(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(true);
+        when(repository.findDocument(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(Optional.of(document));
         when(parser.parse(document)).thenReturn(new ParsedDocument("# Intro\n\nUseful content.", "text/markdown"));
         IngestionPipelineService service = service(texts -> vectors(texts.size()));
 
-        service.process(WORKSPACE_ID, DOCUMENT_ID);
+        service.process(KNOWLEDGE_BASE_ID, DOCUMENT_ID);
 
         ArgumentCaptor<List<DocumentChunk>> chunks = ArgumentCaptor.captor();
         verify(indexPort).replace(
-                org.mockito.ArgumentMatchers.eq(WORKSPACE_ID),
+                org.mockito.ArgumentMatchers.eq(KNOWLEDGE_BASE_ID),
                 org.mockito.ArgumentMatchers.eq(document),
                 chunks.capture(),
                 org.mockito.ArgumentMatchers.anyList()
         );
         assertThat(chunks.getValue()).isNotEmpty();
         verify(repository).markDocumentReady(
-                org.mockito.ArgumentMatchers.eq(WORKSPACE_ID),
+                org.mockito.ArgumentMatchers.eq(KNOWLEDGE_BASE_ID),
                 org.mockito.ArgumentMatchers.eq(DOCUMENT_ID),
                 anyString(),
                 org.mockito.ArgumentMatchers.eq(chunks.getValue().size())
@@ -71,9 +71,9 @@ class IngestionPipelineServiceTest {
 
     @Test
     void skipsDocumentThatWasAlreadyClaimed() {
-        when(repository.claimDocumentForProcessing(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(false);
+        when(repository.claimDocumentForProcessing(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(false);
 
-        service(texts -> vectors(texts.size())).process(WORKSPACE_ID, DOCUMENT_ID);
+        service(texts -> vectors(texts.size())).process(KNOWLEDGE_BASE_ID, DOCUMENT_ID);
 
         verify(repository, never()).findDocument(anyLong(), anyLong());
         verify(parser, never()).parse(org.mockito.ArgumentMatchers.any());
@@ -83,15 +83,15 @@ class IngestionPipelineServiceTest {
     @Test
     void marksDocumentFailedWhenParsingFails() {
         DocumentRecord document = document();
-        when(repository.claimDocumentForProcessing(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(true);
-        when(repository.findDocument(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(Optional.of(document));
+        when(repository.claimDocumentForProcessing(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(true);
+        when(repository.findDocument(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(Optional.of(document));
         when(parser.parse(document)).thenThrow(new IllegalStateException("parse failed"));
 
-        assertThatThrownBy(() -> service(texts -> vectors(texts.size())).process(WORKSPACE_ID, DOCUMENT_ID))
+        assertThatThrownBy(() -> service(texts -> vectors(texts.size())).process(KNOWLEDGE_BASE_ID, DOCUMENT_ID))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("parse failed");
 
-        verify(repository).markDocumentFailed(WORKSPACE_ID, DOCUMENT_ID, "parse failed");
+        verify(repository).markDocumentFailed(KNOWLEDGE_BASE_ID, DOCUMENT_ID, "parse failed");
         verify(repository).markIngestionFailed(DOCUMENT_ID, "parse failed");
         verify(indexPort, never()).replace(
                 anyLong(),
@@ -104,16 +104,16 @@ class IngestionPipelineServiceTest {
     @Test
     void rejectsEmbeddingCountMismatch() {
         DocumentRecord document = document();
-        when(repository.claimDocumentForProcessing(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(true);
-        when(repository.findDocument(WORKSPACE_ID, DOCUMENT_ID)).thenReturn(Optional.of(document));
+        when(repository.claimDocumentForProcessing(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(true);
+        when(repository.findDocument(KNOWLEDGE_BASE_ID, DOCUMENT_ID)).thenReturn(Optional.of(document));
         when(parser.parse(document)).thenReturn(new ParsedDocument("Useful content.", "text/plain"));
 
-        assertThatThrownBy(() -> service(ignored -> List.of()).process(WORKSPACE_ID, DOCUMENT_ID))
+        assertThatThrownBy(() -> service(ignored -> List.of()).process(KNOWLEDGE_BASE_ID, DOCUMENT_ID))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("Embedding count");
 
         verify(repository).markDocumentFailed(
-                WORKSPACE_ID,
+                KNOWLEDGE_BASE_ID,
                 DOCUMENT_ID,
                 "Embedding count does not match chunk count"
         );
@@ -173,7 +173,7 @@ class IngestionPipelineServiceTest {
     private static DocumentRecord document() {
         return new DocumentRecord(
                 DOCUMENT_ID,
-                WORKSPACE_ID,
+                KNOWLEDGE_BASE_ID,
                 "guide.md",
                 "documents/guide.md",
                 "text/markdown",

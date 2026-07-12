@@ -16,7 +16,7 @@ public class StructuredTextChunker {
 
     private final SnowflakeIdGenerator idGenerator;
 
-    public List<DocumentChunk> chunk(long workspaceId, long documentId, String source) {
+    public List<DocumentChunk> chunk(long knowledgeBaseId, long documentId, String source) {
         String text = clean(source);
         List<DocumentChunk> chunks = new ArrayList<>();
         String section = "正文";
@@ -29,7 +29,7 @@ public class StructuredTextChunker {
             } else if (!value.isBlank()) {
                 chunks.add(new DocumentChunk(
                         idGenerator.nextId(),
-                        workspaceId,
+                        knowledgeBaseId,
                         documentId,
                         chunks.size(),
                         value,

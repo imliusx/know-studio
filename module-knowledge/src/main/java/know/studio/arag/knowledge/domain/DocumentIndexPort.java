@@ -4,7 +4,7 @@ import java.util.List;
 
 public interface DocumentIndexPort {
 
-    void replace(long workspaceId, DocumentRecord document, List<DocumentChunk> chunks, List<float[]> embeddings);
+    void replace(long knowledgeBaseId, DocumentRecord document, List<DocumentChunk> chunks, List<float[]> embeddings);
 
-    void delete(long workspaceId, long documentId);
+    void delete(long knowledgeBaseId, long documentId);
 }

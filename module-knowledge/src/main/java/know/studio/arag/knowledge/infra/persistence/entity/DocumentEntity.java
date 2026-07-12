@@ -16,7 +16,7 @@ public class DocumentEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     private String fileName;
     private String objectKey;
     private String contentType;

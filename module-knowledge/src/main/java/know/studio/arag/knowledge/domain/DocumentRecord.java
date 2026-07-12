@@ -4,7 +4,7 @@ import know.studio.arag.knowledge.api.DocumentStatus;
 
 public record DocumentRecord(
         long id,
-        long workspaceId,
+        long knowledgeBaseId,
         String fileName,
         String objectKey,
         String contentType,

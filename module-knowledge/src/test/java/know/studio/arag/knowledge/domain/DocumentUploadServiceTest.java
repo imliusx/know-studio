@@ -3,7 +3,7 @@ package know.studio.arag.knowledge.domain;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
-import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.knowledge.api.DocumentStatus;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class DocumentUploadServiceTest {
 
-    private static final long WORKSPACE_ID = 11L;
+    private static final long KNOWLEDGE_BASE_ID = 11L;
     private static final long USER_ID = 22L;
     private static final long SESSION_ID = 33L;
     private static final String CONTENT_HASH = hash("complete document");
@@ -47,6 +47,8 @@ class DocumentUploadServiceTest {
     private ObjectStoragePort storage;
     @Mock
     private IdentityApi identityApi;
+    @Mock
+    private KnowledgeAccessApi knowledgeAccessApi;
     @Mock
     private SnowflakeIdGenerator idGenerator;
     @Mock
@@ -60,6 +62,7 @@ class DocumentUploadServiceTest {
                 repository,
                 storage,
                 identityApi,
+                knowledgeAccessApi,
                 idGenerator,
                 eventPublisher,
                 new UploadPolicy(Duration.ofHours(24))
@@ -70,10 +73,10 @@ class DocumentUploadServiceTest {
     void returnsReadyDocumentForInstantUpload() {
         stubCurrentUser();
         DocumentRecord ready = document(101L, DocumentStatus.READY);
-        when(repository.findReadyDocumentByHash(WORKSPACE_ID, CONTENT_HASH)).thenReturn(Optional.of(ready));
+        when(repository.findReadyDocumentByHash(KNOWLEDGE_BASE_ID, CONTENT_HASH)).thenReturn(Optional.of(ready));
 
         UploadInitResult result = service.initiate(
-                WORKSPACE_ID, "guide.pdf", "application/pdf", 17L, CONTENT_HASH, 1
+                KNOWLEDGE_BASE_ID, "guide.pdf", "application/pdf", 17L, CONTENT_HASH, 1
         );
 
         assertThat(result.instantUpload()).isTrue();
@@ -86,8 +89,8 @@ class DocumentUploadServiceTest {
     void resumesActiveSessionAndReturnsUploadedChunks() {
         stubCurrentUser();
         UploadSession session = session(UploadStatus.UPLOADING, null, 3, 17L, CONTENT_HASH);
-        when(repository.findReadyDocumentByHash(WORKSPACE_ID, CONTENT_HASH)).thenReturn(Optional.empty());
-        when(repository.findActiveUploadSessionByHash(WORKSPACE_ID, CONTENT_HASH))
+        when(repository.findReadyDocumentByHash(KNOWLEDGE_BASE_ID, CONTENT_HASH)).thenReturn(Optional.empty());
+        when(repository.findActiveUploadSessionByHash(KNOWLEDGE_BASE_ID, CONTENT_HASH))
                 .thenReturn(Optional.of(session));
         when(repository.findUploadChunks(SESSION_ID)).thenReturn(List.of(
                 chunk(0, 5L, hash("part-0")),
@@ -95,7 +98,7 @@ class DocumentUploadServiceTest {
         ));
 
         UploadInitResult result = service.initiate(
-                WORKSPACE_ID, "guide.pdf", "application/pdf", 17L, CONTENT_HASH, 3
+                KNOWLEDGE_BASE_ID, "guide.pdf", "application/pdf", 17L, CONTENT_HASH, 3
         );
 
         assertThat(result.instantUpload()).isFalse();
@@ -108,11 +111,11 @@ class DocumentUploadServiceTest {
     void acceptsIdempotentDuplicateChunkWithoutWritingStorageAgain() {
         String chunkHash = hash("chunk");
         UploadSession session = session(UploadStatus.UPLOADING, null, 1, 5L, CONTENT_HASH);
-        when(repository.findUploadSession(WORKSPACE_ID, SESSION_ID)).thenReturn(Optional.of(session));
+        when(repository.findUploadSession(KNOWLEDGE_BASE_ID, SESSION_ID)).thenReturn(Optional.of(session));
         when(repository.findUploadChunks(SESSION_ID)).thenReturn(List.of(chunk(0, 5L, chunkHash)));
 
         UploadProgress progress = service.uploadChunk(
-                WORKSPACE_ID,
+                KNOWLEDGE_BASE_ID,
                 SESSION_ID,
                 0,
                 5L,
@@ -129,11 +132,11 @@ class DocumentUploadServiceTest {
     @Test
     void rejectsConflictingDuplicateChunk() {
         UploadSession session = session(UploadStatus.UPLOADING, null, 1, 5L, CONTENT_HASH);
-        when(repository.findUploadSession(WORKSPACE_ID, SESSION_ID)).thenReturn(Optional.of(session));
+        when(repository.findUploadSession(KNOWLEDGE_BASE_ID, SESSION_ID)).thenReturn(Optional.of(session));
         when(repository.findUploadChunks(SESSION_ID)).thenReturn(List.of(chunk(0, 5L, hash("other"))));
 
         assertThatThrownBy(() -> service.uploadChunk(
-                WORKSPACE_ID,
+                KNOWLEDGE_BASE_ID,
                 SESSION_ID,
                 0,
                 5L,
@@ -150,10 +153,10 @@ class DocumentUploadServiceTest {
     @Test
     void rejectsIncompleteUploadBeforeComposingObject() {
         UploadSession session = session(UploadStatus.UPLOADING, null, 2, 10L, CONTENT_HASH);
-        when(repository.findUploadSession(WORKSPACE_ID, SESSION_ID)).thenReturn(Optional.of(session));
+        when(repository.findUploadSession(KNOWLEDGE_BASE_ID, SESSION_ID)).thenReturn(Optional.of(session));
         when(repository.findUploadChunks(SESSION_ID)).thenReturn(List.of(chunk(0, 5L, hash("part"))));
 
-        assertThatThrownBy(() -> service.complete(WORKSPACE_ID, SESSION_ID))
+        assertThatThrownBy(() -> service.complete(KNOWLEDGE_BASE_ID, SESSION_ID))
                 .isInstanceOf(BusinessException.class)
                 .extracting(exception -> ((BusinessException) exception).getErrorCode())
                 .isEqualTo(ErrorCode.CONFLICT);
@@ -167,12 +170,12 @@ class DocumentUploadServiceTest {
         byte[] actualContent = "wrong content".getBytes(StandardCharsets.UTF_8);
         UploadSession session = session(UploadStatus.UPLOADING, null, 1, actualContent.length, CONTENT_HASH);
         UploadChunk chunk = chunk(0, actualContent.length, hash("wrong content"));
-        when(repository.findUploadSession(WORKSPACE_ID, SESSION_ID)).thenReturn(Optional.of(session));
+        when(repository.findUploadSession(KNOWLEDGE_BASE_ID, SESSION_ID)).thenReturn(Optional.of(session));
         when(repository.findUploadChunks(SESSION_ID)).thenReturn(List.of(chunk));
         when(idGenerator.nextId()).thenReturn(501L);
         when(storage.open("documents/11/501/guide.pdf")).thenReturn(new ByteArrayInputStream(actualContent));
 
-        assertThatThrownBy(() -> service.complete(WORKSPACE_ID, SESSION_ID))
+        assertThatThrownBy(() -> service.complete(KNOWLEDGE_BASE_ID, SESSION_ID))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("SHA-256");
 
@@ -182,10 +185,10 @@ class DocumentUploadServiceTest {
     }
 
     @Test
-    void deniesCrossWorkspaceAccessBeforeReadingUploadState() {
-        doThrow(new ForbiddenException()).when(identityApi).requireRole(WORKSPACE_ID, WorkspaceRole.ADMIN);
+    void deniesUnauthorizedKnowledgeBaseAccessBeforeReadingUploadState() {
+        doThrow(new ForbiddenException()).when(knowledgeAccessApi).requireManageable(KNOWLEDGE_BASE_ID);
 
-        assertThatThrownBy(() -> service.progress(WORKSPACE_ID, SESSION_ID))
+        assertThatThrownBy(() -> service.progress(KNOWLEDGE_BASE_ID, SESSION_ID))
                 .isInstanceOf(ForbiddenException.class);
 
         verify(repository, never()).findUploadSession(anyLong(), anyLong());
@@ -200,7 +203,7 @@ class DocumentUploadServiceTest {
     ) {
         return new UploadSession(
                 SESSION_ID,
-                WORKSPACE_ID,
+                KNOWLEDGE_BASE_ID,
                 "guide.pdf",
                 "application/pdf",
                 fileSize,
@@ -220,7 +223,7 @@ class DocumentUploadServiceTest {
     private static DocumentRecord document(long id, DocumentStatus status) {
         return new DocumentRecord(
                 id,
-                WORKSPACE_ID,
+                KNOWLEDGE_BASE_ID,
                 "guide.pdf",
                 "documents/guide.pdf",
                 "application/pdf",

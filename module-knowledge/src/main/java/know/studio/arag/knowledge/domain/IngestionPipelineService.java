@@ -21,21 +21,21 @@ public class IngestionPipelineService implements IngestionTaskHandler {
     private final SnowflakeIdGenerator idGenerator;
 
     @Override
-    public void process(long workspaceId, long documentId) {
-        repository.ensureIngestionJob(idGenerator.nextId(), workspaceId, documentId);
-        if (!repository.claimDocumentForProcessing(workspaceId, documentId)) {
-            log.info("Skipped already claimed ingestion workspaceId={} documentId={}", workspaceId, documentId);
+    public void process(long knowledgeBaseId, long documentId) {
+        repository.ensureIngestionJob(idGenerator.nextId(), knowledgeBaseId, documentId);
+        if (!repository.claimDocumentForProcessing(knowledgeBaseId, documentId)) {
+            log.info("Skipped already claimed ingestion knowledgeBaseId={} documentId={}", knowledgeBaseId, documentId);
             return;
         }
         try {
-            DocumentRecord document = repository.findDocument(workspaceId, documentId)
+            DocumentRecord document = repository.findDocument(knowledgeBaseId, documentId)
                     .orElseThrow(() -> new IllegalStateException("Document disappeared after ingestion claim"));
             ParsedDocument parsed = node(documentId, "PARSE", () -> parser.parse(document));
             String cleaned = node(documentId, "CLEAN", () -> StructuredTextChunker.clean(parsed.text()));
             List<DocumentChunk> chunks = node(
                     documentId,
                     "CHUNK",
-                    () -> chunker.chunk(workspaceId, documentId, cleaned)
+                    () -> chunker.chunk(knowledgeBaseId, documentId, cleaned)
             );
             if (chunks.isEmpty()) {
                 throw new IllegalStateException("Document contains no indexable text");
@@ -49,13 +49,13 @@ public class IngestionPipelineService implements IngestionTaskHandler {
                 throw new IllegalStateException("Embedding count does not match chunk count");
             }
             node(documentId, "INDEX", () -> {
-                indexPort.replace(workspaceId, document, chunks, embeddings);
+                indexPort.replace(knowledgeBaseId, document, chunks, embeddings);
                 return null;
             });
-            repository.markDocumentReady(workspaceId, documentId, preview(cleaned), chunks.size());
+            repository.markDocumentReady(knowledgeBaseId, documentId, preview(cleaned), chunks.size());
             repository.markIngestionCompleted(documentId);
         } catch (RuntimeException exception) {
-            repository.markDocumentFailed(workspaceId, documentId, exception.getMessage());
+            repository.markDocumentFailed(knowledgeBaseId, documentId, exception.getMessage());
             repository.markIngestionFailed(documentId, exception.getMessage());
             throw exception;
         }

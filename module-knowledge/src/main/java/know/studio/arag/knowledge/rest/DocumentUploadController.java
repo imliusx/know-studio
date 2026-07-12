@@ -27,7 +27,7 @@ import java.util.Map;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/workspaces/{workspaceId}")
+@RequestMapping("/api/knowledge-bases/{knowledgeBaseId}")
 @RequiredArgsConstructor
 public class DocumentUploadController {
 
@@ -38,11 +38,11 @@ public class DocumentUploadController {
 
     @PostMapping("/documents/uploads")
     public ApiResponse<UploadInitResult> initiate(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @Valid @RequestBody InitiateUploadRequest request
     ) {
         return ApiResponse.ok(uploadService.initiate(
-                workspaceId,
+                knowledgeBaseId,
                 request.fileName(),
                 request.contentType(),
                 request.fileSize(),
@@ -56,14 +56,14 @@ public class DocumentUploadController {
             consumes = MediaType.MULTIPART_FORM_DATA_VALUE
     )
     public ApiResponse<UploadProgress> uploadChunk(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @PathVariable long sessionId,
             @PathVariable int chunkIndex,
             @RequestHeader(CHUNK_HASH_HEADER) String chunkHash,
             @RequestPart("file") MultipartFile file
     ) {
         return ApiResponse.ok(uploadService.uploadChunk(
-                workspaceId,
+                knowledgeBaseId,
                 sessionId,
                 chunkIndex,
                 file.getSize(),
@@ -75,52 +75,52 @@ public class DocumentUploadController {
 
     @GetMapping("/documents/uploads/{sessionId}")
     public ApiResponse<UploadProgress> progress(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @PathVariable long sessionId
     ) {
-        return ApiResponse.ok(uploadService.progress(workspaceId, sessionId));
+        return ApiResponse.ok(uploadService.progress(knowledgeBaseId, sessionId));
     }
 
     @PostMapping("/documents/uploads/{sessionId}/complete")
     public ApiResponse<Map<String, Long>> complete(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @PathVariable long sessionId
     ) {
-        return ApiResponse.ok(Map.of("documentId", uploadService.complete(workspaceId, sessionId)));
+        return ApiResponse.ok(Map.of("documentId", uploadService.complete(knowledgeBaseId, sessionId)));
     }
 
     @GetMapping("/documents/{documentId}")
     public ApiResponse<DocumentView> getDocument(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @PathVariable long documentId
     ) {
-        return ApiResponse.ok(queryService.getDocument(workspaceId, documentId));
+        return ApiResponse.ok(queryService.getDocument(knowledgeBaseId, documentId));
     }
 
     @GetMapping("/documents")
     public ApiResponse<List<DocumentView>> listDocuments(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @RequestParam(required = false) DocumentStatus status,
             @RequestParam(required = false) String fileName
     ) {
-        return ApiResponse.ok(queryService.listDocuments(workspaceId, status, fileName));
+        return ApiResponse.ok(queryService.listDocuments(knowledgeBaseId, status, fileName));
     }
 
     @DeleteMapping("/documents/{documentId}")
     public ApiResponse<Void> deleteDocument(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @PathVariable long documentId
     ) {
-        queryService.deleteDocument(workspaceId, documentId);
+        queryService.deleteDocument(knowledgeBaseId, documentId);
         return ApiResponse.ok();
     }
 
     @PostMapping("/documents/{documentId}/retry-ingestion")
     public ApiResponse<Void> retryIngestion(
-            @PathVariable long workspaceId,
+            @PathVariable long knowledgeBaseId,
             @PathVariable long documentId
     ) {
-        queryService.retryIngestion(workspaceId, documentId);
+        queryService.retryIngestion(knowledgeBaseId, documentId);
         return ApiResponse.ok();
     }
 }

@@ -14,7 +14,7 @@ public class DocumentChunkEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     private Long documentId;
     private Integer chunkIndex;
     private String chunkText;

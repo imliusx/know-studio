@@ -31,29 +31,29 @@ public class PgVectorElasticsearchDocumentIndex implements DocumentIndexPort {
     @Override
     @Transactional
     public void replace(
-            long workspaceId,
+            long knowledgeBaseId,
             DocumentRecord document,
             List<DocumentChunk> chunks,
             List<float[]> embeddings
     ) {
-        List<ChunkEmbeddingRow> rows = embeddingRows(workspaceId, document.id(), chunks, embeddings);
-        commandMapper.deleteChunkEmbeddings(workspaceId, document.id());
-        repository.replaceDocumentChunks(workspaceId, document.id(), chunks);
+        List<ChunkEmbeddingRow> rows = embeddingRows(knowledgeBaseId, document.id(), chunks, embeddings);
+        commandMapper.deleteChunkEmbeddings(knowledgeBaseId, document.id());
+        repository.replaceDocumentChunks(knowledgeBaseId, document.id(), chunks);
         commandMapper.insertChunkEmbeddings(rows);
 
-        searchRepository.deleteByWorkspaceIdAndDocumentId(workspaceId, document.id());
+        searchRepository.deleteByKnowledgeBaseIdAndDocumentId(knowledgeBaseId, document.id());
         searchRepository.saveAll(searchDocuments(document, chunks));
     }
 
     @Override
     @Transactional
-    public void delete(long workspaceId, long documentId) {
-        commandMapper.deleteChunkEmbeddings(workspaceId, documentId);
-        searchRepository.deleteByWorkspaceIdAndDocumentId(workspaceId, documentId);
+    public void delete(long knowledgeBaseId, long documentId) {
+        commandMapper.deleteChunkEmbeddings(knowledgeBaseId, documentId);
+        searchRepository.deleteByKnowledgeBaseIdAndDocumentId(knowledgeBaseId, documentId);
     }
 
     private List<ChunkEmbeddingRow> embeddingRows(
-            long workspaceId,
+            long knowledgeBaseId,
             long documentId,
             List<DocumentChunk> chunks,
             List<float[]> embeddings
@@ -67,7 +67,7 @@ public class PgVectorElasticsearchDocumentIndex implements DocumentIndexPort {
             DocumentChunk chunk = chunks.get(index);
             rows.add(new ChunkEmbeddingRow(
                     chunk.id(),
-                    workspaceId,
+                    knowledgeBaseId,
                     documentId,
                     EmbeddingVectors.toPgVectorLiteral(embedding),
                     metadata(chunk)
@@ -80,7 +80,7 @@ public class PgVectorElasticsearchDocumentIndex implements DocumentIndexPort {
         return chunks.stream().map(chunk -> {
             ChunkSearchDocument target = new ChunkSearchDocument();
             target.setId(chunk.id());
-            target.setWorkspaceId(chunk.workspaceId());
+            target.setKnowledgeBaseId(chunk.knowledgeBaseId());
             target.setDocumentId(chunk.documentId());
             target.setChunkIndex(chunk.chunkIndex());
             target.setFileName(document.fileName());

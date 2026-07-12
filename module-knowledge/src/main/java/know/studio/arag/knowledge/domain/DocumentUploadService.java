@@ -2,7 +2,7 @@ package know.studio.arag.knowledge.domain;
 
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
-import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.knowledge.api.DocumentStatus;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
@@ -33,30 +33,31 @@ public class DocumentUploadService {
     private final KnowledgeRepository repository;
     private final ObjectStoragePort storage;
     private final IdentityApi identityApi;
+    private final KnowledgeAccessApi knowledgeAccessApi;
     private final SnowflakeIdGenerator idGenerator;
     private final ApplicationEventPublisher eventPublisher;
     private final UploadPolicy uploadPolicy;
 
     @Transactional
     public UploadInitResult initiate(
-            long workspaceId,
+            long knowledgeBaseId,
             String fileName,
             String contentType,
             long fileSize,
             String contentHash,
             int totalChunks
     ) {
-        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
+        knowledgeAccessApi.requireManageable(knowledgeBaseId);
         CurrentIdentity current = identityApi.currentUser();
         String normalizedHash = normalizeHash(contentHash);
         validateInitiation(fileName, fileSize, totalChunks);
 
-        DocumentRecord ready = repository.findReadyDocumentByHash(workspaceId, normalizedHash).orElse(null);
+        DocumentRecord ready = repository.findReadyDocumentByHash(knowledgeBaseId, normalizedHash).orElse(null);
         if (ready != null) {
             return new UploadInitResult(true, ready.id(), null, List.of());
         }
 
-        UploadSession active = repository.findActiveUploadSessionByHash(workspaceId, normalizedHash).orElse(null);
+        UploadSession active = repository.findActiveUploadSessionByHash(knowledgeBaseId, normalizedHash).orElse(null);
         if (active != null) {
             return new UploadInitResult(
                     false,
@@ -69,7 +70,7 @@ public class DocumentUploadService {
         long sessionId = idGenerator.nextId();
         repository.insertUploadSession(new UploadSession(
                 sessionId,
-                workspaceId,
+                knowledgeBaseId,
                 sanitizeFileName(fileName),
                 contentType,
                 fileSize,
@@ -85,7 +86,7 @@ public class DocumentUploadService {
 
     @Transactional
     public UploadProgress uploadChunk(
-            long workspaceId,
+            long knowledgeBaseId,
             long sessionId,
             int chunkIndex,
             long chunkSize,
@@ -93,8 +94,8 @@ public class DocumentUploadService {
             String expectedHash,
             InputStreamProvider content
     ) {
-        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
-        UploadSession session = requireActiveSession(workspaceId, sessionId);
+        knowledgeAccessApi.requireManageable(knowledgeBaseId);
+        UploadSession session = requireActiveSession(knowledgeBaseId, sessionId);
         validateChunk(session, chunkIndex, chunkSize);
         String normalizedHash = normalizeHash(expectedHash);
 
@@ -119,7 +120,7 @@ public class DocumentUploadService {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "分片 SHA-256 校验失败");
         }
 
-        String objectKey = chunkObjectKey(workspaceId, sessionId, chunkIndex);
+        String objectKey = chunkObjectKey(knowledgeBaseId, sessionId, chunkIndex);
         try (InputStream input = content.open()) {
             storage.put(objectKey, input, chunkSize, contentType);
         } catch (IOException exception) {
@@ -147,27 +148,27 @@ public class DocumentUploadService {
         return progress(session);
     }
 
-    public UploadProgress progress(long workspaceId, long sessionId) {
-        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
-        UploadSession session = repository.findUploadSession(workspaceId, sessionId)
+    public UploadProgress progress(long knowledgeBaseId, long sessionId) {
+        knowledgeAccessApi.requireManageable(knowledgeBaseId);
+        UploadSession session = repository.findUploadSession(knowledgeBaseId, sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上传会话不存在"));
         return progress(session);
     }
 
     @Transactional
-    public long complete(long workspaceId, long sessionId) {
-        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
-        UploadSession session = repository.findUploadSession(workspaceId, sessionId)
+    public long complete(long knowledgeBaseId, long sessionId) {
+        knowledgeAccessApi.requireManageable(knowledgeBaseId);
+        UploadSession session = repository.findUploadSession(knowledgeBaseId, sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上传会话不存在"));
         if (session.status() == UploadStatus.COMPLETED && session.documentId() != null) {
             return session.documentId();
         }
-        requireActiveSession(workspaceId, sessionId);
+        requireActiveSession(knowledgeBaseId, sessionId);
 
         List<UploadChunk> chunks = repository.findUploadChunks(sessionId);
         validateCompleteChunks(session, chunks);
         long documentId = idGenerator.nextId();
-        String targetKey = documentObjectKey(workspaceId, documentId, session.fileName());
+        String targetKey = documentObjectKey(knowledgeBaseId, documentId, session.fileName());
         storage.compose(targetKey, chunks.stream().map(UploadChunk::objectKey).toList());
 
         try (InputStream combined = storage.open(targetKey)) {
@@ -182,7 +183,7 @@ public class DocumentUploadService {
 
         DocumentRecord document = new DocumentRecord(
                 documentId,
-                workspaceId,
+                knowledgeBaseId,
                 session.fileName(),
                 targetKey,
                 session.contentType(),
@@ -197,7 +198,7 @@ public class DocumentUploadService {
         try {
             repository.insertDocument(document);
         } catch (DuplicateKeyException exception) {
-            DocumentRecord concurrent = repository.findDocumentByHash(workspaceId, session.contentHash())
+            DocumentRecord concurrent = repository.findDocumentByHash(knowledgeBaseId, session.contentHash())
                     .orElseThrow(() -> exception);
             storage.delete(List.of(targetKey));
             repository.completeUploadSession(sessionId, concurrent.id());
@@ -205,7 +206,7 @@ public class DocumentUploadService {
         }
 
         repository.completeUploadSession(sessionId, documentId);
-        eventPublisher.publishEvent(new DocumentUploadCompletedEvent(workspaceId, documentId));
+        eventPublisher.publishEvent(new DocumentUploadCompletedEvent(knowledgeBaseId, documentId));
         try {
             storage.delete(chunks.stream().map(UploadChunk::objectKey).toList());
         } catch (RuntimeException exception) {
@@ -214,8 +215,8 @@ public class DocumentUploadService {
         return documentId;
     }
 
-    private UploadSession requireActiveSession(long workspaceId, long sessionId) {
-        UploadSession session = repository.findUploadSession(workspaceId, sessionId)
+    private UploadSession requireActiveSession(long knowledgeBaseId, long sessionId) {
+        UploadSession session = repository.findUploadSession(knowledgeBaseId, sessionId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "上传会话不存在"));
         if (session.status() != UploadStatus.UPLOADING) {
             throw new BusinessException(ErrorCode.CONFLICT, "上传会话已结束");
@@ -288,11 +289,11 @@ public class DocumentUploadService {
         return sanitized;
     }
 
-    private static String chunkObjectKey(long workspaceId, long sessionId, int chunkIndex) {
-        return "uploads/" + workspaceId + "/" + sessionId + "/" + String.format("%05d", chunkIndex);
+    private static String chunkObjectKey(long knowledgeBaseId, long sessionId, int chunkIndex) {
+        return "uploads/" + knowledgeBaseId + "/" + sessionId + "/" + String.format("%05d", chunkIndex);
     }
 
-    private static String documentObjectKey(long workspaceId, long documentId, String fileName) {
-        return "documents/" + workspaceId + "/" + documentId + "/" + sanitizeFileName(fileName);
+    private static String documentObjectKey(long knowledgeBaseId, long documentId, String fileName) {
+        return "documents/" + knowledgeBaseId + "/" + documentId + "/" + sanitizeFileName(fileName);
     }
 }

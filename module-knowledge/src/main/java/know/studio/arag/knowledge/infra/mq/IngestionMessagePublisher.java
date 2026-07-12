@@ -17,18 +17,18 @@ public class IngestionMessagePublisher {
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void onDocumentUploadCompleted(DocumentUploadCompletedEvent event) {
-        publish(event.workspaceId(), event.documentId());
+        publish(event.knowledgeBaseId(), event.documentId());
     }
 
-    public void publish(long workspaceId, long documentId) {
+    public void publish(long knowledgeBaseId, long documentId) {
         String messageId = publisher.sendConfirmed(
                 IngestionMqTopology.EXCHANGE,
                 IngestionMqTopology.ROUTING_KEY,
-                new IngestionMessage(workspaceId, documentId)
+                new IngestionMessage(knowledgeBaseId, documentId)
         );
         log.info(
-                "Published ingestion task workspaceId={} documentId={} messageId={}",
-                workspaceId,
+                "Published ingestion task knowledgeBaseId={} documentId={} messageId={}",
+                knowledgeBaseId,
                 documentId,
                 messageId
         );
