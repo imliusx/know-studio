@@ -140,3 +140,10 @@
 - Documents and Evaluation use KnowledgeBase-scoped endpoints and query keys.
 - `/admin/groups` now provides Team creation, member role management and KnowledgeBase Team grants.
 - Frontend lint, typecheck and production build passed with only the two existing TanStack Table compatibility warnings.
+
+### Legacy ownership cleanup batch (2026-07-12)
+
+- V11 removed the legacy ownership tables, indexes and every `workspace_id` column.
+- Existing V10 data upgraded without count changes; a clean database applied V1-V11 and started successfully.
+- Legacy identity controllers, APIs, entities and mappers were removed; request context now carries only user and trace identity.
+- Team `MANAGE` grants are effective as MANAGE only for `TEAM_ADMIN`; ordinary members retain READ access.

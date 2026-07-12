@@ -16,7 +16,11 @@ public interface IdentityApi {
         throw new know.studio.arag.platform.core.exception.ForbiddenException("无权访问该团队");
     }
 
+    default java.util.Map<Long, TeamRole> currentUserTeamRoles() {
+        return java.util.Map.of();
+    }
+
     default java.util.Set<Long> currentUserTeamIds() {
-        return java.util.Set.of();
+        return currentUserTeamRoles().keySet();
     }
 }

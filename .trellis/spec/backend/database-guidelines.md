@@ -20,6 +20,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 - Knowledge content queries must explicitly include `knowledge_base_id`.
 - User-owned conversation queries must explicitly include `user_id` and `session_id`.
 - Team access is resolved through explicit Team membership and KnowledgeBase grants; do not use a hidden tenant interceptor.
+- A Team grant always gives members READ access. A `MANAGE` grant is exercisable only by `TEAM_ADMIN`; ordinary `MEMBER` users must be downgraded to READ.
 - Database columns use `snake_case`; Java properties use `camelCase` with underscore mapping enabled.
 - IDs are application-generated Snowflake `BIGINT` values. Do not use database sequences.
 - Standard CRUD uses `BaseMapper` and `LambdaQueryWrapper`/`LambdaUpdateWrapper`.

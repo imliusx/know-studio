@@ -3,6 +3,7 @@ package know.studio.arag.knowledge.domain;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
+import know.studio.arag.identity.api.TeamRole;
 import know.studio.arag.knowledge.api.KnowledgeBasePermission;
 import know.studio.arag.knowledge.api.KnowledgeBaseVisibility;
 import know.studio.arag.platform.core.exception.ForbiddenException;
@@ -26,9 +27,9 @@ class KnowledgeBaseServiceTest {
         KnowledgeBaseRepository repository = mock(KnowledgeBaseRepository.class);
         IdentityApi identityApi = mock(IdentityApi.class);
         when(identityApi.currentUser()).thenReturn(user(10L, SystemRole.USER));
-        when(identityApi.currentUserTeamIds()).thenReturn(Set.of(20L));
+        when(identityApi.currentUserTeamRoles()).thenReturn(Map.of(20L, TeamRole.MEMBER));
         when(repository.findPermissions(Set.of(20L)))
-                .thenReturn(Map.of(2L, KnowledgeBasePermission.READ));
+                .thenReturn(Map.of(2L, KnowledgeBasePermission.MANAGE));
         when(repository.findCompanyVisible()).thenReturn(List.of(kb(1L, KnowledgeBaseVisibility.COMPANY, 1L)));
         when(repository.findCreatedBy(10L)).thenReturn(List.of());
         KnowledgeBaseService service = service(repository, identityApi);
@@ -37,19 +38,33 @@ class KnowledgeBaseServiceTest {
     }
 
     @Test
-    void readGrantCannotManageKnowledgeBase() {
+    void teamMemberCannotUseManageGrantToManageKnowledgeBase() {
         KnowledgeBaseRepository repository = mock(KnowledgeBaseRepository.class);
         IdentityApi identityApi = mock(IdentityApi.class);
         when(identityApi.currentUser()).thenReturn(user(10L, SystemRole.USER));
-        when(identityApi.currentUserTeamIds()).thenReturn(Set.of(20L));
+        when(identityApi.currentUserTeamRoles()).thenReturn(Map.of(20L, TeamRole.MEMBER));
         when(repository.findById(2L)).thenReturn(Optional.of(kb(2L, KnowledgeBaseVisibility.TEAM, 99L)));
         when(repository.findPermission(2L, Set.of(20L)))
-                .thenReturn(Optional.of(KnowledgeBasePermission.READ));
+                .thenReturn(Optional.of(KnowledgeBasePermission.MANAGE));
         KnowledgeBaseService service = service(repository, identityApi);
 
         assertThatThrownBy(() -> service.requireManageable(2L))
                 .isInstanceOf(ForbiddenException.class)
                 .hasMessageContaining("权限不足");
+    }
+
+    @Test
+    void teamAdminCanUseManageGrantToManageKnowledgeBase() {
+        KnowledgeBaseRepository repository = mock(KnowledgeBaseRepository.class);
+        IdentityApi identityApi = mock(IdentityApi.class);
+        when(identityApi.currentUser()).thenReturn(user(10L, SystemRole.USER));
+        when(identityApi.currentUserTeamRoles()).thenReturn(Map.of(20L, TeamRole.TEAM_ADMIN));
+        when(repository.findById(2L)).thenReturn(Optional.of(kb(2L, KnowledgeBaseVisibility.TEAM, 99L)));
+        when(repository.findPermission(2L, Set.of(20L)))
+                .thenReturn(Optional.of(KnowledgeBasePermission.MANAGE));
+        KnowledgeBaseService service = service(repository, identityApi);
+
+        assertThat(service.requireManageable(2L)).isEqualTo(KnowledgeBasePermission.MANAGE);
     }
 
     @Test

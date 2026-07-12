@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -204,11 +205,7 @@ public class KnowledgeBaseService implements KnowledgeAccessApi {
                 && knowledgeBase.visibility() == KnowledgeBaseVisibility.COMPANY) {
             return KnowledgeBasePermission.READ;
         }
-        KnowledgeBasePermission actual = repository.findPermission(
-                        knowledgeBaseId,
-                        identityApi.currentUserTeamIds()
-                )
-                .orElseThrow(() -> new ForbiddenException("无权访问该知识库"));
+        KnowledgeBasePermission actual = teamPermission(knowledgeBaseId);
         if (!actual.allows(required)) {
             throw new ForbiddenException("知识库权限不足");
         }
@@ -231,8 +228,17 @@ public class KnowledgeBaseService implements KnowledgeAccessApi {
     }
 
     private Map<Long, KnowledgeBasePermission> effectivePermissions(CurrentIdentity current) {
-        Map<Long, KnowledgeBasePermission> permissions = new HashMap<>(
-                repository.findPermissions(identityApi.currentUserTeamIds())
+        Map<Long, TeamRole> teamRoles = identityApi.currentUserTeamRoles();
+        Map<Long, KnowledgeBasePermission> permissions = new HashMap<>();
+        repository.findPermissions(teamRoles.keySet()).keySet().forEach(
+                knowledgeBaseId -> permissions.put(knowledgeBaseId, KnowledgeBasePermission.READ)
+        );
+        repository.findPermissions(teamAdminIds(teamRoles)).forEach(
+                (knowledgeBaseId, permission) -> permissions.merge(
+                        knowledgeBaseId,
+                        permission,
+                        KnowledgeBaseService::strongerPermission
+                )
         );
         repository.findCompanyVisible().forEach(kb -> permissions.putIfAbsent(
                 kb.id(), KnowledgeBasePermission.READ
@@ -241,6 +247,29 @@ public class KnowledgeBaseService implements KnowledgeAccessApi {
                 kb.id(), KnowledgeBasePermission.MANAGE
         ));
         return permissions;
+    }
+
+    private KnowledgeBasePermission teamPermission(long knowledgeBaseId) {
+        Map<Long, TeamRole> teamRoles = identityApi.currentUserTeamRoles();
+        KnowledgeBasePermission readable = repository.findPermission(knowledgeBaseId, teamRoles.keySet())
+                .map(permission -> KnowledgeBasePermission.READ)
+                .orElseThrow(() -> new ForbiddenException("无权访问该知识库"));
+        return repository.findPermission(knowledgeBaseId, teamAdminIds(teamRoles))
+                .orElse(readable);
+    }
+
+    private static Set<Long> teamAdminIds(Map<Long, TeamRole> teamRoles) {
+        return teamRoles.entrySet().stream()
+                .filter(entry -> entry.getValue() == TeamRole.TEAM_ADMIN)
+                .map(Map.Entry::getKey)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private static KnowledgeBasePermission strongerPermission(
+            KnowledgeBasePermission first,
+            KnowledgeBasePermission second
+    ) {
+        return second.allows(first) ? second : first;
     }
 
     private static KnowledgeBaseInfo toInfo(

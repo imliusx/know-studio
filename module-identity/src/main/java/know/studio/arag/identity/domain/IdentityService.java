@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 @Service
@@ -196,11 +197,13 @@ public class IdentityService implements IdentityApi {
     }
 
     @Override
-    public Set<Long> currentUserTeamIds() {
+    public Map<Long, TeamRole> currentUserTeamRoles() {
         CurrentIdentity current = currentUser();
         return repository.findTeamAccesses(current.userId()).stream()
-                .map(access -> access.team().id())
-                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        access -> access.team().id(),
+                        TeamAccess::role
+                ));
     }
 
     private AuthSession authSession(UserAccount user) {
