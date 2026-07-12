@@ -9,5 +9,6 @@
 - [x] Restore the Chat sidebar brand header and keep KnowledgeBase switching out of the user Chat surface.
 - [x] Use one static sidebar brand across Chat/Admin and move evaluation KnowledgeBase selection into the evaluation page.
 - [x] Stabilize short factual QA with deterministic single-intent planning, bounded evidence clusters, focused grounding, extractive explicit-rule answers and Markdown heading normalization.
+- [x] Route known short greetings to Chat before LLM classification and use heuristic fallback for low-confidence model output.
 - [ ] Run desktop/mobile browser screenshots and interaction checks. Blocked on 2026-07-12 after the approved browser runtime reported no available browser and discovery returned `[]`; backend and frontend health checks passed.
 - [ ] Commit, archive task and update the completion audit record.

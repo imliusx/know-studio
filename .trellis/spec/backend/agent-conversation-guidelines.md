@@ -54,6 +54,9 @@ events.
 - MCP `CallToolResult.isError=true` -> controlled business error.
 - Intent classifier timeout or malformed output -> deterministic heuristic
   fallback; do not block the chat request indefinitely.
+- Known greetings -> route to `CHAT` before calling the model, including short
+  two-character greetings such as `你好`. Low-confidence model output also uses
+  the heuristic result instead of forcing `CLARIFY`.
 - A single-intent retrieval question -> keep the normalized original query;
   do not let LLM expansion replace it with broader document-summary queries.
 - Contiguous retrieval hits -> cluster only around a scored anchor and its

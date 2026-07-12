@@ -18,14 +18,14 @@ public final class HeuristicIntentClassifier implements IntentClassifier {
     @Override
     public IntentResult classify(String message, boolean toolMode) {
         String normalized = message.toLowerCase(Locale.ROOT);
+        if (CHAT_TERMS.stream().anyMatch(normalized::contains)) {
+            return new IntentResult(IntentType.CHAT, 0.9, "");
+        }
         if (message.length() < 3 || normalized.equals("这个") || normalized.equals("帮我看看")) {
             return new IntentResult(IntentType.CLARIFY, 0.35, "请补充你希望查询的对象或具体问题。");
         }
         if (toolMode && TOOL_TERMS.stream().anyMatch(normalized::contains)) {
             return new IntentResult(IntentType.TOOL, 0.85, "");
-        }
-        if (CHAT_TERMS.stream().anyMatch(normalized::contains)) {
-            return new IntentResult(IntentType.CHAT, 0.9, "");
         }
         return new IntentResult(IntentType.KNOWLEDGE, 0.72, "");
     }

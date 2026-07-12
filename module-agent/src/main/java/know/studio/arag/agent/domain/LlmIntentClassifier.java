@@ -33,6 +33,10 @@ public class LlmIntentClassifier implements IntentClassifier {
     @Override
     @RagTraceNode("agent.intent")
     public IntentResult classify(String message, boolean toolMode) {
+        IntentResult heuristic = fallback.classify(message, toolMode);
+        if (heuristic.intent() == IntentType.CHAT) {
+            return heuristic;
+        }
         try {
             String response = chatModelRouter.stream(ChatRequest.chat(SYSTEM_PROMPT, message))
                     .timeout(Duration.ofSeconds(3))
@@ -51,11 +55,11 @@ public class LlmIntentClassifier implements IntentClassifier {
             }
             double confidence = Double.parseDouble(matcher.group(2));
             if (confidence < 0.55) {
-                return new IntentResult(IntentType.CLARIFY, confidence, "请补充更具体的问题或查询对象。");
+                return heuristic;
             }
             return new IntentResult(intent, confidence, "");
         } catch (RuntimeException exception) {
-            return fallback.classify(message, toolMode);
+            return heuristic;
         }
     }
 }
