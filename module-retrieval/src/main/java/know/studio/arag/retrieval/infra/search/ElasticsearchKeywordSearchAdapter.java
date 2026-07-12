@@ -43,7 +43,8 @@ public class ElasticsearchKeywordSearchAdapter implements KeywordSearchPort {
                                             .value(false)))
                                     .must(must -> must.match(match -> match
                                             .field("chunkText")
-                                            .query(query))))),
+                                            .query(query)
+                                            .minimumShouldMatch("60%"))))),
                     KeywordChunkDocument.class
             );
             return response.hits().hits().stream()

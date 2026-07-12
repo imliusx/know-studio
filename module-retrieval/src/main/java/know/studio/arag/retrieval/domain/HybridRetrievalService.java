@@ -86,11 +86,14 @@ public class HybridRetrievalService implements RetrievalApi {
                 );
         List<FusedCandidate> expanded = neighborExpander.expand(rankedSeeds, neighbors, RERANK_LIMIT);
         List<FusedCandidate> clustered = candidateClusterer.cluster(expanded, RERANK_LIMIT);
-        EvidenceLevel level = evidenceGrader.grade(clustered);
-        List<Evidence> evidence = clustered.stream()
-                .limit(query.topK())
-                .map(HybridRetrievalService::toEvidence)
-                .toList();
+        EvidenceLevel level = evidenceGrader.grade(query.question(), clustered);
+        List<Evidence> evidence = level == EvidenceLevel.NONE
+                && query.mode() != RetrievalMode.VECTOR_ONLY
+                ? List.of()
+                : clustered.stream()
+                        .limit(query.topK())
+                        .map(HybridRetrievalService::toEvidence)
+                        .toList();
         return new EvidenceBundle(evidence, level, guidance(level));
     }
 
@@ -148,7 +151,7 @@ public class HybridRetrievalService implements RetrievalApi {
             case SUFFICIENT -> "证据充分，可基于引用内容回答";
             case PARTIAL -> "证据部分充分，回答时说明不确定范围";
             case WEAK -> "证据较弱，仅提供保守结论并建议补充信息";
-            case NONE -> "没有可靠证据，应拒绝编造并请求澄清";
+            case NONE -> "当前知识库中没有找到与该问题相关的可靠资料，无法依据现有文档回答。";
         };
     }
 }

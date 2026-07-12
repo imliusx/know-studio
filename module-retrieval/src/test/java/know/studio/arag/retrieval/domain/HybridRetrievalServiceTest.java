@@ -38,6 +38,8 @@ import static org.mockito.Mockito.when;
 class HybridRetrievalServiceTest {
 
     private static final long KNOWLEDGE_BASE_ID = 11L;
+    private static final String EXPENSE_QUESTION =
+            "费用报销 客户拜访产生的交通、餐饮和住宿费用分别怎么报";
 
     @Mock
     private KnowledgeAccessApi knowledgeAccessApi;
@@ -67,15 +69,15 @@ class HybridRetrievalServiceTest {
 
     @Test
     void fusesVectorAndKeywordEvidenceAndFallsBackWhenRerankFails() {
-        when(queryPlanner.plan("What is RAG?")).thenReturn(List.of("What is RAG?"));
+        when(queryPlanner.plan("What is retrieval?")).thenReturn(List.of("What is retrieval?"));
         when(vectorSearch.search(anySet(), any(float[].class), anyInt()))
                 .thenReturn(List.of(candidate(1L, 0.91, RetrievalSource.VECTOR)));
-        when(keywordSearch.search(Set.of(KNOWLEDGE_BASE_ID), "What is RAG?", 50))
+        when(keywordSearch.search(Set.of(KNOWLEDGE_BASE_ID), "What is retrieval?", 50))
                 .thenReturn(List.of(candidate(1L, 8.2, RetrievalSource.KEYWORD)));
         when(rerankPort.rerank(any(), any())).thenThrow(new IllegalStateException("reranker offline"));
         when(neighborPort.findNeighbors(anySet(), any(), anyInt())).thenReturn(List.of());
 
-        EvidenceBundle result = service().retrieve(new RetrievalQuery("What is RAG?", Set.of(), 5));
+        EvidenceBundle result = service().retrieve(new RetrievalQuery("What is retrieval?", Set.of(), 5));
 
         assertThat(result.level()).isEqualTo(EvidenceLevel.PARTIAL);
         assertThat(result.evidence()).hasSize(1);
@@ -148,6 +150,40 @@ class HybridRetrievalServiceTest {
         verify(vectorSearch).search(eq(Set.of(12L)), any(float[].class), eq(50));
     }
 
+    @Test
+    void removesUnrelatedCandidatesFromNoneEvidenceBundle() {
+        SearchCandidate unrelatedJavaRule = candidate(
+                1L,
+                "Java 类名使用 UpperCamelCase 风格，方法名、参数名和局部变量统一使用 lowerCamelCase 风格。",
+                0.91,
+                RetrievalSource.VECTOR
+        );
+        when(queryPlanner.plan(EXPENSE_QUESTION)).thenReturn(List.of(EXPENSE_QUESTION));
+        when(vectorSearch.search(anySet(), any(float[].class), anyInt()))
+                .thenReturn(List.of(unrelatedJavaRule));
+        when(keywordSearch.search(
+                Set.of(KNOWLEDGE_BASE_ID),
+                EXPENSE_QUESTION,
+                50
+        )).thenReturn(List.of(candidate(
+                1L,
+                unrelatedJavaRule.text(),
+                8.2,
+                RetrievalSource.KEYWORD
+        )));
+        when(rerankPort.rerank(any(), any())).thenThrow(new IllegalStateException("reranker offline"));
+        when(neighborPort.findNeighbors(anySet(), any(), anyInt())).thenReturn(List.of());
+
+        EvidenceBundle result = service().retrieve(new RetrievalQuery(
+                EXPENSE_QUESTION,
+                Set.of(),
+                5
+        ));
+
+        assertThat(result.level()).isEqualTo(EvidenceLevel.NONE);
+        assertThat(result.evidence()).isEmpty();
+    }
+
     private HybridRetrievalService service() {
         return new HybridRetrievalService(
                 knowledgeAccessApi,
@@ -194,13 +230,22 @@ class HybridRetrievalServiceTest {
     }
 
     private static SearchCandidate candidate(long chunkId, double score, RetrievalSource source) {
+        return candidate(chunkId, "retrieval content " + chunkId, score, source);
+    }
+
+    private static SearchCandidate candidate(
+            long chunkId,
+            String text,
+            double score,
+            RetrievalSource source
+    ) {
         return new SearchCandidate(
                 KNOWLEDGE_BASE_ID,
                 chunkId,
                 100L,
                 Math.toIntExact(chunkId),
                 "guide.md",
-                "retrieval content " + chunkId,
+                text,
                 score,
                 source
         );

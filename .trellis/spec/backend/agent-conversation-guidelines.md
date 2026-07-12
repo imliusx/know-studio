@@ -63,6 +63,11 @@ events.
   immediate neighbors; never chain an entire document into one evidence item.
 - Short explicit-rule question with a matching source rule -> prefer a bounded
   extractive answer with citations over asking a small local model to expand it.
+- Without a configured reranker, cross-channel agreement is not sufficient by
+  itself. Evidence must also cover a minimum share of meaningful question terms;
+  otherwise grade it `NONE`, clear mixed-mode evidence, and return a
+  knowledge-base refusal without citations. `VECTOR_ONLY` keeps candidates for
+  retrieval evaluation even when its evidence level is `NONE`.
 
 ### 5. Good/Base/Bad Cases
 
