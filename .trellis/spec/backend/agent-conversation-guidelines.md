@@ -68,6 +68,12 @@ events.
   otherwise grade it `NONE`, clear mixed-mode evidence, and return a
   knowledge-base refusal without citations. `VECTOR_ONLY` keeps candidates for
   retrieval evaluation even when its evidence level is `NONE`.
+- When an unscoped question has a high-confidence lexical match against readable
+  KnowledgeBase names or descriptions, retrieval may narrow to that authorized
+  subset. Low-confidence metadata routing must fall back to the full readable
+  scope and continue evidence grading; it must not add another LLM call to the
+  request path. Explicit request scopes bypass automatic routing and still
+  intersect with readable IDs.
 
 ### 5. Good/Base/Bad Cases
 

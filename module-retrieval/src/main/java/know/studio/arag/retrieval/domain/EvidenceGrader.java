@@ -70,7 +70,7 @@ public class EvidenceGrader {
         return (double) matched / terms.size();
     }
 
-    private static Set<String> queryTerms(String question) {
+    static Set<String> queryTerms(String question) {
         LinkedHashSet<String> terms = new LinkedHashSet<>();
         Matcher asciiMatcher = ASCII_TERM_PATTERN.matcher(question);
         while (asciiMatcher.find()) {

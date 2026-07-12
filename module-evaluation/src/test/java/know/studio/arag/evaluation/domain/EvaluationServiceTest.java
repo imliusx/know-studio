@@ -5,7 +5,9 @@ import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
 import know.studio.arag.knowledge.api.KnowledgeAccessApi;
+import know.studio.arag.knowledge.api.KnowledgeBaseInfo;
 import know.studio.arag.knowledge.api.KnowledgeBasePermission;
+import know.studio.arag.knowledge.api.KnowledgeBaseVisibility;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
@@ -72,6 +74,18 @@ class EvaluationServiceTest {
     }
 
     private static final class StubKnowledgeAccessApi implements KnowledgeAccessApi {
+
+        @Override
+        public List<KnowledgeBaseInfo> listReadable() {
+            return List.of(new KnowledgeBaseInfo(
+                    10L,
+                    "Evaluation Knowledge Base",
+                    "Evaluation fixture",
+                    KnowledgeBaseVisibility.PRIVATE,
+                    null,
+                    KnowledgeBasePermission.MANAGE
+            ));
+        }
 
         @Override
         public Set<Long> readableKnowledgeBaseIds() {

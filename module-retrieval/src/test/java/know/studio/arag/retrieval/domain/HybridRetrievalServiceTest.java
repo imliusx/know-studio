@@ -1,6 +1,9 @@
 package know.studio.arag.retrieval.domain;
 
 import know.studio.arag.knowledge.api.KnowledgeAccessApi;
+import know.studio.arag.knowledge.api.KnowledgeBaseInfo;
+import know.studio.arag.knowledge.api.KnowledgeBasePermission;
+import know.studio.arag.knowledge.api.KnowledgeBaseVisibility;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
 import know.studio.arag.platform.ai.provider.AiCapability;
 import know.studio.arag.platform.ai.provider.AiProvider;
@@ -44,6 +47,8 @@ class HybridRetrievalServiceTest {
     @Mock
     private KnowledgeAccessApi knowledgeAccessApi;
     @Mock
+    private KnowledgeBaseScopeSelector knowledgeBaseScopeSelector;
+    @Mock
     private QueryPlanner queryPlanner;
     @Mock
     private VectorSearchPort vectorSearch;
@@ -59,7 +64,7 @@ class HybridRetrievalServiceTest {
     @BeforeEach
     void setUp() {
         executor = Executors.newVirtualThreadPerTaskExecutor();
-        when(knowledgeAccessApi.readableKnowledgeBaseIds()).thenReturn(Set.of(KNOWLEDGE_BASE_ID));
+        when(knowledgeAccessApi.listReadable()).thenReturn(List.of(knowledgeBase(KNOWLEDGE_BASE_ID)));
     }
 
     @AfterEach
@@ -106,7 +111,7 @@ class HybridRetrievalServiceTest {
 
     @Test
     void deniesRetrievalWithoutReadableKnowledgeBasesBeforePlanningOrCallingModels() {
-        when(knowledgeAccessApi.readableKnowledgeBaseIds()).thenReturn(Set.of());
+        when(knowledgeAccessApi.listReadable()).thenReturn(List.of());
 
         assertThatThrownBy(() -> service().retrieve(new RetrievalQuery("retrieval", Set.of(), 5)))
                 .isInstanceOf(ForbiddenException.class);
@@ -136,7 +141,10 @@ class HybridRetrievalServiceTest {
 
     @Test
     void requestedScopeCanOnlyNarrowReadableKnowledgeBases() {
-        when(knowledgeAccessApi.readableKnowledgeBaseIds()).thenReturn(Set.of(11L, 12L));
+        when(knowledgeAccessApi.listReadable()).thenReturn(List.of(
+                knowledgeBase(11L),
+                knowledgeBase(12L)
+        ));
         when(queryPlanner.plan("scoped")).thenReturn(List.of("scoped"));
         when(vectorSearch.search(eq(Set.of(12L)), any(float[].class), eq(50))).thenReturn(List.of());
 
@@ -148,6 +156,51 @@ class HybridRetrievalServiceTest {
         ));
 
         verify(vectorSearch).search(eq(Set.of(12L)), any(float[].class), eq(50));
+        verify(knowledgeBaseScopeSelector, never()).select(any(), any());
+    }
+
+    @Test
+    void routesUnscopedQuestionToHighConfidenceKnowledgeBaseSubset() {
+        KnowledgeBaseInfo technical = knowledgeBase(KNOWLEDGE_BASE_ID);
+        KnowledgeBaseInfo handbook = knowledgeBase(12L);
+        when(knowledgeAccessApi.listReadable()).thenReturn(List.of(technical, handbook));
+        when(knowledgeBaseScopeSelector.select("Java 类名如何命名？", List.of(technical, handbook)))
+                .thenReturn(new KnowledgeBaseScopeDecision(Set.of(KNOWLEDGE_BASE_ID), 0.91));
+        when(queryPlanner.plan("Java 类名如何命名？")).thenReturn(List.of("Java 类名如何命名"));
+        when(vectorSearch.search(eq(Set.of(KNOWLEDGE_BASE_ID)), any(float[].class), eq(50)))
+                .thenReturn(List.of());
+        when(keywordSearch.search(Set.of(KNOWLEDGE_BASE_ID), "Java 类名如何命名", 50))
+                .thenReturn(List.of());
+
+        service().retrieve(new RetrievalQuery("Java 类名如何命名？", Set.of(), 5));
+
+        verify(vectorSearch).search(eq(Set.of(KNOWLEDGE_BASE_ID)), any(float[].class), eq(50));
+        verify(keywordSearch).search(Set.of(KNOWLEDGE_BASE_ID), "Java 类名如何命名", 50);
+    }
+
+    @Test
+    void fallsBackToAuthorizedScopeWhenRoutingConfidenceIsLow() {
+        KnowledgeBaseInfo technical = knowledgeBase(KNOWLEDGE_BASE_ID);
+        KnowledgeBaseInfo handbook = knowledgeBase(12L);
+        when(knowledgeAccessApi.listReadable()).thenReturn(List.of(technical, handbook));
+        when(knowledgeBaseScopeSelector.select(EXPENSE_QUESTION, List.of(technical, handbook)))
+                .thenReturn(KnowledgeBaseScopeDecision.uncertain());
+        when(queryPlanner.plan(EXPENSE_QUESTION)).thenReturn(List.of(EXPENSE_QUESTION));
+        when(vectorSearch.search(eq(Set.of(KNOWLEDGE_BASE_ID, 12L)), any(float[].class), eq(50)))
+                .thenReturn(List.of());
+        when(keywordSearch.search(Set.of(KNOWLEDGE_BASE_ID, 12L), EXPENSE_QUESTION, 50))
+                .thenReturn(List.of());
+
+        EvidenceBundle result = service().retrieve(new RetrievalQuery(
+                EXPENSE_QUESTION,
+                Set.of(),
+                5
+        ));
+
+        assertThat(result.level()).isEqualTo(EvidenceLevel.NONE);
+        assertThat(result.evidence()).isEmpty();
+        verify(vectorSearch).search(eq(Set.of(KNOWLEDGE_BASE_ID, 12L)), any(), eq(50));
+        verify(keywordSearch).search(Set.of(KNOWLEDGE_BASE_ID, 12L), EXPENSE_QUESTION, 50);
     }
 
     @Test
@@ -187,6 +240,7 @@ class HybridRetrievalServiceTest {
     private HybridRetrievalService service() {
         return new HybridRetrievalService(
                 knowledgeAccessApi,
+                knowledgeBaseScopeSelector,
                 queryPlanner,
                 embeddingClient(),
                 vectorSearch,
@@ -231,6 +285,17 @@ class HybridRetrievalServiceTest {
 
     private static SearchCandidate candidate(long chunkId, double score, RetrievalSource source) {
         return candidate(chunkId, "retrieval content " + chunkId, score, source);
+    }
+
+    private static KnowledgeBaseInfo knowledgeBase(long knowledgeBaseId) {
+        return new KnowledgeBaseInfo(
+                knowledgeBaseId,
+                "Knowledge Base " + knowledgeBaseId,
+                "Test knowledge base",
+                KnowledgeBaseVisibility.PRIVATE,
+                null,
+                KnowledgeBasePermission.MANAGE
+        );
     }
 
     private static SearchCandidate candidate(

@@ -153,6 +153,7 @@ public class KnowledgeBaseService implements KnowledgeAccessApi {
     }
 
     @Transactional(readOnly = true)
+    @Override
     public List<KnowledgeBaseInfo> listReadable() {
         CurrentIdentity current = identityApi.currentUser();
         if (current.systemRole() == SystemRole.ADMIN) {

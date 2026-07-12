@@ -1,6 +1,7 @@
 package know.studio.arag.retrieval.domain;
 
 import know.studio.arag.knowledge.api.KnowledgeAccessApi;
+import know.studio.arag.knowledge.api.KnowledgeBaseInfo;
 import know.studio.arag.platform.ai.embedding.EmbeddingClient;
 import know.studio.arag.platform.core.exception.ForbiddenException;
 import know.studio.arag.platform.core.trace.RagTraceNode;
@@ -29,8 +30,10 @@ public class HybridRetrievalService implements RetrievalApi {
 
     private static final int CHANNEL_LIMIT = 50;
     private static final int RERANK_LIMIT = 20;
+    private static final double SCOPE_CONFIDENCE_THRESHOLD = 0.75;
 
     private final KnowledgeAccessApi knowledgeAccessApi;
+    private final KnowledgeBaseScopeSelector knowledgeBaseScopeSelector;
     private final QueryPlanner queryPlanner;
     private final EmbeddingClient embeddingClient;
     private final VectorSearchPort vectorSearch;
@@ -46,7 +49,11 @@ public class HybridRetrievalService implements RetrievalApi {
     @Override
     @RagTraceNode("retrieval.hybrid")
     public EvidenceBundle retrieve(RetrievalQuery query) {
-        Set<Long> knowledgeBaseIds = authorizedScope(query.knowledgeBaseIds());
+        RetrievalScope scope = authorizedScope(query.question(), query.knowledgeBaseIds());
+        if (scope.noMatch()) {
+            return new EvidenceBundle(List.of(), EvidenceLevel.NONE, guidance(EvidenceLevel.NONE));
+        }
+        Set<Long> knowledgeBaseIds = scope.knowledgeBaseIds();
         List<String> plannedQueries = queryPlanner.plan(query.question());
         List<float[]> embeddings = embeddingClient.embed(plannedQueries);
         if (embeddings.size() != plannedQueries.size()) {
@@ -97,16 +104,41 @@ public class HybridRetrievalService implements RetrievalApi {
         return new EvidenceBundle(evidence, level, guidance(level));
     }
 
-    private Set<Long> authorizedScope(Set<Long> requestedIds) {
-        Set<Long> authorizedIds = knowledgeAccessApi.readableKnowledgeBaseIds();
+    private RetrievalScope authorizedScope(String question, Set<Long> requestedIds) {
+        List<KnowledgeBaseInfo> readableKnowledgeBases = knowledgeAccessApi.listReadable();
+        Set<Long> authorizedIds = readableKnowledgeBases.stream()
+                .map(KnowledgeBaseInfo::knowledgeBaseId)
+                .collect(java.util.stream.Collectors.toSet());
+        if (authorizedIds.isEmpty()) {
+            throw new ForbiddenException("没有可用于检索的知识库");
+        }
         Set<Long> effectiveIds = new HashSet<>(authorizedIds);
         if (!requestedIds.isEmpty()) {
             effectiveIds.retainAll(requestedIds);
+            if (effectiveIds.isEmpty()) {
+                throw new ForbiddenException("没有可用于检索的知识库");
+            }
+            return new RetrievalScope(Set.copyOf(effectiveIds), false);
         }
-        if (effectiveIds.isEmpty()) {
-            throw new ForbiddenException("没有可用于检索的知识库");
+        if (readableKnowledgeBases.size() == 1) {
+            return new RetrievalScope(Set.copyOf(effectiveIds), false);
         }
-        return Set.copyOf(effectiveIds);
+
+        KnowledgeBaseScopeDecision decision = knowledgeBaseScopeSelector.select(
+                question,
+                readableKnowledgeBases
+        );
+        log.info(
+                "KnowledgeBase route confidence={} selectedCount={} authorizedCount={}",
+                decision.confidence(),
+                decision.knowledgeBaseIds().size(),
+                authorizedIds.size()
+        );
+        if (decision.confidence() < SCOPE_CONFIDENCE_THRESHOLD) {
+            return new RetrievalScope(Set.copyOf(effectiveIds), false);
+        }
+        effectiveIds.retainAll(decision.knowledgeBaseIds());
+        return new RetrievalScope(Set.copyOf(effectiveIds), effectiveIds.isEmpty());
     }
 
     private CompletableFuture<List<SearchCandidate>> searchAsync(
@@ -153,5 +185,8 @@ public class HybridRetrievalService implements RetrievalApi {
             case WEAK -> "证据较弱，仅提供保守结论并建议补充信息";
             case NONE -> "当前知识库中没有找到与该问题相关的可靠资料，无法依据现有文档回答。";
         };
+    }
+
+    private record RetrievalScope(Set<Long> knowledgeBaseIds, boolean noMatch) {
     }
 }
