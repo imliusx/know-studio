@@ -17,8 +17,6 @@ import {
   useReducedMotion,
 } from 'motion/react'
 import { HeaderActions } from '@/components/layout/header-actions'
-import { sidebarData } from '@/components/layout/data/sidebar-data'
-import { TeamSwitcher } from '@/components/layout/team-switcher'
 import {
   createAssistantSession,
   deleteAssistantSession,
@@ -54,6 +52,7 @@ import {
   ClipboardList,
   Copy,
   Database,
+  DraftingCompass,
   Download,
   Edit3,
   FileSearch,
@@ -273,14 +272,6 @@ const CHAT_TYPED_TITLES = CHAT_EMPTY_TITLES.slice(1)
 const CHAT_EMPTY_TITLE_PLACEHOLDER = CHAT_EMPTY_TITLES.reduce((longest, title) =>
   title.length > longest.length ? title : longest
 )
-const CHAT_SIDEBAR_TEAMS = [
-  {
-    ...sidebarData.teams[0],
-    name: 'KnowStudio',
-    plan: 'Knowledge Assistant',
-  },
-]
-
 const suggestions: Array<{
   label: string
   icon: LucideIcon
@@ -2008,7 +1999,6 @@ export function ChatHome() {
           conversations={conversations}
           activeConversationId={activeConversationId}
           isLoadingConversations={sessionsQuery.isLoading}
-          onGoHome={handleNewConversation}
           onNewConversation={handleNewConversation}
           onSelectConversation={handleSelectConversation}
           onDeleteConversation={handleDeleteConversation}
@@ -2256,7 +2246,6 @@ function ChatHistorySidebar({
   conversations,
   activeConversationId,
   isLoadingConversations,
-  onGoHome,
   onNewConversation,
   onSelectConversation,
   onDeleteConversation,
@@ -2273,7 +2262,6 @@ function ChatHistorySidebar({
   conversations: ChatConversation[]
   activeConversationId: string | null
   isLoadingConversations: boolean
-  onGoHome: () => void
   onNewConversation: () => void
   onSelectConversation: (conversationId: string) => void
   onDeleteConversation: (conversationId: string) => void | Promise<void>
@@ -2478,15 +2466,21 @@ function ChatHistorySidebar({
     <>
       <Sidebar collapsible={collapsible} variant={variant}>
         <SidebarHeader>
-          <TeamSwitcher
-            teams={CHAT_SIDEBAR_TEAMS}
-            homeHref='/'
-            onHomeClick={() => {
-              setQuery('')
-              setView('active')
-              onGoHome()
-            }}
-          />
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <div className='flex h-11 items-center gap-2 px-2'>
+                <div className='flex aspect-square size-8 shrink-0 items-center justify-center text-primary'>
+                  <DraftingCompass className='size-7' aria-hidden='true' />
+                </div>
+                <div className='grid min-w-0 flex-1 leading-tight group-data-[collapsible=icon]:hidden'>
+                  <span className='truncate font-semibold'>KnowStudio</span>
+                  <span className='truncate text-xs text-muted-foreground'>
+                    Knowledge Assistant
+                  </span>
+                </div>
+              </div>
+            </SidebarMenuItem>
+          </SidebarMenu>
           <div className='flex items-center gap-2 group-data-[collapsible=icon]:hidden'>
             <div className='relative min-w-0 flex-1'>
               <Search className='pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground' />
