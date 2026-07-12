@@ -11,7 +11,7 @@
     </parent>
     <artifactId>module-identity</artifactId>
     <name>module-identity</name>
-    <description>用户 / 租户(工作空间) / 权限 RBAC</description>
+    <description>用户 / 团队 / 权限 RBAC</description>
     <dependencies>
         <dependency><groupId>know.studio</groupId><artifactId>platform-core</artifactId></dependency>
         <dependency>

@@ -2,6 +2,7 @@ package know.studio.arag.identity.domain;
 
 import know.studio.arag.identity.api.SystemRole;
 import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.identity.api.TeamRole;
 import know.studio.arag.platform.core.exception.ForbiddenException;
 import know.studio.arag.platform.core.exception.UnauthorizedException;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
@@ -98,6 +99,47 @@ class IdentityServiceTest {
         assertThat(owner.user().userId()).isNotEqualTo(member.user().userId());
     }
 
+    @Test
+    void systemAdminCreatesTeamAndBecomesTeamAdmin() {
+        Fixture fixture = new Fixture();
+        AuthSession admin = fixture.service.register("admin@example.com", "Admin", "password123");
+        fixture.repository.promote(admin.user().userId());
+
+        long teamId = fixture.service.createTeam("Engineering", null, null);
+
+        assertThat(fixture.service.requireTeamRole(teamId, TeamRole.TEAM_ADMIN))
+                .isEqualTo(TeamRole.TEAM_ADMIN);
+        assertThat(fixture.service.listTeams())
+                .extracting(team -> team.teamId())
+                .contains(teamId);
+    }
+
+    @Test
+    void regularUserCannotCreateTeam() {
+        Fixture fixture = new Fixture();
+        fixture.service.register("user@example.com", "User", "password123");
+
+        assertThatThrownBy(() -> fixture.service.createTeam("Engineering", null, null))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("系统管理员");
+    }
+
+    @Test
+    void teamMemberCannotPerformTeamAdminAction() {
+        Fixture fixture = new Fixture();
+        AuthSession admin = fixture.service.register("admin@example.com", "Admin", "password123");
+        fixture.repository.promote(admin.user().userId());
+        long teamId = fixture.service.createTeam("Engineering", null, null);
+        fixture.session.logout();
+        AuthSession member = fixture.service.register("member@example.com", "Member", "password123");
+        fixture.repository.insertTeamMember(1000L, teamId, member.user().userId(), TeamRole.MEMBER);
+
+        assertThatThrownBy(() -> fixture.service.requireTeamRole(teamId, TeamRole.TEAM_ADMIN))
+                .isInstanceOf(ForbiddenException.class)
+                .hasMessageContaining("权限不足");
+        assertThat(fixture.service.currentUserTeamIds()).containsExactly(teamId);
+    }
+
     private static final class Fixture {
 
         private final FakeIdentityRepository repository = new FakeIdentityRepository();
@@ -116,6 +158,20 @@ class IdentityServiceTest {
         private final Map<String, Long> usersByEmail = new HashMap<>();
         private final Map<Long, Workspace> workspaces = new HashMap<>();
         private final Map<MembershipKey, WorkspaceRole> memberships = new HashMap<>();
+        private final Map<Long, Team> teams = new HashMap<>();
+        private final Map<MembershipKey, TeamRole> teamMemberships = new HashMap<>();
+
+        private void promote(long userId) {
+            UserAccount user = users.get(userId);
+            users.put(userId, new UserAccount(
+                    user.id(),
+                    user.email(),
+                    user.displayName(),
+                    user.passwordHash(),
+                    SystemRole.ADMIN,
+                    user.status()
+            ));
+        }
 
         @Override
         public Optional<UserAccount> findUserById(long userId) {
@@ -176,6 +232,42 @@ class IdentityServiceTest {
                             users.get(entry.getKey().userId()),
                             entry.getValue()
                     ))
+                    .toList();
+        }
+
+        @Override
+        public void insertTeam(Team team) {
+            teams.put(team.id(), team);
+        }
+
+        @Override
+        public void insertTeamMember(long membershipId, long teamId, long userId, TeamRole role) {
+            teamMemberships.put(new MembershipKey(teamId, userId), role);
+        }
+
+        @Override
+        public Optional<TeamRole> findTeamRole(long teamId, long userId) {
+            return Optional.ofNullable(teamMemberships.get(new MembershipKey(teamId, userId)));
+        }
+
+        @Override
+        public List<TeamAccess> findTeamAccesses(long userId) {
+            return teamMemberships.entrySet().stream()
+                    .filter(entry -> entry.getKey().userId() == userId)
+                    .map(entry -> new TeamAccess(teams.get(entry.getKey().workspaceId()), entry.getValue()))
+                    .toList();
+        }
+
+        @Override
+        public List<Team> findActiveTeams() {
+            return List.copyOf(teams.values());
+        }
+
+        @Override
+        public List<TeamMember> findTeamMembers(long teamId) {
+            return teamMemberships.entrySet().stream()
+                    .filter(entry -> entry.getKey().workspaceId() == teamId)
+                    .map(entry -> new TeamMember(users.get(entry.getKey().userId()), entry.getValue()))
                     .toList();
         }
 

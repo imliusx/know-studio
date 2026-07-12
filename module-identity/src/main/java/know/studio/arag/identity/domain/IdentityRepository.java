@@ -1,6 +1,7 @@
 package know.studio.arag.identity.domain;
 
 import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.identity.api.TeamRole;
 
 import java.util.List;
 import java.util.Optional;
@@ -26,4 +27,16 @@ public interface IdentityRepository {
     List<Workspace> findActiveWorkspaces();
 
     List<WorkspaceMember> findWorkspaceMembers(long workspaceId);
+
+    void insertTeam(Team team);
+
+    void insertTeamMember(long membershipId, long teamId, long userId, TeamRole role);
+
+    Optional<TeamRole> findTeamRole(long teamId, long userId);
+
+    List<TeamAccess> findTeamAccesses(long userId);
+
+    List<Team> findActiveTeams();
+
+    List<TeamMember> findTeamMembers(long teamId);
 }

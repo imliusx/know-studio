@@ -1,0 +1,160 @@
+package know.studio.arag.knowledge.domain;
+
+import know.studio.arag.identity.api.CurrentIdentity;
+import know.studio.arag.identity.api.IdentityApi;
+import know.studio.arag.identity.api.SystemRole;
+import know.studio.arag.identity.api.TeamRole;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
+import know.studio.arag.knowledge.api.KnowledgeBaseInfo;
+import know.studio.arag.knowledge.api.KnowledgeBasePermission;
+import know.studio.arag.knowledge.api.KnowledgeBaseVisibility;
+import know.studio.arag.platform.core.exception.BusinessException;
+import know.studio.arag.platform.core.exception.ErrorCode;
+import know.studio.arag.platform.core.exception.ForbiddenException;
+import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+@Service
+@RequiredArgsConstructor
+public class KnowledgeBaseService implements KnowledgeAccessApi {
+
+    private final KnowledgeBaseRepository repository;
+    private final IdentityApi identityApi;
+    private final SnowflakeIdGenerator idGenerator;
+
+    @Transactional
+    public long create(
+            String name,
+            String description,
+            KnowledgeBaseVisibility visibility,
+            Long ownerTeamId
+    ) {
+        CurrentIdentity current = identityApi.currentUser();
+        if (ownerTeamId != null) {
+            identityApi.requireTeamRole(ownerTeamId, TeamRole.TEAM_ADMIN);
+        } else if (current.systemRole() != SystemRole.ADMIN) {
+            throw new ForbiddenException("只有系统管理员可以创建无归属团队的知识库");
+        }
+        if (visibility == KnowledgeBaseVisibility.TEAM && ownerTeamId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "团队知识库必须指定归属团队");
+        }
+
+        long knowledgeBaseId = idGenerator.nextId();
+        repository.insert(new KnowledgeBase(
+                knowledgeBaseId,
+                name.trim(),
+                description == null ? null : description.trim(),
+                visibility,
+                ownerTeamId,
+                current.userId(),
+                "ACTIVE"
+        ));
+        if (ownerTeamId != null) {
+            repository.insertTeamGrant(
+                    idGenerator.nextId(),
+                    knowledgeBaseId,
+                    ownerTeamId,
+                    KnowledgeBasePermission.MANAGE
+            );
+        }
+        return knowledgeBaseId;
+    }
+
+    @Transactional(readOnly = true)
+    public List<KnowledgeBaseInfo> listReadable() {
+        CurrentIdentity current = identityApi.currentUser();
+        if (current.systemRole() == SystemRole.ADMIN) {
+            return repository.findAllActive().stream()
+                    .map(kb -> toInfo(kb, KnowledgeBasePermission.MANAGE))
+                    .toList();
+        }
+
+        Map<Long, KnowledgeBasePermission> permissions = effectivePermissions(current);
+        return repository.findActiveByIds(permissions.keySet()).stream()
+                .map(kb -> toInfo(kb, permissions.get(kb.id())))
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Set<Long> readableKnowledgeBaseIds() {
+        CurrentIdentity current = identityApi.currentUser();
+        if (current.systemRole() == SystemRole.ADMIN) {
+            return repository.findAllActive().stream()
+                    .map(KnowledgeBase::id)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        }
+        return Set.copyOf(effectivePermissions(current).keySet());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KnowledgeBasePermission requireReadable(long knowledgeBaseId) {
+        return requirePermission(knowledgeBaseId, KnowledgeBasePermission.READ);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public KnowledgeBasePermission requireManageable(long knowledgeBaseId) {
+        return requirePermission(knowledgeBaseId, KnowledgeBasePermission.MANAGE);
+    }
+
+    private KnowledgeBasePermission requirePermission(
+            long knowledgeBaseId,
+            KnowledgeBasePermission required
+    ) {
+        CurrentIdentity current = identityApi.currentUser();
+        KnowledgeBase knowledgeBase = repository.findById(knowledgeBaseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在"));
+        if (current.systemRole() == SystemRole.ADMIN || knowledgeBase.createdBy() == current.userId()) {
+            return KnowledgeBasePermission.MANAGE;
+        }
+        if (required == KnowledgeBasePermission.READ
+                && knowledgeBase.visibility() == KnowledgeBaseVisibility.COMPANY) {
+            return KnowledgeBasePermission.READ;
+        }
+        KnowledgeBasePermission actual = repository.findPermission(
+                        knowledgeBaseId,
+                        identityApi.currentUserTeamIds()
+                )
+                .orElseThrow(() -> new ForbiddenException("无权访问该知识库"));
+        if (!actual.allows(required)) {
+            throw new ForbiddenException("知识库权限不足");
+        }
+        return actual;
+    }
+
+    private Map<Long, KnowledgeBasePermission> effectivePermissions(CurrentIdentity current) {
+        Map<Long, KnowledgeBasePermission> permissions = new HashMap<>(
+                repository.findPermissions(identityApi.currentUserTeamIds())
+        );
+        repository.findCompanyVisible().forEach(kb -> permissions.putIfAbsent(
+                kb.id(), KnowledgeBasePermission.READ
+        ));
+        repository.findCreatedBy(current.userId()).forEach(kb -> permissions.put(
+                kb.id(), KnowledgeBasePermission.MANAGE
+        ));
+        return permissions;
+    }
+
+    private static KnowledgeBaseInfo toInfo(
+            KnowledgeBase knowledgeBase,
+            KnowledgeBasePermission permission
+    ) {
+        return new KnowledgeBaseInfo(
+                knowledgeBase.id(),
+                knowledgeBase.name(),
+                knowledgeBase.description(),
+                knowledgeBase.visibility(),
+                knowledgeBase.ownerTeamId(),
+                permission
+        );
+    }
+}

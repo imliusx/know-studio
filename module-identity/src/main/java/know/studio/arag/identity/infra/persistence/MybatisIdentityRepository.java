@@ -3,6 +3,7 @@ package know.studio.arag.identity.infra.persistence;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import know.studio.arag.identity.api.SystemRole;
 import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.identity.api.TeamRole;
 import know.studio.arag.identity.domain.IdentityRepository;
 import know.studio.arag.identity.domain.UserAccount;
 import know.studio.arag.identity.domain.UserStatus;
@@ -10,12 +11,19 @@ import know.studio.arag.identity.domain.Workspace;
 import know.studio.arag.identity.domain.WorkspaceAccess;
 import know.studio.arag.identity.domain.WorkspaceMember;
 import know.studio.arag.identity.domain.WorkspaceStatus;
+import know.studio.arag.identity.domain.Team;
+import know.studio.arag.identity.domain.TeamAccess;
+import know.studio.arag.identity.domain.TeamMember;
+import know.studio.arag.identity.infra.persistence.entity.TeamEntity;
+import know.studio.arag.identity.infra.persistence.entity.TeamMemberEntity;
 import know.studio.arag.identity.infra.persistence.entity.UserEntity;
 import know.studio.arag.identity.infra.persistence.entity.WorkspaceEntity;
 import know.studio.arag.identity.infra.persistence.entity.WorkspaceMemberEntity;
 import know.studio.arag.identity.infra.persistence.mapper.UserMapper;
 import know.studio.arag.identity.infra.persistence.mapper.WorkspaceMapper;
 import know.studio.arag.identity.infra.persistence.mapper.WorkspaceMemberMapper;
+import know.studio.arag.identity.infra.persistence.mapper.TeamMapper;
+import know.studio.arag.identity.infra.persistence.mapper.TeamMemberMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
@@ -33,6 +41,8 @@ public class MybatisIdentityRepository implements IdentityRepository {
     private final UserMapper userMapper;
     private final WorkspaceMapper workspaceMapper;
     private final WorkspaceMemberMapper memberMapper;
+    private final TeamMapper teamMapper;
+    private final TeamMemberMapper teamMemberMapper;
 
     @Override
     public Optional<UserAccount> findUserById(long userId) {
@@ -150,6 +160,96 @@ public class MybatisIdentityRepository implements IdentityRepository {
                 .toList();
     }
 
+    @Override
+    public void insertTeam(Team team) {
+        TeamEntity entity = new TeamEntity();
+        entity.setId(team.id());
+        entity.setName(team.name());
+        entity.setDescription(team.description());
+        entity.setParentId(team.parentId());
+        entity.setCreatedBy(team.createdBy());
+        entity.setStatus(team.status().name());
+        teamMapper.insert(entity);
+    }
+
+    @Override
+    public void insertTeamMember(long membershipId, long teamId, long userId, TeamRole role) {
+        TeamMemberEntity entity = new TeamMemberEntity();
+        entity.setId(membershipId);
+        entity.setTeamId(teamId);
+        entity.setUserId(userId);
+        entity.setTeamRole(role.name());
+        teamMemberMapper.insert(entity);
+    }
+
+    @Override
+    public Optional<TeamRole> findTeamRole(long teamId, long userId) {
+        TeamMemberEntity entity = teamMemberMapper.selectOne(Wrappers.<TeamMemberEntity>lambdaQuery()
+                .select(TeamMemberEntity::getTeamRole)
+                .eq(TeamMemberEntity::getTeamId, teamId)
+                .eq(TeamMemberEntity::getUserId, userId));
+        return Optional.ofNullable(entity)
+                .map(TeamMemberEntity::getTeamRole)
+                .map(TeamRole::valueOf);
+    }
+
+    @Override
+    public List<TeamAccess> findTeamAccesses(long userId) {
+        List<TeamMemberEntity> memberships = teamMemberMapper.selectList(
+                Wrappers.<TeamMemberEntity>lambdaQuery().eq(TeamMemberEntity::getUserId, userId)
+        );
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Team> teams = teamMapper.selectBatchIds(
+                        memberships.stream().map(TeamMemberEntity::getTeamId).toList()
+                ).stream()
+                .map(MybatisIdentityRepository::toDomain)
+                .filter(team -> team.status() == WorkspaceStatus.ACTIVE)
+                .collect(Collectors.toMap(Team::id, Function.identity()));
+        return memberships.stream()
+                .filter(membership -> teams.containsKey(membership.getTeamId()))
+                .map(membership -> new TeamAccess(
+                        teams.get(membership.getTeamId()),
+                        TeamRole.valueOf(membership.getTeamRole())
+                ))
+                .sorted(Comparator.comparing(access -> access.team().name()))
+                .toList();
+    }
+
+    @Override
+    public List<Team> findActiveTeams() {
+        return teamMapper.selectList(Wrappers.<TeamEntity>lambdaQuery()
+                        .eq(TeamEntity::getStatus, WorkspaceStatus.ACTIVE.name())
+                        .orderByAsc(TeamEntity::getName))
+                .stream()
+                .map(MybatisIdentityRepository::toDomain)
+                .toList();
+    }
+
+    @Override
+    public List<TeamMember> findTeamMembers(long teamId) {
+        List<TeamMemberEntity> memberships = teamMemberMapper.selectList(
+                Wrappers.<TeamMemberEntity>lambdaQuery().eq(TeamMemberEntity::getTeamId, teamId)
+        );
+        if (memberships.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, UserAccount> users = userMapper.selectBatchIds(
+                        memberships.stream().map(TeamMemberEntity::getUserId).toList()
+                ).stream()
+                .map(MybatisIdentityRepository::toDomain)
+                .collect(Collectors.toMap(UserAccount::id, Function.identity()));
+        return memberships.stream()
+                .filter(membership -> users.containsKey(membership.getUserId()))
+                .map(membership -> new TeamMember(
+                        users.get(membership.getUserId()),
+                        TeamRole.valueOf(membership.getTeamRole())
+                ))
+                .sorted(Comparator.comparing(member -> member.user().displayName()))
+                .toList();
+    }
+
     private static UserEntity toEntity(UserAccount user) {
         UserEntity entity = new UserEntity();
         entity.setId(user.id());
@@ -178,6 +278,17 @@ public class MybatisIdentityRepository implements IdentityRepository {
                 entity.getName(),
                 entity.getDescription(),
                 entity.getOwnerId(),
+                WorkspaceStatus.valueOf(entity.getStatus())
+        );
+    }
+
+    private static Team toDomain(TeamEntity entity) {
+        return new Team(
+                entity.getId(),
+                entity.getName(),
+                entity.getDescription(),
+                entity.getParentId(),
+                entity.getCreatedBy(),
                 WorkspaceStatus.valueOf(entity.getStatus())
         );
     }

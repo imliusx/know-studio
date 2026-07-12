@@ -16,7 +16,9 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 
 ### 3. Contracts
 
-- Every business query must explicitly include `workspace_id` when the table is workspace-scoped.
+- Knowledge content queries must explicitly include `knowledge_base_id`.
+- User-owned conversation queries must explicitly include `user_id` and `session_id`.
+- Team access is resolved through explicit Team membership and KnowledgeBase grants; do not use a hidden tenant interceptor.
 - Database columns use `snake_case`; Java properties use `camelCase` with underscore mapping enabled.
 - IDs are application-generated Snowflake `BIGINT` values. Do not use database sequences.
 - Standard CRUD uses `BaseMapper` and `LambdaQueryWrapper`/`LambdaUpdateWrapper`.
@@ -25,7 +27,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 
 ### 4. Validation & Error Matrix
 
-- Missing `workspace_id` filter on a scoped query -> architecture/security defect; reject in review.
+- Missing `knowledge_base_id` on content or `user_id` on conversation data -> architecture/security defect; reject in review.
 - Duplicate unique key -> translate `DuplicateKeyException` to `ErrorCode.CONFLICT` at the service boundary.
 - Atomic status update affects zero rows -> treat as already claimed or invalid state; do not process twice.
 - Flyway validation failure -> application startup must fail; never enable automatic repair in application code.
@@ -33,9 +35,9 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 
 ### 5. Good/Base/Bad Cases
 
-- Good: `selectOne(lambdaQuery().eq(Entity::getWorkspaceId, workspaceId).eq(Entity::getId, id))`.
+- Good: `selectOne(lambdaQuery().eq(Entity::getKnowledgeBaseId, knowledgeBaseId).eq(Entity::getId, id))`.
 - Base: `selectById(id)` only for globally scoped tables such as `users`.
-- Bad: query `documents` by `id` without `workspace_id`.
+- Bad: query `documents` by `id` without `knowledge_base_id`.
 - Good: XML `UPDATE ... WHERE status IN ('PENDING', 'FAILED')` for an ingestion claim.
 - Bad: read status and then update it in two independent statements.
 
@@ -43,7 +45,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 
 - Repository integration: Flyway applies on PostgreSQL and Mapper XML statements resolve.
 - Service unit tests: duplicate, missing membership, and role hierarchy behavior.
-- Isolation test: a user outside workspace A cannot read or mutate workspace A data.
+- Isolation test: a user without a KnowledgeBase grant cannot retrieve, preview, download, cite, or mutate its content.
 - State-machine test: only one consumer can claim a pending document.
 - Migration check: `mvn test` plus application startup against `pgvector/pgvector:pg16`.
 
@@ -59,7 +61,7 @@ jdbcTemplate.query("SELECT * FROM documents WHERE id = ?", mapper, documentId);
 
 ```java
 documentMapper.selectOne(Wrappers.<DocumentEntity>lambdaQuery()
-        .eq(DocumentEntity::getWorkspaceId, workspaceId)
+        .eq(DocumentEntity::getKnowledgeBaseId, knowledgeBaseId)
         .eq(DocumentEntity::getId, documentId));
 ```
 
@@ -69,7 +71,7 @@ For PostgreSQL-specific statements:
 <update id="claimDocumentForProcessing">
     UPDATE documents
     SET status = 'PROCESSING'
-    WHERE workspace_id = #{workspaceId}
+    WHERE knowledge_base_id = #{knowledgeBaseId}
       AND id = #{documentId}
       AND status IN ('PENDING', 'FAILED')
 </update>
@@ -77,6 +79,10 @@ For PostgreSQL-specific statements:
 
 ## Design Decisions
 
-### MyBatis-Plus With Explicit Tenant Filtering
+### MyBatis-Plus With Explicit Access Filtering
 
-The project does not enable the MyBatis-Plus tenant interceptor. Workspace isolation remains visible in every query so asynchronous jobs, system administration, and cross-module APIs cannot accidentally inherit or bypass hidden tenant state.
+The project does not enable the MyBatis-Plus tenant interceptor. The product is
+a single-company system: Team membership controls access to KnowledgeBase
+resources, while conversations belong directly to users. Access filters remain
+visible in repository methods so async ingestion, retrieval, and administration
+cannot inherit or bypass request-local state.

@@ -6,6 +6,9 @@ import know.studio.arag.identity.api.SystemRole;
 import know.studio.arag.identity.api.WorkspaceInfo;
 import know.studio.arag.identity.api.WorkspaceMemberInfo;
 import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.identity.api.TeamInfo;
+import know.studio.arag.identity.api.TeamMemberInfo;
+import know.studio.arag.identity.api.TeamRole;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
 import know.studio.arag.platform.core.exception.ForbiddenException;
@@ -19,6 +22,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 import java.util.List;
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
@@ -127,6 +131,60 @@ public class IdentityService implements IdentityApi {
                 .toList();
     }
 
+    @Transactional
+    public long createTeam(String name, String description, Long parentId) {
+        CurrentIdentity current = requireSystemAdmin();
+        long teamId = idGenerator.nextId();
+        repository.insertTeam(new Team(
+                teamId,
+                name.trim(),
+                description == null ? null : description.trim(),
+                parentId,
+                current.userId(),
+                WorkspaceStatus.ACTIVE
+        ));
+        repository.insertTeamMember(idGenerator.nextId(), teamId, current.userId(), TeamRole.TEAM_ADMIN);
+        return teamId;
+    }
+
+    @Transactional
+    public void addTeamMember(long teamId, String email, TeamRole role) {
+        requireTeamRole(teamId, TeamRole.TEAM_ADMIN);
+        UserAccount user = repository.findUserByEmail(normalizeEmail(email))
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用户不存在"));
+        try {
+            repository.insertTeamMember(idGenerator.nextId(), teamId, user.id(), role);
+        } catch (DuplicateKeyException exception) {
+            throw new BusinessException(ErrorCode.CONFLICT, "用户已在团队中");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamInfo> listTeams() {
+        CurrentIdentity current = currentUser();
+        if (current.systemRole() == SystemRole.ADMIN) {
+            return repository.findActiveTeams().stream()
+                    .map(team -> toInfo(team, TeamRole.TEAM_ADMIN))
+                    .toList();
+        }
+        return repository.findTeamAccesses(current.userId()).stream()
+                .map(access -> toInfo(access.team(), access.role()))
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<TeamMemberInfo> listTeamMembers(long teamId) {
+        requireTeamRole(teamId, TeamRole.TEAM_ADMIN);
+        return repository.findTeamMembers(teamId).stream()
+                .map(member -> new TeamMemberInfo(
+                        member.user().id(),
+                        member.user().email(),
+                        member.user().displayName(),
+                        member.role()
+                ))
+                .toList();
+    }
+
     @Override
     public CurrentIdentity currentUser() {
         if (!loginSession.isLoggedIn()) {
@@ -159,6 +217,37 @@ public class IdentityService implements IdentityApi {
         return actualRole;
     }
 
+    @Override
+    public CurrentIdentity requireSystemAdmin() {
+        CurrentIdentity current = currentUser();
+        if (current.systemRole() != SystemRole.ADMIN) {
+            throw new ForbiddenException("需要系统管理员权限");
+        }
+        return current;
+    }
+
+    @Override
+    public TeamRole requireTeamRole(long teamId, TeamRole requiredRole) {
+        CurrentIdentity current = currentUser();
+        if (current.systemRole() == SystemRole.ADMIN) {
+            return TeamRole.TEAM_ADMIN;
+        }
+        TeamRole actualRole = repository.findTeamRole(teamId, current.userId())
+                .orElseThrow(() -> new ForbiddenException("无权访问该团队"));
+        if (!actualRole.allows(requiredRole)) {
+            throw new ForbiddenException("团队角色权限不足");
+        }
+        return actualRole;
+    }
+
+    @Override
+    public Set<Long> currentUserTeamIds() {
+        CurrentIdentity current = currentUser();
+        return repository.findTeamAccesses(current.userId()).stream()
+                .map(access -> access.team().id())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
     private AuthSession authSession(UserAccount user) {
         return new AuthSession(toCurrentIdentity(user), loginSession.tokenName(), loginSession.tokenValue());
     }
@@ -175,6 +264,10 @@ public class IdentityService implements IdentityApi {
                 workspace.ownerId(),
                 role
         );
+    }
+
+    private static TeamInfo toInfo(Team team, TeamRole role) {
+        return new TeamInfo(team.id(), team.name(), team.description(), role);
     }
 
     private static String normalizeEmail(String email) {

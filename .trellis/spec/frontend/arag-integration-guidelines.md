@@ -16,26 +16,27 @@
 - A 401 clears local authentication once and redirects to sign-in. A 403 must not clear the session.
 - Never store provider keys or service credentials in frontend state or Vite environment variables exposed to the browser.
 
-## Workspace Isolation
+## Team and KnowledgeBase Access
 
-- Every core business API takes an explicit workspaceId in its path.
-- The current workspace is global application state and the last valid choice may be persisted locally.
-- Every workspace-scoped TanStack Query key includes workspaceId. Forbidden examples:
+- Ordinary users do not select a Workspace or Team before Chat. The backend derives readable KnowledgeBases from the authenticated user.
+- Document and evaluation administration takes an explicit knowledgeBaseId.
+- Every knowledge-scoped TanStack Query key includes knowledgeBaseId. Forbidden examples:
 
 ```ts
 ['documents']
-['sessions']
+['evaluation-runs']
 ```
 
 Required shape:
 
 ```ts
-['documents', workspaceId, filters]
-['sessions', workspaceId]
+['documents', knowledgeBaseId, filters]
+['evaluation-runs', knowledgeBaseId]
 ```
 
-- Switching workspace aborts active SSE/upload requests and resets transient selections.
-- Frontend role checks improve usability only. Backend authorization remains mandatory.
+- Switching the selected admin KnowledgeBase aborts uploads and resets document/evaluation selections.
+- Chat sessions are user-owned and do not reset when a Team filter changes.
+- Frontend role and grant checks improve usability only. Backend authorization remains mandatory.
 
 ## SSE Events
 
@@ -44,21 +45,21 @@ Required shape:
 - One reducer owns stream state transitions. Rendering components do not implement separate event parsing branches.
 - The reducer tolerates duplicate `done`, `error` after partial output, chunks split at arbitrary byte boundaries and a final frame without a blank-line terminator.
 - Deduplicate citations by stable chunk/document identity and correlate tool results to the tool call when an identifier is available.
-- Every stream owns an AbortController and is aborted on explicit stop, session change, workspace change and component unmount.
+- Every stream owns an AbortController and is aborted on explicit stop, session change and component unmount.
 
 ## Permissions
 
-- OWNER: all workspace operations.
-- ADMIN: member, document, Chat and evaluation operations; no ownership transfer or workspace deletion.
-- MEMBER: Chat and read-only access to READY documents/citations.
-- Do not show management actions to MEMBER, but still handle backend 403 because UI visibility is not a security boundary.
+- System ADMIN: all Team, KnowledgeBase, document, Chat and evaluation operations.
+- TEAM_ADMIN: Team membership plus KnowledgeBases with MANAGE grants.
+- USER/MEMBER: Chat and citations from COMPANY or granted KnowledgeBases.
+- Do not show management actions without MANAGE permission, but still handle backend 403 because UI visibility is not a security boundary.
 
 ## React and Query State
 
 - Prefer derived state and event handlers over synchronous `setState` in effects.
 - Do not call `Date.now`, `Math.random` or other impure functions during render; initialize through stable factories or refs outside render-sensitive paths.
 - Avoid copying query data into component state unless the user can independently edit it. If projection is needed, derive it with stable memoization.
-- Mutations invalidate the narrowest workspace-scoped query keys.
+- Mutations invalidate the narrowest knowledgeBase-scoped query keys.
 - Loading, empty, forbidden, rate-limited and failed states must terminate explicitly; no request may leave an indefinite skeleton/spinner.
 
 ## Existing Product Scope
