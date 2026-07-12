@@ -6,7 +6,7 @@ import java.time.Instant;
 
 public record EvaluationRun(
         long id,
-        long workspaceId,
+        long knowledgeBaseId,
         long datasetId,
         long userId,
         RetrievalMode mode,

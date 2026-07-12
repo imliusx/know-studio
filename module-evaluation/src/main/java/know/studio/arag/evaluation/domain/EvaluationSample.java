@@ -5,7 +5,7 @@ import java.util.List;
 
 public record EvaluationSample(
         long id,
-        long workspaceId,
+        long knowledgeBaseId,
         long datasetId,
         String question,
         List<Long> relevantChunkIds,

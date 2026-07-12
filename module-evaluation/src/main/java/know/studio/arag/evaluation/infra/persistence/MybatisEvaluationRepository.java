@@ -40,9 +40,9 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     }
 
     @Override
-    public List<EvaluationDataset> findDatasets(long workspaceId) {
+    public List<EvaluationDataset> findDatasets(long knowledgeBaseId) {
         return datasetMapper.selectList(Wrappers.<EvaluationDatasetEntity>lambdaQuery()
-                        .eq(EvaluationDatasetEntity::getWorkspaceId, workspaceId)
+                        .eq(EvaluationDatasetEntity::getKnowledgeBaseId, knowledgeBaseId)
                         .eq(EvaluationDatasetEntity::getStatus, "ACTIVE")
                         .orderByDesc(EvaluationDatasetEntity::getCreatedAt))
                 .stream()
@@ -51,9 +51,9 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     }
 
     @Override
-    public Optional<EvaluationDataset> findDataset(long workspaceId, long datasetId) {
+    public Optional<EvaluationDataset> findDataset(long knowledgeBaseId, long datasetId) {
         EvaluationDatasetEntity entity = datasetMapper.selectOne(Wrappers.<EvaluationDatasetEntity>lambdaQuery()
-                .eq(EvaluationDatasetEntity::getWorkspaceId, workspaceId)
+                .eq(EvaluationDatasetEntity::getKnowledgeBaseId, knowledgeBaseId)
                 .eq(EvaluationDatasetEntity::getId, datasetId)
                 .eq(EvaluationDatasetEntity::getStatus, "ACTIVE"));
         return Optional.ofNullable(entity).map(MybatisEvaluationRepository::toDomain);
@@ -63,7 +63,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     public void insertSample(EvaluationSample sample) {
         EvaluationSampleEntity entity = new EvaluationSampleEntity();
         entity.setId(sample.id());
-        entity.setWorkspaceId(sample.workspaceId());
+        entity.setKnowledgeBaseId(sample.knowledgeBaseId());
         entity.setDatasetId(sample.datasetId());
         entity.setQuestion(sample.question());
         entity.setRelevantChunkIds(write(sample.relevantChunkIds()));
@@ -73,8 +73,8 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     }
 
     @Override
-    public List<EvaluationSample> findSamples(long workspaceId, long datasetId) {
-        return sampleMapper.selectOwned(workspaceId, datasetId).stream()
+    public List<EvaluationSample> findSamples(long knowledgeBaseId, long datasetId) {
+        return sampleMapper.selectOwned(knowledgeBaseId, datasetId).stream()
                 .map(this::toDomain)
                 .toList();
     }
@@ -83,7 +83,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     public void insertRun(EvaluationRun run) {
         EvaluationRunEntity entity = new EvaluationRunEntity();
         entity.setId(run.id());
-        entity.setWorkspaceId(run.workspaceId());
+        entity.setKnowledgeBaseId(run.knowledgeBaseId());
         entity.setDatasetId(run.datasetId());
         entity.setUserId(run.userId());
         entity.setConfig(run.mode().name());
@@ -96,9 +96,9 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     }
 
     @Override
-    public List<EvaluationRun> findRuns(long workspaceId, long datasetId) {
+    public List<EvaluationRun> findRuns(long knowledgeBaseId, long datasetId) {
         return runMapper.selectList(Wrappers.<EvaluationRunEntity>lambdaQuery()
-                        .eq(EvaluationRunEntity::getWorkspaceId, workspaceId)
+                        .eq(EvaluationRunEntity::getKnowledgeBaseId, knowledgeBaseId)
                         .eq(EvaluationRunEntity::getDatasetId, datasetId)
                         .orderByDesc(EvaluationRunEntity::getCreatedAt))
                 .stream()
@@ -109,7 +109,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     private static EvaluationDatasetEntity toEntity(EvaluationDataset dataset) {
         EvaluationDatasetEntity entity = new EvaluationDatasetEntity();
         entity.setId(dataset.id());
-        entity.setWorkspaceId(dataset.workspaceId());
+        entity.setKnowledgeBaseId(dataset.knowledgeBaseId());
         entity.setUserId(dataset.userId());
         entity.setName(dataset.name());
         entity.setDescription(dataset.description());
@@ -122,7 +122,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     private static EvaluationDataset toDomain(EvaluationDatasetEntity entity) {
         return new EvaluationDataset(
                 entity.getId(),
-                entity.getWorkspaceId(),
+                entity.getKnowledgeBaseId(),
                 entity.getUserId(),
                 entity.getName(),
                 entity.getDescription(),
@@ -135,7 +135,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     private EvaluationSample toDomain(EvaluationSampleEntity entity) {
         return new EvaluationSample(
                 entity.getId(),
-                entity.getWorkspaceId(),
+                entity.getKnowledgeBaseId(),
                 entity.getDatasetId(),
                 entity.getQuestion(),
                 readIds(entity.getRelevantChunkIds()),
@@ -147,7 +147,7 @@ public class MybatisEvaluationRepository implements EvaluationRepository {
     private EvaluationRun toDomain(EvaluationRunEntity entity) {
         return new EvaluationRun(
                 entity.getId(),
-                entity.getWorkspaceId(),
+                entity.getKnowledgeBaseId(),
                 entity.getDatasetId(),
                 entity.getUserId(),
                 know.studio.arag.retrieval.api.RetrievalMode.valueOf(entity.getConfig()),

@@ -35,6 +35,25 @@ public class MybatisKnowledgeBaseRepository implements KnowledgeBaseRepository {
     }
 
     @Override
+    public boolean update(KnowledgeBase knowledgeBase) {
+        return knowledgeBaseMapper.update(Wrappers.<KnowledgeBaseEntity>lambdaUpdate()
+                .eq(KnowledgeBaseEntity::getId, knowledgeBase.id())
+                .eq(KnowledgeBaseEntity::getStatus, "ACTIVE")
+                .set(KnowledgeBaseEntity::getName, knowledgeBase.name())
+                .set(KnowledgeBaseEntity::getDescription, knowledgeBase.description())
+                .set(KnowledgeBaseEntity::getVisibility, knowledgeBase.visibility().name())
+                .set(KnowledgeBaseEntity::getOwnerTeamId, knowledgeBase.ownerTeamId())) == 1;
+    }
+
+    @Override
+    public boolean deactivate(long knowledgeBaseId) {
+        return knowledgeBaseMapper.update(Wrappers.<KnowledgeBaseEntity>lambdaUpdate()
+                .eq(KnowledgeBaseEntity::getId, knowledgeBaseId)
+                .eq(KnowledgeBaseEntity::getStatus, "ACTIVE")
+                .set(KnowledgeBaseEntity::getStatus, "ARCHIVED")) == 1;
+    }
+
+    @Override
     public void insertTeamGrant(
             long grantId,
             long knowledgeBaseId,
@@ -47,6 +66,46 @@ public class MybatisKnowledgeBaseRepository implements KnowledgeBaseRepository {
         entity.setTeamId(teamId);
         entity.setPermission(permission.name());
         grantMapper.insert(entity);
+    }
+
+    @Override
+    public void saveTeamGrant(
+            long grantId,
+            long knowledgeBaseId,
+            long teamId,
+            KnowledgeBasePermission permission
+    ) {
+        KnowledgeBaseTeamGrantEntity existing = grantMapper.selectOne(
+                Wrappers.<KnowledgeBaseTeamGrantEntity>lambdaQuery()
+                        .eq(KnowledgeBaseTeamGrantEntity::getKnowledgeBaseId, knowledgeBaseId)
+                        .eq(KnowledgeBaseTeamGrantEntity::getTeamId, teamId)
+        );
+        if (existing == null) {
+            insertTeamGrant(grantId, knowledgeBaseId, teamId, permission);
+            return;
+        }
+        grantMapper.update(Wrappers.<KnowledgeBaseTeamGrantEntity>lambdaUpdate()
+                .eq(KnowledgeBaseTeamGrantEntity::getId, existing.getId())
+                .set(KnowledgeBaseTeamGrantEntity::getPermission, permission.name()));
+    }
+
+    @Override
+    public boolean deleteTeamGrant(long knowledgeBaseId, long teamId) {
+        return grantMapper.delete(Wrappers.<KnowledgeBaseTeamGrantEntity>lambdaQuery()
+                .eq(KnowledgeBaseTeamGrantEntity::getKnowledgeBaseId, knowledgeBaseId)
+                .eq(KnowledgeBaseTeamGrantEntity::getTeamId, teamId)) == 1;
+    }
+
+    @Override
+    public Map<Long, KnowledgeBasePermission> findTeamGrants(long knowledgeBaseId) {
+        return grantMapper.selectList(Wrappers.<KnowledgeBaseTeamGrantEntity>lambdaQuery()
+                        .eq(KnowledgeBaseTeamGrantEntity::getKnowledgeBaseId, knowledgeBaseId)
+                        .orderByAsc(KnowledgeBaseTeamGrantEntity::getTeamId))
+                .stream()
+                .collect(Collectors.toMap(
+                        KnowledgeBaseTeamGrantEntity::getTeamId,
+                        entity -> KnowledgeBasePermission.valueOf(entity.getPermission())
+                ));
     }
 
     @Override

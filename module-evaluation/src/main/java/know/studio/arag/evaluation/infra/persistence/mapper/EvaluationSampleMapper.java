@@ -13,7 +13,7 @@ public interface EvaluationSampleMapper extends BaseMapper<EvaluationSampleEntit
     int insertJson(EvaluationSampleEntity entity);
 
     List<EvaluationSampleEntity> selectOwned(
-            @Param("workspaceId") long workspaceId,
+            @Param("knowledgeBaseId") long knowledgeBaseId,
             @Param("datasetId") long datasetId
     );
 }

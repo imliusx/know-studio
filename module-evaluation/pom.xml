@@ -16,6 +16,7 @@
         <dependency><groupId>know.studio</groupId><artifactId>platform-core</artifactId></dependency>
         <dependency><groupId>know.studio</groupId><artifactId>platform-ai</artifactId></dependency>
         <dependency><groupId>know.studio</groupId><artifactId>module-identity</artifactId></dependency>
+        <dependency><groupId>know.studio</groupId><artifactId>module-knowledge</artifactId></dependency>
         <dependency><groupId>know.studio</groupId><artifactId>module-retrieval</artifactId></dependency>
         <dependency>
             <groupId>com.baomidou</groupId>

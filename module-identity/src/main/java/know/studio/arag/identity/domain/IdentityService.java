@@ -148,6 +148,23 @@ public class IdentityService implements IdentityApi {
     }
 
     @Transactional
+    public void updateTeam(long teamId, String name, String description, Long parentId) {
+        requireSystemAdmin();
+        String normalizedDescription = description == null || description.isBlank() ? null : description.trim();
+        if (!repository.updateTeam(teamId, name.trim(), normalizedDescription, parentId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "团队不存在");
+        }
+    }
+
+    @Transactional
+    public void deleteTeam(long teamId) {
+        requireSystemAdmin();
+        if (!repository.deactivateTeam(teamId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "团队不存在");
+        }
+    }
+
+    @Transactional
     public void addTeamMember(long teamId, String email, TeamRole role) {
         requireTeamRole(teamId, TeamRole.TEAM_ADMIN);
         UserAccount user = repository.findUserByEmail(normalizeEmail(email))
@@ -156,6 +173,22 @@ public class IdentityService implements IdentityApi {
             repository.insertTeamMember(idGenerator.nextId(), teamId, user.id(), role);
         } catch (DuplicateKeyException exception) {
             throw new BusinessException(ErrorCode.CONFLICT, "用户已在团队中");
+        }
+    }
+
+    @Transactional
+    public void updateTeamMember(long teamId, long userId, TeamRole role) {
+        requireTeamRole(teamId, TeamRole.TEAM_ADMIN);
+        if (!repository.updateTeamMemberRole(teamId, userId, role)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "团队成员不存在");
+        }
+    }
+
+    @Transactional
+    public void removeTeamMember(long teamId, long userId) {
+        requireTeamRole(teamId, TeamRole.TEAM_ADMIN);
+        if (!repository.deleteTeamMember(teamId, userId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "团队成员不存在");
         }
     }
 

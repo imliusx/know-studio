@@ -16,7 +16,7 @@ public class EvaluationSampleEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     private Long datasetId;
     private String question;
     private String relevantChunkIds;

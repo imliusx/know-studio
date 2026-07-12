@@ -4,7 +4,7 @@ import java.time.Instant;
 
 public record DatasetInfo(
         long id,
-        long workspaceId,
+        long knowledgeBaseId,
         long userId,
         String name,
         String description,

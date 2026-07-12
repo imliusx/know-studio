@@ -3,7 +3,7 @@ package know.studio.arag.evaluation.api;
 import java.util.List;
 
 public record AddSampleCommand(
-        long workspaceId,
+        long knowledgeBaseId,
         long datasetId,
         String question,
         List<Long> relevantChunkIds,

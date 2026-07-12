@@ -173,6 +173,24 @@ public class MybatisIdentityRepository implements IdentityRepository {
     }
 
     @Override
+    public boolean updateTeam(long teamId, String name, String description, Long parentId) {
+        return teamMapper.update(Wrappers.<TeamEntity>lambdaUpdate()
+                .eq(TeamEntity::getId, teamId)
+                .eq(TeamEntity::getStatus, WorkspaceStatus.ACTIVE.name())
+                .set(TeamEntity::getName, name)
+                .set(TeamEntity::getDescription, description)
+                .set(TeamEntity::getParentId, parentId)) == 1;
+    }
+
+    @Override
+    public boolean deactivateTeam(long teamId) {
+        return teamMapper.update(Wrappers.<TeamEntity>lambdaUpdate()
+                .eq(TeamEntity::getId, teamId)
+                .eq(TeamEntity::getStatus, WorkspaceStatus.ACTIVE.name())
+                .set(TeamEntity::getStatus, WorkspaceStatus.ARCHIVED.name())) == 1;
+    }
+
+    @Override
     public void insertTeamMember(long membershipId, long teamId, long userId, TeamRole role) {
         TeamMemberEntity entity = new TeamMemberEntity();
         entity.setId(membershipId);
@@ -180,6 +198,21 @@ public class MybatisIdentityRepository implements IdentityRepository {
         entity.setUserId(userId);
         entity.setTeamRole(role.name());
         teamMemberMapper.insert(entity);
+    }
+
+    @Override
+    public boolean updateTeamMemberRole(long teamId, long userId, TeamRole role) {
+        return teamMemberMapper.update(Wrappers.<TeamMemberEntity>lambdaUpdate()
+                .eq(TeamMemberEntity::getTeamId, teamId)
+                .eq(TeamMemberEntity::getUserId, userId)
+                .set(TeamMemberEntity::getTeamRole, role.name())) == 1;
+    }
+
+    @Override
+    public boolean deleteTeamMember(long teamId, long userId) {
+        return teamMemberMapper.delete(Wrappers.<TeamMemberEntity>lambdaQuery()
+                .eq(TeamMemberEntity::getTeamId, teamId)
+                .eq(TeamMemberEntity::getUserId, userId)) == 1;
     }
 
     @Override

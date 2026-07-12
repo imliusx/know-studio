@@ -10,7 +10,7 @@ import know.studio.arag.evaluation.api.EvaluationRunInfo;
 import know.studio.arag.evaluation.api.SampleInfo;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
-import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
@@ -40,13 +40,14 @@ public class EvaluationService implements EvaluationApi {
     private final EvaluationRepository repository;
     private final RetrievalApi retrievalApi;
     private final IdentityApi identityApi;
+    private final KnowledgeAccessApi knowledgeAccessApi;
     private final SnowflakeIdGenerator idGenerator;
 
     @Override
     @Transactional(readOnly = true)
-    public List<DatasetInfo> listDatasets(long workspaceId) {
-        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
-        return repository.findDatasets(workspaceId).stream()
+    public List<DatasetInfo> listDatasets(long knowledgeBaseId) {
+        knowledgeAccessApi.requireManageable(knowledgeBaseId);
+        return repository.findDatasets(knowledgeBaseId).stream()
                 .map(EvaluationService::toInfo)
                 .toList();
     }
@@ -54,13 +55,13 @@ public class EvaluationService implements EvaluationApi {
     @Override
     @Transactional
     public DatasetInfo createDataset(CreateDatasetCommand command) {
-        identityApi.requireRole(command.workspaceId(), WorkspaceRole.ADMIN);
+        knowledgeAccessApi.requireManageable(command.knowledgeBaseId());
         CurrentIdentity identity = identityApi.currentUser();
         String name = requireText(command.name(), "评测集名称不能为空");
         Instant now = Instant.now();
         EvaluationDataset dataset = new EvaluationDataset(
                 idGenerator.nextId(),
-                command.workspaceId(),
+                command.knowledgeBaseId(),
                 identity.userId(),
                 name,
                 normalize(command.description()),
@@ -79,7 +80,7 @@ public class EvaluationService implements EvaluationApi {
     @Override
     @Transactional
     public SampleInfo addSample(AddSampleCommand command) {
-        requireDataset(command.workspaceId(), command.datasetId());
+        requireDataset(command.knowledgeBaseId(), command.datasetId());
         String question = requireText(command.question(), "评测问题不能为空");
         List<Long> relevantIds = command.relevantChunkIds().stream().distinct().toList();
         if (relevantIds.isEmpty() || relevantIds.stream().anyMatch(id -> id == null || id <= 0)) {
@@ -87,7 +88,7 @@ public class EvaluationService implements EvaluationApi {
         }
         EvaluationSample sample = new EvaluationSample(
                 idGenerator.nextId(),
-                command.workspaceId(),
+                command.knowledgeBaseId(),
                 command.datasetId(),
                 question,
                 relevantIds,
@@ -100,41 +101,41 @@ public class EvaluationService implements EvaluationApi {
 
     @Override
     @Transactional(readOnly = true)
-    public List<SampleInfo> listSamples(long workspaceId, long datasetId) {
-        requireDataset(workspaceId, datasetId);
-        return repository.findSamples(workspaceId, datasetId).stream()
+    public List<SampleInfo> listSamples(long knowledgeBaseId, long datasetId) {
+        requireDataset(knowledgeBaseId, datasetId);
+        return repository.findSamples(knowledgeBaseId, datasetId).stream()
                 .map(EvaluationService::toInfo)
                 .toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<EvaluationRunInfo> listRuns(long workspaceId, long datasetId) {
-        requireDataset(workspaceId, datasetId);
-        return repository.findRuns(workspaceId, datasetId).stream()
+    public List<EvaluationRunInfo> listRuns(long knowledgeBaseId, long datasetId) {
+        requireDataset(knowledgeBaseId, datasetId);
+        return repository.findRuns(knowledgeBaseId, datasetId).stream()
                 .map(EvaluationService::toInfo)
                 .toList();
     }
 
     @Override
     @RagTraceNode("evaluation.ablation")
-    public EvaluationReport runAblation(long workspaceId, long datasetId, int topK) {
-        requireDataset(workspaceId, datasetId);
+    public EvaluationReport runAblation(long knowledgeBaseId, long datasetId, int topK) {
+        requireDataset(knowledgeBaseId, datasetId);
         if (topK < 1 || topK > 20) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "topK 必须在 1 到 20 之间");
         }
-        List<EvaluationSample> samples = repository.findSamples(workspaceId, datasetId);
+        List<EvaluationSample> samples = repository.findSamples(knowledgeBaseId, datasetId);
         if (samples.isEmpty()) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "评测集没有样本");
         }
         CurrentIdentity identity = identityApi.currentUser();
         List<EvaluationMetric> metrics = new ArrayList<>();
         for (RetrievalMode mode : EnumSet.allOf(RetrievalMode.class)) {
-            EvaluationMetric metric = evaluate(workspaceId, samples, mode, topK);
+            EvaluationMetric metric = evaluate(knowledgeBaseId, samples, mode, topK);
             metrics.add(metric);
             repository.insertRun(new EvaluationRun(
                     idGenerator.nextId(),
-                    workspaceId,
+                    knowledgeBaseId,
                     datasetId,
                     identity.userId(),
                     mode,
@@ -149,7 +150,7 @@ public class EvaluationService implements EvaluationApi {
     }
 
     private EvaluationMetric evaluate(
-            long workspaceId,
+            long knowledgeBaseId,
             List<EvaluationSample> samples,
             RetrievalMode mode,
             int topK
@@ -160,7 +161,7 @@ public class EvaluationService implements EvaluationApi {
             long start = System.nanoTime();
             EvidenceBundle result = retrievalApi.retrieve(new RetrievalQuery(
                     sample.question(),
-                    Set.of(workspaceId),
+                    Set.of(knowledgeBaseId),
                     topK,
                     mode
             ));
@@ -177,9 +178,9 @@ public class EvaluationService implements EvaluationApi {
         );
     }
 
-    private EvaluationDataset requireDataset(long workspaceId, long datasetId) {
-        identityApi.requireRole(workspaceId, WorkspaceRole.ADMIN);
-        return repository.findDataset(workspaceId, datasetId)
+    private EvaluationDataset requireDataset(long knowledgeBaseId, long datasetId) {
+        knowledgeAccessApi.requireManageable(knowledgeBaseId);
+        return repository.findDataset(knowledgeBaseId, datasetId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "评测集不存在"));
     }
 
@@ -197,7 +198,7 @@ public class EvaluationService implements EvaluationApi {
     private static DatasetInfo toInfo(EvaluationDataset dataset) {
         return new DatasetInfo(
                 dataset.id(),
-                dataset.workspaceId(),
+                dataset.knowledgeBaseId(),
                 dataset.userId(),
                 dataset.name(),
                 dataset.description(),

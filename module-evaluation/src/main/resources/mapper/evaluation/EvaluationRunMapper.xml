@@ -4,11 +4,11 @@
 <mapper namespace="know.studio.arag.evaluation.infra.persistence.mapper.EvaluationRunMapper">
     <insert id="insertJson">
         INSERT INTO eval_runs(
-            id, workspace_id, dataset_id, user_id, config, recall_at_k,
+            id, knowledge_base_id, dataset_id, user_id, config, recall_at_k,
             sample_count, avg_latency_ms, extra, created_at
         )
         VALUES (
-            #{id}, #{workspaceId}, #{datasetId}, #{userId}, #{config}, #{recallAtK},
+            #{id}, #{knowledgeBaseId}, #{datasetId}, #{userId}, #{config}, #{recallAtK},
             #{sampleCount}, #{avgLatencyMs}, CAST(#{extra} AS JSONB), #{createdAt}
         )
     </insert>

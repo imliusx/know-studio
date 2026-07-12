@@ -55,10 +55,10 @@
 
 ## Stage 4 · Evaluation and Admin APIs
 
-- [ ] Evaluation 数据改为 knowledgeBaseId 归属。
-- [ ] System ADMIN 和 KnowledgeBase MANAGE 才能运行评测。
-- [ ] 完成 Team CRUD、成员管理、知识库 CRUD 和 Team grant API。
-- [ ] OpenAPI、统一错误码和 401/403/429 行为更新。
+- [x] Evaluation 数据改为 knowledgeBaseId 归属。
+- [x] System ADMIN 和 KnowledgeBase MANAGE 才能运行评测。
+- [x] 完成 Team CRUD、成员管理、知识库 CRUD 和 Team grant API。
+- [x] 新 API 路径、统一错误码和 401/403/429 行为更新。
 
 验证：Team Admin 权限矩阵、跨 Team 评测隔离、API 集成测试。
 
@@ -125,3 +125,10 @@
 - A second user received HTTP 404 for another user's conversation; an unauthorized KnowledgeBase-only scope
   received HTTP 403 before query planning.
 - Authorized vector retrieval returned successfully and Agent SSE emitted `token` then `done` through the new APIs.
+
+### Evaluation and administration batch (2026-07-12)
+
+- V10 activated non-null Evaluation `knowledge_base_id` ownership and replaced the dataset name uniqueness scope.
+- System ADMIN created two Teams and a Team-owned KnowledgeBase, then granted the second Team READ access.
+- The owner Team retained MANAGE, updated the KnowledgeBase, and updated a Team member role through the new APIs.
+- A MANAGE user created a KnowledgeBase evaluation dataset; a READ-only Team member received HTTP 403.

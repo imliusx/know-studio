@@ -7,6 +7,7 @@ import know.studio.arag.identity.api.TeamRole;
 import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.knowledge.api.KnowledgeBaseInfo;
 import know.studio.arag.knowledge.api.KnowledgeBasePermission;
+import know.studio.arag.knowledge.api.KnowledgeBaseTeamGrantInfo;
 import know.studio.arag.knowledge.api.KnowledgeBaseVisibility;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.exception.ErrorCode;
@@ -65,6 +66,89 @@ public class KnowledgeBaseService implements KnowledgeAccessApi {
             );
         }
         return knowledgeBaseId;
+    }
+
+    @Transactional(readOnly = true)
+    public KnowledgeBaseInfo get(long knowledgeBaseId) {
+        KnowledgeBasePermission permission = requireReadable(knowledgeBaseId);
+        KnowledgeBase knowledgeBase = requireKnowledgeBase(knowledgeBaseId);
+        return toInfo(knowledgeBase, permission);
+    }
+
+    @Transactional
+    public void update(
+            long knowledgeBaseId,
+            String name,
+            String description,
+            KnowledgeBaseVisibility visibility,
+            Long ownerTeamId
+    ) {
+        requireManageable(knowledgeBaseId);
+        KnowledgeBase current = requireKnowledgeBase(knowledgeBaseId);
+        validateOwnership(visibility, ownerTeamId);
+        if (ownerTeamId != null && !ownerTeamId.equals(current.ownerTeamId())) {
+            identityApi.requireTeamRole(ownerTeamId, TeamRole.TEAM_ADMIN);
+        }
+        KnowledgeBase updated = new KnowledgeBase(
+                knowledgeBaseId,
+                name.trim(),
+                normalize(description),
+                visibility,
+                ownerTeamId,
+                current.createdBy(),
+                current.status()
+        );
+        if (!repository.update(updated)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在");
+        }
+        if (ownerTeamId != null) {
+            repository.saveTeamGrant(
+                    idGenerator.nextId(),
+                    knowledgeBaseId,
+                    ownerTeamId,
+                    KnowledgeBasePermission.MANAGE
+            );
+        }
+    }
+
+    @Transactional
+    public void delete(long knowledgeBaseId) {
+        requireManageable(knowledgeBaseId);
+        if (!repository.deactivate(knowledgeBaseId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在");
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<KnowledgeBaseTeamGrantInfo> listTeamGrants(long knowledgeBaseId) {
+        requireManageable(knowledgeBaseId);
+        return repository.findTeamGrants(knowledgeBaseId).entrySet().stream()
+                .map(entry -> new KnowledgeBaseTeamGrantInfo(entry.getKey(), entry.getValue()))
+                .toList();
+    }
+
+    @Transactional
+    public void saveTeamGrant(long knowledgeBaseId, long teamId, KnowledgeBasePermission permission) {
+        requireManageable(knowledgeBaseId);
+        KnowledgeBase knowledgeBase = requireKnowledgeBase(knowledgeBaseId);
+        if (knowledgeBase.ownerTeamId() != null
+                && knowledgeBase.ownerTeamId() == teamId
+                && permission != KnowledgeBasePermission.MANAGE) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "归属团队必须保留 MANAGE 权限");
+        }
+        repository.saveTeamGrant(idGenerator.nextId(), knowledgeBaseId, teamId, permission);
+    }
+
+    @Transactional
+    public void deleteTeamGrant(long knowledgeBaseId, long teamId) {
+        requireManageable(knowledgeBaseId);
+        KnowledgeBase knowledgeBase = requireKnowledgeBase(knowledgeBaseId);
+        if (knowledgeBase.ownerTeamId() != null && knowledgeBase.ownerTeamId() == teamId) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "不能删除归属团队授权");
+        }
+        if (!repository.deleteTeamGrant(knowledgeBaseId, teamId)) {
+            throw new BusinessException(ErrorCode.NOT_FOUND, "知识库团队授权不存在");
+        }
     }
 
     @Transactional(readOnly = true)
@@ -129,6 +213,21 @@ public class KnowledgeBaseService implements KnowledgeAccessApi {
             throw new ForbiddenException("知识库权限不足");
         }
         return actual;
+    }
+
+    private KnowledgeBase requireKnowledgeBase(long knowledgeBaseId) {
+        return repository.findById(knowledgeBaseId)
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "知识库不存在"));
+    }
+
+    private static void validateOwnership(KnowledgeBaseVisibility visibility, Long ownerTeamId) {
+        if (visibility == KnowledgeBaseVisibility.TEAM && ownerTeamId == null) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "团队知识库必须指定归属团队");
+        }
+    }
+
+    private static String normalize(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     private Map<Long, KnowledgeBasePermission> effectivePermissions(CurrentIdentity current) {

@@ -11,7 +11,32 @@ public interface KnowledgeBaseRepository {
 
     void insert(KnowledgeBase knowledgeBase);
 
+    default boolean update(KnowledgeBase knowledgeBase) {
+        return false;
+    }
+
+    default boolean deactivate(long knowledgeBaseId) {
+        return false;
+    }
+
     void insertTeamGrant(long grantId, long knowledgeBaseId, long teamId, KnowledgeBasePermission permission);
+
+    default void saveTeamGrant(
+            long grantId,
+            long knowledgeBaseId,
+            long teamId,
+            KnowledgeBasePermission permission
+    ) {
+        insertTeamGrant(grantId, knowledgeBaseId, teamId, permission);
+    }
+
+    default boolean deleteTeamGrant(long knowledgeBaseId, long teamId) {
+        return false;
+    }
+
+    default Map<Long, KnowledgeBasePermission> findTeamGrants(long knowledgeBaseId) {
+        return Map.of();
+    }
 
     Optional<KnowledgeBase> findById(long knowledgeBaseId);
 

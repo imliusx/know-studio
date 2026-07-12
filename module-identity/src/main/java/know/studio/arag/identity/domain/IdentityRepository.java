@@ -30,7 +30,23 @@ public interface IdentityRepository {
 
     void insertTeam(Team team);
 
+    default boolean updateTeam(long teamId, String name, String description, Long parentId) {
+        return false;
+    }
+
+    default boolean deactivateTeam(long teamId) {
+        return false;
+    }
+
     void insertTeamMember(long membershipId, long teamId, long userId, TeamRole role);
+
+    default boolean updateTeamMemberRole(long teamId, long userId, TeamRole role) {
+        return false;
+    }
+
+    default boolean deleteTeamMember(long teamId, long userId) {
+        return false;
+    }
 
     Optional<TeamRole> findTeamRole(long teamId, long userId);
 

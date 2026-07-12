@@ -5,6 +5,8 @@ import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
 import know.studio.arag.identity.api.WorkspaceRole;
+import know.studio.arag.knowledge.api.KnowledgeAccessApi;
+import know.studio.arag.knowledge.api.KnowledgeBasePermission;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
@@ -45,6 +47,7 @@ class EvaluationServiceTest {
                         "ok"
                 ),
                 new StubIdentityApi(),
+                new StubKnowledgeAccessApi(),
                 new SnowflakeIdGenerator(0, 0)
         );
 
@@ -79,6 +82,24 @@ class EvaluationServiceTest {
         }
     }
 
+    private static final class StubKnowledgeAccessApi implements KnowledgeAccessApi {
+
+        @Override
+        public Set<Long> readableKnowledgeBaseIds() {
+            return Set.of(10L);
+        }
+
+        @Override
+        public KnowledgeBasePermission requireReadable(long knowledgeBaseId) {
+            return KnowledgeBasePermission.MANAGE;
+        }
+
+        @Override
+        public KnowledgeBasePermission requireManageable(long knowledgeBaseId) {
+            return KnowledgeBasePermission.MANAGE;
+        }
+    }
+
     private static final class InMemoryRepository implements EvaluationRepository {
 
         private EvaluationDataset dataset;
@@ -91,13 +112,13 @@ class EvaluationServiceTest {
         }
 
         @Override
-        public List<EvaluationDataset> findDatasets(long workspaceId) {
-            return dataset != null && dataset.workspaceId() == workspaceId ? List.of(dataset) : List.of();
+        public List<EvaluationDataset> findDatasets(long knowledgeBaseId) {
+            return dataset != null && dataset.knowledgeBaseId() == knowledgeBaseId ? List.of(dataset) : List.of();
         }
 
         @Override
-        public Optional<EvaluationDataset> findDataset(long workspaceId, long datasetId) {
-            return dataset != null && dataset.workspaceId() == workspaceId && dataset.id() == datasetId
+        public Optional<EvaluationDataset> findDataset(long knowledgeBaseId, long datasetId) {
+            return dataset != null && dataset.knowledgeBaseId() == knowledgeBaseId && dataset.id() == datasetId
                     ? Optional.of(dataset)
                     : Optional.empty();
         }
@@ -108,7 +129,7 @@ class EvaluationServiceTest {
         }
 
         @Override
-        public List<EvaluationSample> findSamples(long workspaceId, long datasetId) {
+        public List<EvaluationSample> findSamples(long knowledgeBaseId, long datasetId) {
             return List.copyOf(samples);
         }
 
@@ -118,9 +139,9 @@ class EvaluationServiceTest {
         }
 
         @Override
-        public List<EvaluationRun> findRuns(long workspaceId, long datasetId) {
+        public List<EvaluationRun> findRuns(long knowledgeBaseId, long datasetId) {
             return runs.stream()
-                    .filter(run -> run.workspaceId() == workspaceId && run.datasetId() == datasetId)
+                    .filter(run -> run.knowledgeBaseId() == knowledgeBaseId && run.datasetId() == datasetId)
                     .toList();
         }
     }

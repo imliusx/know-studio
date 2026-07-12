@@ -17,7 +17,7 @@ public class EvaluationRunEntity {
 
     @TableId
     private Long id;
-    private Long workspaceId;
+    private Long knowledgeBaseId;
     private Long datasetId;
     private Long userId;
     private String config;
