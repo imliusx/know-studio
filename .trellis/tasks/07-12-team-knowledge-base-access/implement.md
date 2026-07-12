@@ -17,10 +17,10 @@
 - [x] 将旧 Workspace 数据迁移为 Team + 默认 KnowledgeBase。
 - [x] 将 WorkspaceMember 角色迁移为 TeamMember。
 - [x] 为 knowledge/evaluation 增加 KnowledgeBase 兼容列并回填。
-- [ ] 将 conversation 从 Workspace 所有权迁移为 User 所有权。
-- [ ] 删除旧 Workspace 表和约束。
+- [x] 将 conversation 从旧空间所有权迁移为 User 所有权。
+- [x] 删除旧空间表和约束。
 - [x] 使用 MyBatis-Plus 实现 Team/KnowledgeBase ACL repository 和访问服务。
-- [ ] 替换 IdentityApi 的 Workspace 权限接口。
+- [x] 替换 IdentityApi 的旧空间权限接口。
 
 验证：Flyway 从空库和现有 V5 库升级、权限单测、MyBatis/ArchUnit、全量 Maven。
 
@@ -79,7 +79,7 @@
 
 ## Stage 6 · Migration and End-to-End Acceptance
 
-- [ ] 从现有 V5 数据库执行 V6+ 升级并核对数据数量。
+- [x] 从现有 V5 数据库执行 V6+ 升级并核对数据数量。
 - [ ] 验证管理员创建 Team、知识库、文档和跨 Team 授权。
 - [ ] 验证普通用户无需切换上下文直接问答。
 - [ ] 验证多 Team 用户、公司公开库、Team 私有库和失权场景。

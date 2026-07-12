@@ -1,7 +1,6 @@
 package know.studio.arag.identity.domain;
 
 import know.studio.arag.identity.api.SystemRole;
-import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.identity.api.TeamRole;
 import know.studio.arag.platform.core.exception.ForbiddenException;
 import know.studio.arag.platform.core.exception.UnauthorizedException;
@@ -39,64 +38,6 @@ class IdentityServiceTest {
         assertThatThrownBy(() -> fixture.service.login("user@example.com", "wrong-password"))
                 .isInstanceOf(UnauthorizedException.class);
         assertThat(fixture.session.isLoggedIn()).isFalse();
-    }
-
-    @Test
-    void workspaceCreatorBecomesOwner() {
-        Fixture fixture = new Fixture();
-        fixture.service.register("owner@example.com", "Owner", "password123");
-
-        long workspaceId = fixture.service.createWorkspace("Knowledge", "Workspace");
-
-        assertThat(fixture.service.requireRole(workspaceId, WorkspaceRole.OWNER))
-                .isEqualTo(WorkspaceRole.OWNER);
-    }
-
-    @Test
-    void nonMemberCannotReadAnotherWorkspace() {
-        Fixture fixture = new Fixture();
-        AuthSession owner = fixture.service.register("owner@example.com", "Owner", "password123");
-        long workspaceId = fixture.service.createWorkspace("Private", null);
-        fixture.session.logout();
-        AuthSession outsider = fixture.service.register("outsider@example.com", "Outsider", "password123");
-
-        assertThat(owner.user().userId()).isNotEqualTo(outsider.user().userId());
-        assertThatThrownBy(() -> fixture.service.requireWorkspaceReadable(workspaceId))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("无权访问");
-    }
-
-    @Test
-    void memberCannotPerformAdminAction() {
-        Fixture fixture = new Fixture();
-        AuthSession owner = fixture.service.register("owner@example.com", "Owner", "password123");
-        long workspaceId = fixture.service.createWorkspace("Private", null);
-        fixture.session.logout();
-        AuthSession member = fixture.service.register("member@example.com", "Member", "password123");
-        fixture.repository.insertMember(999L, workspaceId, member.user().userId(), WorkspaceRole.MEMBER);
-
-        assertThatThrownBy(() -> fixture.service.requireRole(workspaceId, WorkspaceRole.ADMIN))
-                .isInstanceOf(ForbiddenException.class)
-                .hasMessageContaining("权限不足");
-        assertThat(owner.user().systemRole()).isEqualTo(SystemRole.USER);
-    }
-
-    @Test
-    void listsOnlyCurrentUsersWorkspacesWithRole() {
-        Fixture fixture = new Fixture();
-        AuthSession owner = fixture.service.register("owner@example.com", "Owner", "password123");
-        long ownedWorkspace = fixture.service.createWorkspace("Owned", null);
-        fixture.session.logout();
-        AuthSession member = fixture.service.register("member@example.com", "Member", "password123");
-        fixture.repository.insertMember(999L, ownedWorkspace, member.user().userId(), WorkspaceRole.MEMBER);
-
-        assertThat(fixture.service.listWorkspaces())
-                .singleElement()
-                .satisfies(workspace -> {
-                    assertThat(workspace.workspaceId()).isEqualTo(ownedWorkspace);
-                    assertThat(workspace.role()).isEqualTo(WorkspaceRole.MEMBER);
-                });
-        assertThat(owner.user().userId()).isNotEqualTo(member.user().userId());
     }
 
     @Test
@@ -156,10 +97,8 @@ class IdentityServiceTest {
 
         private final Map<Long, UserAccount> users = new HashMap<>();
         private final Map<String, Long> usersByEmail = new HashMap<>();
-        private final Map<Long, Workspace> workspaces = new HashMap<>();
-        private final Map<MembershipKey, WorkspaceRole> memberships = new HashMap<>();
         private final Map<Long, Team> teams = new HashMap<>();
-        private final Map<MembershipKey, TeamRole> teamMemberships = new HashMap<>();
+        private final Map<TeamMembershipKey, TeamRole> teamMemberships = new HashMap<>();
 
         private void promote(long userId) {
             UserAccount user = users.get(userId);
@@ -194,67 +133,25 @@ class IdentityServiceTest {
         }
 
         @Override
-        public void insertWorkspace(Workspace workspace) {
-            workspaces.put(workspace.id(), workspace);
-        }
-
-        @Override
-        public void insertMember(long membershipId, long workspaceId, long userId, WorkspaceRole role) {
-            memberships.put(new MembershipKey(workspaceId, userId), role);
-        }
-
-        @Override
-        public Optional<WorkspaceRole> findWorkspaceRole(long workspaceId, long userId) {
-            return Optional.ofNullable(memberships.get(new MembershipKey(workspaceId, userId)));
-        }
-
-        @Override
-        public List<WorkspaceAccess> findWorkspaceAccesses(long userId) {
-            return memberships.entrySet().stream()
-                    .filter(entry -> entry.getKey().userId() == userId)
-                    .map(entry -> new WorkspaceAccess(
-                            workspaces.get(entry.getKey().workspaceId()),
-                            entry.getValue()
-                    ))
-                    .toList();
-        }
-
-        @Override
-        public List<Workspace> findActiveWorkspaces() {
-            return List.copyOf(workspaces.values());
-        }
-
-        @Override
-        public List<WorkspaceMember> findWorkspaceMembers(long workspaceId) {
-            return memberships.entrySet().stream()
-                    .filter(entry -> entry.getKey().workspaceId() == workspaceId)
-                    .map(entry -> new WorkspaceMember(
-                            users.get(entry.getKey().userId()),
-                            entry.getValue()
-                    ))
-                    .toList();
-        }
-
-        @Override
         public void insertTeam(Team team) {
             teams.put(team.id(), team);
         }
 
         @Override
         public void insertTeamMember(long membershipId, long teamId, long userId, TeamRole role) {
-            teamMemberships.put(new MembershipKey(teamId, userId), role);
+            teamMemberships.put(new TeamMembershipKey(teamId, userId), role);
         }
 
         @Override
         public Optional<TeamRole> findTeamRole(long teamId, long userId) {
-            return Optional.ofNullable(teamMemberships.get(new MembershipKey(teamId, userId)));
+            return Optional.ofNullable(teamMemberships.get(new TeamMembershipKey(teamId, userId)));
         }
 
         @Override
         public List<TeamAccess> findTeamAccesses(long userId) {
             return teamMemberships.entrySet().stream()
                     .filter(entry -> entry.getKey().userId() == userId)
-                    .map(entry -> new TeamAccess(teams.get(entry.getKey().workspaceId()), entry.getValue()))
+                    .map(entry -> new TeamAccess(teams.get(entry.getKey().teamId()), entry.getValue()))
                     .toList();
         }
 
@@ -266,12 +163,12 @@ class IdentityServiceTest {
         @Override
         public List<TeamMember> findTeamMembers(long teamId) {
             return teamMemberships.entrySet().stream()
-                    .filter(entry -> entry.getKey().workspaceId() == teamId)
+                    .filter(entry -> entry.getKey().teamId() == teamId)
                     .map(entry -> new TeamMember(users.get(entry.getKey().userId()), entry.getValue()))
                     .toList();
         }
 
-        private record MembershipKey(long workspaceId, long userId) {
+        private record TeamMembershipKey(long teamId, long userId) {
         }
     }
 

@@ -15,7 +15,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | Guide | Description | Status |
 |-------|-------------|--------|
 | [Directory Structure](./directory-structure.md) | Module organization and file layout | To fill |
-| [Database Guidelines](./database-guidelines.md) | MyBatis-Plus, explicit workspace isolation, migrations | Active |
+| [Database Guidelines](./database-guidelines.md) | MyBatis-Plus, explicit KnowledgeBase and user isolation, migrations | Active |
 | [Error Handling](./error-handling.md) | Error types, handling strategies | To fill |
 | [Quality Guidelines](./quality-guidelines.md) | Lombok usage and Maven quality gate | Active |
 | [Logging Guidelines](./logging-guidelines.md) | SLF4J, Logback, JSON rolling, traceId | Active |

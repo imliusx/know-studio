@@ -18,7 +18,7 @@
 
 ## Team and KnowledgeBase Access
 
-- Ordinary users do not select a Workspace or Team before Chat. The backend derives readable KnowledgeBases from the authenticated user.
+- Ordinary users do not select a tenant or Team context before Chat. The backend derives readable KnowledgeBases from the authenticated user.
 - Document and evaluation administration takes an explicit knowledgeBaseId.
 - Every knowledge-scoped TanStack Query key includes knowledgeBaseId. Forbidden examples:
 

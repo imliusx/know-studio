@@ -6,6 +6,6 @@ public record Team(
         String description,
         Long parentId,
         long createdBy,
-        WorkspaceStatus status
+        TeamStatus status
 ) {
 }

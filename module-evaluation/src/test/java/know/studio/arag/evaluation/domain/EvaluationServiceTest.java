@@ -4,7 +4,6 @@ import know.studio.arag.evaluation.api.EvaluationReport;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
-import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.knowledge.api.KnowledgeAccessApi;
 import know.studio.arag.knowledge.api.KnowledgeBasePermission;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
@@ -69,16 +68,6 @@ class EvaluationServiceTest {
         @Override
         public CurrentIdentity currentUser() {
             return new CurrentIdentity(20L, "user@example.com", "User", SystemRole.USER);
-        }
-
-        @Override
-        public WorkspaceRole requireWorkspaceReadable(long workspaceId) {
-            return WorkspaceRole.MEMBER;
-        }
-
-        @Override
-        public WorkspaceRole requireRole(long workspaceId, WorkspaceRole requiredRole) {
-            return WorkspaceRole.OWNER;
         }
     }
 

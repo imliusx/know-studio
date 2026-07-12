@@ -12,7 +12,7 @@ evaluation datasets and runs.
 
 - `@RateLimit(key, permits, windowSeconds, scope)` rejects with
   `ErrorCode.TOO_MANY_REQUESTS` and HTTP 429.
-- `RetrievalQuery(question, workspaceId, topK, mode)` supports
+- `RetrievalQuery(question, knowledgeBaseIds, topK, mode)` supports
   `VECTOR_ONLY`, `HYBRID`, and `HYBRID_RERANK`; the three-argument constructor
   defaults to `HYBRID_RERANK`.
 - `EvaluationApi` creates datasets/samples and returns an `EvaluationReport`
@@ -31,7 +31,7 @@ evaluation datasets and runs.
   stable tag values. Never use user IDs, questions, or document names as tags.
 - Langfuse delivery is best effort, bounded, timed out, and never includes raw
   prompts or generated text in the built-in payload.
-- Evaluation tables and queries explicitly filter `workspace_id`. An ablation
+- Evaluation tables and queries explicitly filter `knowledge_base_id`. An ablation
   run must not hold one database transaction across model and retrieval calls.
 - Each ablation mode calls the real `RetrievalApi`; do not derive or copy one
   mode's result into another.
@@ -41,7 +41,7 @@ evaluation datasets and runs.
 ### 4. Validation & Error Matrix
 
 - Rate permit unavailable -> HTTP 429 / `A0429`, rejected counter increments.
-- Dataset missing or outside workspace -> `NOT_FOUND`.
+- Dataset missing or outside the requested KnowledgeBase -> `NOT_FOUND`.
 - Empty dataset, invalid topK, or empty/non-positive relevant chunk IDs ->
   `BAD_REQUEST`.
 - Missing static resource -> `NOT_FOUND`, not the unexpected-exception 500 path.
@@ -66,7 +66,7 @@ evaluation datasets and runs.
 - Unit test provider observation on success and first-token failover behavior.
 - Unit test vector-only mode skips keyword retrieval and reranking.
 - Unit test ablation invokes all three modes and computes Recall@K.
-- Integration test Flyway V4, JSONB sample IDs/run metadata, real ablation rows,
+- Integration test Flyway V11, absence of legacy ownership columns, JSONB sample IDs/run metadata, real ablation rows,
   `/actuator/prometheus`, `/v3/api-docs`, `/doc.html`, Prometheus target health,
   Tempo trace search, and Grafana datasource provisioning.
 

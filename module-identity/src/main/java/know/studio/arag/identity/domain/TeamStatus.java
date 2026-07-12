@@ -1,6 +1,6 @@
 package know.studio.arag.identity.domain;
 
-public enum WorkspaceStatus {
+public enum TeamStatus {
     ACTIVE,
     ARCHIVED
 }

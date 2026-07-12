@@ -6,7 +6,6 @@ import know.studio.arag.conversation.api.MessageRole;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
-import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.platform.core.exception.BusinessException;
 import know.studio.arag.platform.core.id.SnowflakeIdGenerator;
 import org.junit.jupiter.api.BeforeEach;
@@ -126,17 +125,6 @@ class ConversationServiceTest {
         public CurrentIdentity currentUser() {
             return new CurrentIdentity(20L, "user@example.com", "User", SystemRole.USER);
         }
-
-        @Override
-        public WorkspaceRole requireWorkspaceReadable(long workspaceId) {
-            return WorkspaceRole.MEMBER;
-        }
-
-        @Override
-        public WorkspaceRole requireRole(long workspaceId, WorkspaceRole requiredRole) {
-            return WorkspaceRole.OWNER;
-        }
-
     }
 
     private static final class InMemoryRepository implements ConversationRepository {

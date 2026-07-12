@@ -13,6 +13,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 - Domain boundary: infrastructure repositories implement domain repository interfaces and convert between entities and domain records.
 - Complex SQL: place methods in a dedicated mapper and statements under `src/main/resources/mapper/**/*.xml`.
 - Migrations: `bootstrap/src/main/resources/db/migration/V<version>__<description>.sql`.
+- Final ownership schema: content and evaluation tables contain `knowledge_base_id`; sessions contain `user_id`; no business table contains `workspace_id`.
 
 ### 3. Contracts
 
@@ -31,6 +32,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 - Duplicate unique key -> translate `DuplicateKeyException` to `ErrorCode.CONFLICT` at the service boundary.
 - Atomic status update affects zero rows -> treat as already claimed or invalid state; do not process twice.
 - Flyway validation failure -> application startup must fail; never enable automatic repair in application code.
+- A clean database and an existing deployed database must both migrate to the same latest schema; verify legacy tables and columns are absent after ownership cleanup.
 - Entity/domain enum value mismatch -> fail fast with `Enum.valueOf`; do not silently default.
 
 ### 5. Good/Base/Bad Cases
@@ -48,6 +50,7 @@ Use this contract whenever backend code reads or writes PostgreSQL. The project 
 - Isolation test: a user without a KnowledgeBase grant cannot retrieve, preview, download, cite, or mutate its content.
 - State-machine test: only one consumer can claim a pending document.
 - Migration check: `mvn test` plus application startup against `pgvector/pgvector:pg16`.
+- Destructive cleanup migration check: migrate one populated pre-cleanup database and one empty database, then assert data counts plus zero legacy tables/columns.
 
 ### 7. Wrong vs Correct
 

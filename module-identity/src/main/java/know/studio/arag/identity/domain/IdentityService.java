@@ -3,9 +3,6 @@ package know.studio.arag.identity.domain;
 import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.identity.api.SystemRole;
-import know.studio.arag.identity.api.WorkspaceInfo;
-import know.studio.arag.identity.api.WorkspaceMemberInfo;
-import know.studio.arag.identity.api.WorkspaceRole;
 import know.studio.arag.identity.api.TeamInfo;
 import know.studio.arag.identity.api.TeamMemberInfo;
 import know.studio.arag.identity.api.TeamRole;
@@ -76,62 +73,6 @@ public class IdentityService implements IdentityApi {
     }
 
     @Transactional
-    public long createWorkspace(String name, String description) {
-        CurrentIdentity current = currentUser();
-        long workspaceId = idGenerator.nextId();
-        repository.insertWorkspace(new Workspace(
-                workspaceId,
-                name.trim(),
-                description == null ? null : description.trim(),
-                current.userId(),
-                WorkspaceStatus.ACTIVE
-        ));
-        repository.insertMember(idGenerator.nextId(), workspaceId, current.userId(), WorkspaceRole.OWNER);
-        return workspaceId;
-    }
-
-    @Transactional
-    public void addMember(long workspaceId, String email, WorkspaceRole role) {
-        requireRole(workspaceId, WorkspaceRole.ADMIN);
-        if (role == WorkspaceRole.OWNER) {
-            throw new BusinessException(ErrorCode.BAD_REQUEST, "不能通过成员接口转移所有者");
-        }
-        UserAccount user = repository.findUserByEmail(normalizeEmail(email))
-                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "用户不存在"));
-        try {
-            repository.insertMember(idGenerator.nextId(), workspaceId, user.id(), role);
-        } catch (DuplicateKeyException exception) {
-            throw new BusinessException(ErrorCode.CONFLICT, "用户已在工作空间中");
-        }
-    }
-
-    @Transactional(readOnly = true)
-    public List<WorkspaceInfo> listWorkspaces() {
-        CurrentIdentity current = currentUser();
-        if (current.systemRole() == SystemRole.ADMIN) {
-            return repository.findActiveWorkspaces().stream()
-                    .map(workspace -> toInfo(workspace, WorkspaceRole.OWNER))
-                    .toList();
-        }
-        return repository.findWorkspaceAccesses(current.userId()).stream()
-                .map(access -> toInfo(access.workspace(), access.role()))
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<WorkspaceMemberInfo> listMembers(long workspaceId) {
-        requireRole(workspaceId, WorkspaceRole.ADMIN);
-        return repository.findWorkspaceMembers(workspaceId).stream()
-                .map(member -> new WorkspaceMemberInfo(
-                        member.user().id(),
-                        member.user().email(),
-                        member.user().displayName(),
-                        member.role()
-                ))
-                .toList();
-    }
-
-    @Transactional
     public long createTeam(String name, String description, Long parentId) {
         CurrentIdentity current = requireSystemAdmin();
         long teamId = idGenerator.nextId();
@@ -141,7 +82,7 @@ public class IdentityService implements IdentityApi {
                 description == null ? null : description.trim(),
                 parentId,
                 current.userId(),
-                WorkspaceStatus.ACTIVE
+                TeamStatus.ACTIVE
         ));
         repository.insertTeamMember(idGenerator.nextId(), teamId, current.userId(), TeamRole.TEAM_ADMIN);
         return teamId;
@@ -232,25 +173,6 @@ public class IdentityService implements IdentityApi {
     }
 
     @Override
-    public WorkspaceRole requireWorkspaceReadable(long workspaceId) {
-        return requireRole(workspaceId, WorkspaceRole.MEMBER);
-    }
-
-    @Override
-    public WorkspaceRole requireRole(long workspaceId, WorkspaceRole requiredRole) {
-        CurrentIdentity current = currentUser();
-        if (current.systemRole() == SystemRole.ADMIN) {
-            return WorkspaceRole.OWNER;
-        }
-        WorkspaceRole actualRole = repository.findWorkspaceRole(workspaceId, current.userId())
-                .orElseThrow(() -> new ForbiddenException("无权访问该工作空间"));
-        if (!actualRole.allows(requiredRole)) {
-            throw new ForbiddenException("工作空间角色权限不足");
-        }
-        return actualRole;
-    }
-
-    @Override
     public CurrentIdentity requireSystemAdmin() {
         CurrentIdentity current = currentUser();
         if (current.systemRole() != SystemRole.ADMIN) {
@@ -287,16 +209,6 @@ public class IdentityService implements IdentityApi {
 
     private static CurrentIdentity toCurrentIdentity(UserAccount user) {
         return new CurrentIdentity(user.id(), user.email(), user.displayName(), user.systemRole());
-    }
-
-    private static WorkspaceInfo toInfo(Workspace workspace, WorkspaceRole role) {
-        return new WorkspaceInfo(
-                workspace.id(),
-                workspace.name(),
-                workspace.description(),
-                workspace.ownerId(),
-                role
-        );
     }
 
     private static TeamInfo toInfo(Team team, TeamRole role) {

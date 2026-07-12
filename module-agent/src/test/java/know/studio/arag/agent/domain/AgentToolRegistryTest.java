@@ -38,7 +38,7 @@ class AgentToolRegistryTest {
             }
 
             @Override
-            public ToolResult execute(long workspaceId, String question) {
+            public ToolResult execute(long userId, String question) {
                 return new ToolResult(name(), "result", null);
             }
         };

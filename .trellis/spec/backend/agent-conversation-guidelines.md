@@ -103,7 +103,7 @@ The synchronous route work now belongs to the stream error boundary.
 
 ### User-Owned Conversations and KnowledgeBase-Scoped Retrieval
 
-Conversation session rows no longer require a Workspace value. Public APIs use
+Conversation session rows are owned directly by users and contain no tenant or Team context. Public APIs use
 `/api/conversations` and `/api/agent/chat/stream`; ownership is always resolved
 from the authenticated user plus session ID. Retrieval accepts an optional set
 of KnowledgeBase IDs, but `KnowledgeAccessApi` is the authority and request data

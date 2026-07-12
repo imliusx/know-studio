@@ -23,31 +23,29 @@ class TtlExecutorsTest {
         ExecutorService delegate = Executors.newSingleThreadExecutor();
         ExecutorService executor = TtlExecutors.wrap(delegate);
         try {
-            UserContext.set(new UserContext.Principal(10L, 20L, "trace-a"));
+            UserContext.set(new UserContext.Principal(10L, "trace-a"));
             TraceContext.set("trace-a");
 
             Future<ContextValues> propagated = executor.submit(() -> new ContextValues(
                     UserContext.userId(),
-                    UserContext.workspaceId(),
                     TraceContext.current()
             ));
 
-            assertThat(propagated.get()).isEqualTo(new ContextValues(10L, 20L, "trace-a"));
+            assertThat(propagated.get()).isEqualTo(new ContextValues(10L, "trace-a"));
 
             UserContext.clear();
             TraceContext.clear();
             Future<ContextValues> cleared = executor.submit(() -> new ContextValues(
                     UserContext.userId(),
-                    UserContext.workspaceId(),
                     TraceContext.current()
             ));
 
-            assertThat(cleared.get()).isEqualTo(new ContextValues(null, null, null));
+            assertThat(cleared.get()).isEqualTo(new ContextValues(null, null));
         } finally {
             executor.shutdownNow();
         }
     }
 
-    private record ContextValues(Long userId, Long workspaceId, String traceId) {
+    private record ContextValues(Long userId, String traceId) {
     }
 }

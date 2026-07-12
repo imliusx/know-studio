@@ -4,10 +4,6 @@ public interface IdentityApi {
 
     CurrentIdentity currentUser();
 
-    WorkspaceRole requireWorkspaceReadable(long workspaceId);
-
-    WorkspaceRole requireRole(long workspaceId, WorkspaceRole requiredRole);
-
     default CurrentIdentity requireSystemAdmin() {
         CurrentIdentity current = currentUser();
         if (current.systemRole() != SystemRole.ADMIN) {
