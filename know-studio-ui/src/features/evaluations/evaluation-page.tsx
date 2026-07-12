@@ -45,6 +45,13 @@ import {
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   Table,
   TableBody,
   TableCell,
@@ -73,14 +80,24 @@ const MODE_LABELS: Record<RetrievalMode, string> = {
 export function EvaluationPage() {
   const queryClient = useQueryClient()
   const currentUser = useAuthStore((state) => state.auth.user)
-  const currentKnowledgeBaseId = useKnowledgeBaseStore(
+  const selectedKnowledgeBaseId = useKnowledgeBaseStore(
     (state) => state.currentKnowledgeBaseId
   )
-  const currentKnowledgeBase = useKnowledgeBaseStore((state) =>
-    state.knowledgeBases.find(
-      (knowledgeBase) => knowledgeBase.knowledgeBaseId === state.currentKnowledgeBaseId
-    )
+  const knowledgeBases = useKnowledgeBaseStore((state) => state.knowledgeBases)
+  const setCurrentKnowledgeBaseId = useKnowledgeBaseStore(
+    (state) => state.setCurrentKnowledgeBaseId
   )
+  const manageableKnowledgeBases = knowledgeBases.filter(
+    (knowledgeBase) => knowledgeBase.permission === 'MANAGE'
+  )
+  const selectedKnowledgeBase = knowledgeBases.find(
+    (knowledgeBase) => knowledgeBase.knowledgeBaseId === selectedKnowledgeBaseId
+  )
+  const currentKnowledgeBase =
+    selectedKnowledgeBase?.permission === 'MANAGE'
+      ? selectedKnowledgeBase
+      : (manageableKnowledgeBases[0] ?? null)
+  const currentKnowledgeBaseId = currentKnowledgeBase?.knowledgeBaseId ?? null
   const canManage =
     currentUser?.systemRole === 'ADMIN' ||
     currentKnowledgeBase?.permission === 'MANAGE'
@@ -240,7 +257,7 @@ export function EvaluationPage() {
   }
 
   if (!currentKnowledgeBaseId) {
-    return <EvaluationState title='尚未选择工作空间' description='请先创建或选择工作空间。' />
+    return <EvaluationState title='暂无可管理知识库' description='请先创建知识库或获取 MANAGE 权限。' />
   }
 
   if (!canManage) {
@@ -248,7 +265,7 @@ export function EvaluationPage() {
       <EvaluationState
         icon={ShieldAlert}
         title='无评测管理权限'
-        description='仅工作空间 OWNER 或 ADMIN 可以管理数据集并运行评测。'
+        description='仅系统管理员或拥有 MANAGE 权限的团队管理员可以管理数据集并运行评测。'
       />
     )
   }
@@ -270,10 +287,34 @@ export function EvaluationPage() {
               对比向量、混合检索和重排链路的 Recall@K 与平均延迟。
             </p>
           </div>
-          <Button onClick={() => setCreateDialogOpen(true)}>
-            <Plus data-icon='inline-start' />
-            新建数据集
-          </Button>
+          <div className='flex flex-wrap items-center gap-2'>
+            <Select
+              value={currentKnowledgeBaseId}
+              onValueChange={(knowledgeBaseId) => {
+                setCurrentKnowledgeBaseId(knowledgeBaseId)
+                setSelectedDatasetId(null)
+                setLatestReport(null)
+              }}
+            >
+              <SelectTrigger className='w-56'>
+                <SelectValue placeholder='选择知识库' />
+              </SelectTrigger>
+              <SelectContent>
+                {manageableKnowledgeBases.map((knowledgeBase) => (
+                  <SelectItem
+                    key={knowledgeBase.knowledgeBaseId}
+                    value={knowledgeBase.knowledgeBaseId}
+                  >
+                    {knowledgeBase.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button onClick={() => setCreateDialogOpen(true)}>
+              <Plus data-icon='inline-start' />
+              新建数据集
+            </Button>
+          </div>
         </div>
 
         <div className='grid min-h-[640px] overflow-hidden rounded-md border lg:grid-cols-[280px_minmax(0,1fr)]'>
