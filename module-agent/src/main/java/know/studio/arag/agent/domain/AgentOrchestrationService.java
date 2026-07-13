@@ -50,6 +50,12 @@ public class AgentOrchestrationService implements AgentApi {
     private static final Pattern NAMING_SUBJECT_PATTERN = Pattern.compile(
             "([\\p{IsHan}]{2,6})(?:如何|怎么|怎样)(?:进行)?命名"
     );
+    private static final List<String> NAMING_SUBJECT_SUFFIXES = List.of(
+            "成员变量", "局部变量", "唯一索引", "普通索引", "组合索引", "主键索引",
+            "异常类", "测试类", "抽象类", "实现类", "接口类",
+            "方法名", "参数名", "字段名", "变量名", "常量名",
+            "类名", "包名", "表名", "索引", "常量", "变量", "方法", "参数", "字段", "接口"
+    );
     private static final Set<String> QUESTION_STOP_TERMS = Set.of(
             "如何", "怎么", "怎样", "什么", "为何", "请问", "一下"
     );
@@ -468,12 +474,21 @@ public class AgentOrchestrationService implements AgentApi {
         return count;
     }
 
-    private static String namingSubject(String question) {
+    static String namingSubject(String question) {
         Matcher matcher = NAMING_SUBJECT_PATTERN.matcher(question.replaceAll("\\s+", ""));
         if (!matcher.find()) {
             return "";
         }
         String subject = matcher.group(1);
+        int possessiveIndex = subject.lastIndexOf('的');
+        if (possessiveIndex >= 0 && possessiveIndex < subject.length() - 1) {
+            subject = subject.substring(possessiveIndex + 1);
+        }
+        for (String suffix : NAMING_SUBJECT_SUFFIXES) {
+            if (subject.endsWith(suffix)) {
+                return suffix;
+            }
+        }
         return subject.length() <= 4 ? subject : subject.substring(subject.length() - 4);
     }
 

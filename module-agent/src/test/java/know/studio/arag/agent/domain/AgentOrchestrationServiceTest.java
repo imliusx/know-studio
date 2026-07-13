@@ -263,6 +263,14 @@ class AgentOrchestrationServiceTest {
     }
 
     @Test
+    void normalizesEquivalentNamingQuestionSubjects() {
+        assertThat(AgentOrchestrationService.namingSubject("索引如何命名？")).isEqualTo("索引");
+        assertThat(AgentOrchestrationService.namingSubject("Java 的索引如何命名？")).isEqualTo("索引");
+        assertThat(AgentOrchestrationService.namingSubject("Java 中的索引如何命名？")).isEqualTo("索引");
+        assertThat(AgentOrchestrationService.namingSubject("数据库索引怎么命名？")).isEqualTo("索引");
+    }
+
+    @Test
     void keepsOnlyEvidenceThatCoversTheCurrentQuestion() {
         Evidence direct = evidence(
                 1L,
@@ -310,7 +318,7 @@ class AgentOrchestrationServiceTest {
         );
 
         assertThat(AgentOrchestrationService.groundingEvidence(
-                "Java 索引如何命名？",
+                "Java 的索引如何命名？",
                 List.of(indexLengthRule, namingRule)
         )).containsExactly(namingRule);
     }

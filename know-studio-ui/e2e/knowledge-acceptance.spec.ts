@@ -96,7 +96,7 @@ test("knowledge answers and refusal evaluation remain usable", async ({
     const composer = page.getByPlaceholder(
       "询问知识库、粘贴材料，或描述要分析的问题..."
     )
-    await composer.fill("Java 索引如何命名？")
+    await composer.fill("Java 的索引如何命名？")
     await page.getByLabel("Send message").click()
     await expect(page.getByText(/pk_/).last()).toBeVisible()
     await expect(page.getByText(/uk_/).last()).toBeVisible()

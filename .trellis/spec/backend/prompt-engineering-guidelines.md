@@ -49,6 +49,10 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   grounding evidence. Rank evidence by semantic question-term coverage before
   repeated-term frequency so generic large chunks do not displace the direct
   source.
+- Before weighting explicit naming rules, normalize equivalent naming-question
+  subjects by removing possessive or location context and resolving the known
+  domain-noun suffix. For example, `Java 的索引如何命名`, `Java 中的索引如何命名`,
+  and `数据库索引怎么命名` must all resolve to the subject `索引`.
 - Deterministic rule matching may select and focus grounding evidence, but it
   must not emit raw document lines as the final answer. Every non-refusal
   Knowledge answer goes through the configured Chat model.
@@ -87,8 +91,12 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   the direct rule only because it repeats generic terms more often.
 - Good: `Java 索引如何命名` selects the `pk_`/`uk_`/`idx_` naming rule, then the
   model rewrites it as a concise list while preserving those identifiers.
+- Good: adding `的` or `中的` to the same naming question selects the same rule
+  and citation as the shorter wording.
 - Bad: return `3. 【强制】...` directly from a PDF chunk or mistake a varchar
   index-length rule for an index-naming rule because both contain `索引`.
+- Bad: parse `Java 的索引如何命名` as `的索引`, then let repeated generic `索引`
+  text outrank the direct `索引名为` rule.
 
 ### 6. Tests Required
 
@@ -99,6 +107,8 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   deterministic refusal, partial-evidence limits, explicit-rule evidence
   selection followed by model generation, citation consistency, and
   semantic-coverage evidence ranking.
+- Naming-rule regression tests assert possessive and location variants normalize
+  to the same domain subject and select the same direct evidence.
 - Observability tests assert bounded provider/profile/version fields and the
   absence of raw prompt, question, evidence, answer, and credential content.
 - Real API acceptance verifies DashScope `glm-5` natural Chat, one grounded
