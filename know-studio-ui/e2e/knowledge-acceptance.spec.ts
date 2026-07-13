@@ -1,0 +1,76 @@
+import { expect, test, type Page } from "@playwright/test"
+
+const EMAIL = process.env.PLAYWRIGHT_EMAIL ?? "liusx1024@gmail.com"
+const PASSWORD = process.env.PLAYWRIGHT_PASSWORD ?? "#L194140"
+const DATASET_NAME = "Visual Acceptance Dataset"
+
+async function login(page: Page) {
+  await page.goto("/sign-in")
+  await expect(page.getByLabel("邮箱")).toHaveValue(EMAIL)
+  await expect(page.getByRole("textbox", { name: "密码" })).toHaveValue(
+    PASSWORD
+  )
+  await page.getByRole("button", { name: "登录", exact: true }).click()
+  await expect(page).toHaveURL(/\/$/)
+}
+
+async function expectNoHorizontalOverflow(page: Page) {
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth + 1
+      )
+    )
+    .toBe(true)
+}
+
+test("knowledge answers and refusal evaluation remain usable", async ({
+  page,
+}, testInfo) => {
+  await login(page)
+  await expect(page.getByLabel("企业知识问答助手")).toBeVisible()
+  if (testInfo.project.name === "mobile") {
+    await page.getByRole("button", { name: "Toggle Sidebar" }).first().click()
+  }
+  await page.getByLabel("新建对话").click()
+  if (testInfo.project.name === "mobile") {
+    await page.keyboard.press("Escape")
+    await expect(page.getByRole("dialog", { name: "Sidebar" })).toBeHidden()
+  }
+
+  const composer = page.getByPlaceholder(
+    "询问知识库、粘贴材料，或描述要分析的问题..."
+  )
+  await composer.fill("费用报销 客户拜访产生的交通、餐饮和住宿费用分别怎么报")
+  await page.getByLabel("Send message").click()
+  await expect(
+    page.getByText(
+      "当前知识库中没有找到与该问题相关的可靠资料，无法依据现有文档回答。"
+    )
+  ).toBeVisible()
+
+  await composer.fill("Java 类名如何命名？")
+  await page.getByLabel("Send message").click()
+  await expect(page.getByText(/UpperCamelCase/).last()).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+
+  await page.goto("/admin/evaluations")
+  await expect(
+    page.getByRole("heading", { name: "检索消融评测" })
+  ).toBeVisible()
+  const existingDataset = page.getByText(DATASET_NAME, { exact: true })
+  if ((await existingDataset.count()) === 0) {
+    await page.getByRole("button", { name: "新建数据集" }).first().click()
+    await page.getByLabel("名称").fill(DATASET_NAME)
+    await page.getByRole("button", { name: "创建", exact: true }).click()
+  }
+  await page.getByRole("button", { name: "添加样本" }).click()
+  await page.getByText("预期系统拒答").click()
+  await expect(page.getByLabel("相关 Chunk ID")).toBeDisabled()
+  await expectNoHorizontalOverflow(page)
+
+  await page.screenshot({
+    path: testInfo.outputPath("evaluation-refusal-form.png"),
+    fullPage: true,
+  })
+})

@@ -35,11 +35,11 @@ Close Team Admin navigation, secure citation download, persisted citation metada
 - [x] 知识库不包含费用报销等问题的资料时明确拒答，不得将 Java 规范片段判定为充分证据并编造业务规则。
 - [x] 高置信度知识库路由只缩小授权范围；低置信度时安全回退，显式知识库范围不被自动路由覆盖。
 - [x] Tempo 检索 Span 包含低基数路由/证据/拒答属性，评测页支持拒答样本及拒答准确率。
-- [ ] 桌面与移动端截图和交互验收完成。
+- [x] 桌面与移动端截图和交互验收完成。
 
 ## Notes
 
-- 2026-07-12 final visual verification retry: backend `/actuator/health` returned `UP` and frontend `http://127.0.0.1:5174` returned HTTP 200, but the approved in-app browser runtime returned `No browser is available`; runtime discovery returned an empty browser list (`[]`). Desktop/mobile screenshot acceptance remains blocked and incomplete.
+- 2026-07-13 final visual verification: standalone Playwright Chromium passed the knowledge refusal, focused Java answer, evaluation refusal-form and horizontal-overflow checks on desktop Chrome and an iPhone 13 mobile viewport. Both generated screenshots were inspected and showed complete, non-overlapping controls.
 - Keep `prd.md` focused on requirements, constraints, and acceptance criteria.
 - Lightweight tasks can remain PRD-only.
 - For complex tasks, add `design.md` for technical design and `implement.md` for execution planning before `task.py start`.

@@ -22,4 +22,11 @@ pnpm typecheck
 pnpm build
 ```
 
-For interactive changes, verify desktop and mobile routes in the browser. Streaming and KnowledgeBase changes require explicit abort, stale-state and permission tests.
+For interactive knowledge and evaluation changes, start the backend on `127.0.0.1:8080` and the frontend on `127.0.0.1:5174`, then run the standalone Chromium acceptance suite:
+
+```bash
+cd know-studio-ui
+pnpm test:e2e
+```
+
+Set `PLAYWRIGHT_BASE_URL`, `PLAYWRIGHT_EMAIL` and `PLAYWRIGHT_PASSWORD` when the local defaults do not apply. Verify both desktop and mobile projects; streaming and KnowledgeBase changes also require explicit abort, stale-state and permission tests.
