@@ -18,7 +18,7 @@ services:
 
   elasticsearch:
     build:
-      context: ./docker/elasticsearch
+      context: ./deploy/docker/elasticsearch
       args:
         ELASTICSEARCH_VERSION: 8.18.1
         IK_VERSION: 8.18.1
@@ -133,7 +133,7 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deploy/docker/observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - arag-prometheus-data:/prometheus
 
   tempo:
@@ -146,7 +146,7 @@ services:
       - "4317:4317"
       - "4318:4318"
     volumes:
-      - ./docker/observability/tempo.yml:/etc/tempo/tempo.yml:ro
+      - ./deploy/docker/observability/tempo.yml:/etc/tempo/tempo.yml:ro
       - arag-tempo-data:/var/tempo
 
   grafana:
@@ -159,7 +159,7 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      - ./docker/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./deploy/docker/observability/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
       - arag-grafana-data:/var/lib/grafana
     depends_on:
       - prometheus

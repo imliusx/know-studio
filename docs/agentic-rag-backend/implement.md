@@ -22,7 +22,7 @@
 docker compose up -d postgres redis rabbitmq minio elasticsearch ollama
 mvn -q clean validate test
 
-cd know-studio-ui
+cd web
 pnpm lint
 pnpm typecheck
 pnpm build

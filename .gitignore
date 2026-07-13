@@ -43,11 +43,15 @@ build/
 # Local package stores
 .pnpm-store/
 
+# Local environment and runtime logs
+.env
+logs/
+
 # Frontend dependencies and build output
-frontend/node_modules/
-frontend/dist/
-know-studio-ui/node_modules/
-know-studio-ui/dist/
+web/node_modules/
+web/dist/
+web/.vite/
+web/test-results/
 
 # Local private documents
 简历模板.md

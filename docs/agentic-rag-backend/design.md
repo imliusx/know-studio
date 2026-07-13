@@ -6,15 +6,15 @@ The backend is a Java 21 modular monolith. IntelliJ IDEA should import the root
 `pom.xml`; there is no extra directory layer around the modules.
 
 ```text
-platform-core       response, errors, trace, rate limit, SSE, context, IDs
-platform-ai         model providers, routing, circuit breaking, embedding, rerank
-module-identity     users, Teams, memberships and authentication
-module-knowledge    KnowledgeBases, grants, documents and ingestion
-module-retrieval    vector/keyword retrieval, fusion, rerank and evidence
-module-agent        intent routing, tools, MCP and streamed orchestration
-module-conversation user-owned sessions, messages and memory
-module-evaluation   KnowledgeBase-scoped datasets, samples and runs
-bootstrap           application entry point, configuration and Flyway
+common              response, errors, trace, rate limit, SSE, context, IDs
+ai                  model providers, routing, circuit breaking, embedding, rerank
+auth                users, Teams, memberships and authentication
+knowledge           KnowledgeBases, grants, documents and ingestion
+search              vector/keyword retrieval, fusion, rerank and evidence
+agent               intent routing, tools, MCP and streamed orchestration
+chat                user-owned sessions, messages and memory
+eval                KnowledgeBase-scoped datasets, samples and runs
+app                 application entry point, configuration and Flyway
 ```
 
 Business modules expose contracts through their `api` packages. Cross-module

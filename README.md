@@ -5,10 +5,11 @@ Know Studio is organized as a Maven multi-module backend with a separate fronten
 ## Project layout
 
 - `pom.xml`: Maven reactor root. Open or import this file in IntelliJ IDEA to load all backend modules.
-- `platform-core`, `platform-ai`: shared platform modules.
-- `module-*`: business modules.
-- `bootstrap`: Spring Boot application entry point.
-- `know-studio-ui`: frontend application.
+- `common`: shared response, error, tracing, context and infrastructure helpers.
+- `auth`, `knowledge`, `search`, `chat`, `agent`, `eval`: business capability modules.
+- `ai`: provider-neutral Chat, embedding, rerank and model-routing infrastructure.
+- `app`: executable Spring Boot application and module assembly.
+- `web`: React frontend application.
 - `docs/agentic-rag-backend`: backend requirements, design, and implementation notes.
 - `archive/legacy-backend`: archived copy of the previous single-module backend and deployment files.
 
@@ -19,7 +20,7 @@ Requirements: JDK 21 and Maven 3.9+.
 ```bash
 mvn clean test
 mvn -DskipTests install
-mvn -f bootstrap/pom.xml spring-boot:run
+mvn -f app/pom.xml spring-boot:run
 ```
 
 The backend listens on port `8080` by default. Supporting services are defined in the root `docker-compose.yml`.
@@ -48,7 +49,7 @@ Start the optional observability stack with:
 
 ```bash
 docker compose --profile observability up -d prometheus tempo grafana
-OTEL_ENABLED=true mvn -pl bootstrap spring-boot:run
+OTEL_ENABLED=true mvn -pl app spring-boot:run
 ```
 
 Grafana listens on `3000`, Prometheus on `9090`, and Tempo accepts OTLP on
@@ -59,7 +60,7 @@ prompts and model output are not sent by the built-in observation payload.
 ## Frontend
 
 ```bash
-cd know-studio-ui
+cd web
 pnpm install
 pnpm dev
 ```

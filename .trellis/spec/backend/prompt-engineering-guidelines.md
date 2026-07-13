@@ -53,6 +53,13 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   subjects by removing possessive or location context and resolving the known
   domain-noun suffix. For example, `Java 的索引如何命名`, `Java 中的索引如何命名`,
   and `数据库索引怎么命名` must all resolve to the subject `索引`.
+- Resolve recognized naming follow-ups from typed conversation history before
+  classification, retrieval, evidence selection, and generation. Persist the
+  user's original wording, while sending exactly one resolved current question
+  to the model.
+- For naming questions, a direct subject rule such as `常量命名...` ranks above
+  related advice such as `常量与变量的命名时...`, even when the related chunk has
+  broader generic term coverage.
 - Deterministic rule matching may select and focus grounding evidence, but it
   must not emit raw document lines as the final answer. Every non-refusal
   Knowledge answer goes through the configured Chat model.

@@ -12,22 +12,22 @@
     </parent>
 
     <groupId>know.studio</groupId>
-    <artifactId>arag</artifactId>
+    <artifactId>know-studio</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <name>arag</name>
-    <description>Agentic RAG 平台后端</description>
+    <name>know-studio</name>
+    <description>Know Studio intelligent knowledge and Agent platform</description>
 
     <modules>
-        <module>platform-core</module>
-        <module>platform-ai</module>
-        <module>module-identity</module>
-        <module>module-knowledge</module>
-        <module>module-retrieval</module>
-        <module>module-agent</module>
-        <module>module-conversation</module>
-        <module>module-evaluation</module>
-        <module>bootstrap</module>
+        <module>common</module>
+        <module>ai</module>
+        <module>auth</module>
+        <module>knowledge</module>
+        <module>search</module>
+        <module>chat</module>
+        <module>agent</module>
+        <module>eval</module>
+        <module>app</module>
     </modules>
 
     <properties>
@@ -75,14 +75,14 @@
             </dependency>
 
             <!-- 内部模块 -->
-            <dependency><groupId>know.studio</groupId><artifactId>platform-core</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>platform-ai</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>module-identity</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>module-knowledge</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>module-retrieval</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>module-agent</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>module-conversation</artifactId><version>${project.version}</version></dependency>
-            <dependency><groupId>know.studio</groupId><artifactId>module-evaluation</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>common</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>ai</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>auth</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>knowledge</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>search</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>agent</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>chat</artifactId><version>${project.version}</version></dependency>
+            <dependency><groupId>know.studio</groupId><artifactId>eval</artifactId><version>${project.version}</version></dependency>
 
             <!-- 第三方 -->
             <dependency>

@@ -59,6 +59,10 @@ events.
   the heuristic result instead of forcing `CLARIFY`.
 - A single-intent retrieval question -> keep the normalized original query;
   do not let LLM expansion replace it with broader document-summary queries.
+- A recognized short naming follow-up such as `那常量呢` -> persist the original
+  message, resolve it against the previous user naming question before intent
+  classification, and use the resolved question for retrieval and generation.
+  Do not duplicate the original current message in model history.
 - Contiguous retrieval hits -> cluster only around a scored anchor and its
   immediate neighbors; never chain an entire document into one evidence item.
 - Short explicit-rule question with a matching source rule -> use deterministic
