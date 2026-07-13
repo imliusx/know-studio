@@ -8,7 +8,7 @@
 
 <!-- @@@auto:current-status -->
 - **Active File**: `journal-1.md`
-- **Total Sessions**: 7
+- **Total Sessions**: 8
 - **Last Active**: 2026-07-13
 <!-- @@@/auto:current-status -->
 
@@ -19,7 +19,7 @@
 <!-- @@@auto:active-documents -->
 | File | Lines | Status |
 |------|-------|--------|
-| `journal-1.md` | ~245 | Active |
+| `journal-1.md` | ~278 | Active |
 <!-- @@@/auto:active-documents -->
 
 ---
@@ -29,6 +29,7 @@
 <!-- @@@auto:session-history -->
 | # | Date | Title | Commits | Branch |
 |---|------|-------|---------|--------|
+| 8 | 2026-07-13 | Normalize knowledge Markdown | `4a0a724` | `arag-backend` |
 | 7 | 2026-07-13 | Normalize naming questions | `cbfd587` | `arag-backend` |
 | 6 | 2026-07-13 | Natural grounded knowledge answers | `7fd4897` | `arag-backend` |
 | 5 | 2026-07-13 | Restore legacy prompt engineering | `665761c` | `arag-backend` |

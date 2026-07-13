@@ -243,3 +243,36 @@ Normalized possessive and location variants in naming questions so direct index 
 ### Next Steps
 
 - None - task complete
+
+
+## Session 8: Normalize knowledge Markdown
+
+**Date**: 2026-07-13
+**Task**: Normalize knowledge Markdown
+**Branch**: `arag-backend`
+
+### Summary
+
+Restored explicit CommonMark/GFM rules from the legacy Knowledge prompt, bumped generation to knowledge-v3, added narrow frontend repair for malformed hyphen lists, and verified semantic list rendering with unit and desktop/mobile Playwright tests.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `4a0a724` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
