@@ -37,7 +37,7 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   retain their original roles; the current user message is removed from history
   before the request is sent.
 - Prompt templates declare stable low-cardinality versions such as `chat-v1` or
-  `knowledge-v1`. Increment the version when behavior changes materially.
+  `knowledge-v2`. Increment the version when behavior changes materially.
 - `DASHSCOPE_API_KEY` is environment-only. `DASHSCOPE_CHAT_MODEL` defaults to
   `glm-5`; `OLLAMA_EMBEDDING_MODEL` defaults to `bge-m3`; optional Chat fallback
   is controlled by `OLLAMA_CHAT_FALLBACK_ENABLED` and `OLLAMA_CHAT_MODEL`.
@@ -49,6 +49,12 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   grounding evidence. Rank evidence by semantic question-term coverage before
   repeated-term frequency so generic large chunks do not displace the direct
   source.
+- Deterministic rule matching may select and focus grounding evidence, but it
+  must not emit raw document lines as the final answer. Every non-refusal
+  Knowledge answer goes through the configured Chat model.
+- Knowledge generation preserves exact identifiers and casing while removing
+  source numbering, page markers, broken PDF lines, duplicate fragments, and
+  stiff fixed preambles.
 
 ### 4. Validation & Error Matrix
 
@@ -79,6 +85,10 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   `get` and `list` rule and emits one citation.
 - Bad: a long chunk that repeats `Service`, `DAO`, and `getter/setter` outranks
   the direct rule only because it repeats generic terms more often.
+- Good: `Java 索引如何命名` selects the `pk_`/`uk_`/`idx_` naming rule, then the
+  model rewrites it as a concise list while preserving those identifiers.
+- Bad: return `3. 【强制】...` directly from a PDF chunk or mistake a varchar
+  index-length rule for an index-naming rule because both contain `索引`.
 
 ### 6. Tests Required
 
@@ -86,8 +96,9 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
 - Provider tests assert exact SYSTEM/USER/ASSISTANT order, current-question
   deduplication, and profile-specific generation options.
 - Agent tests assert Chat/Knowledge prompt separation, natural Chat style,
-  deterministic refusal, partial-evidence limits, explicit-rule extraction,
-  citation consistency, and semantic-coverage evidence ranking.
+  deterministic refusal, partial-evidence limits, explicit-rule evidence
+  selection followed by model generation, citation consistency, and
+  semantic-coverage evidence ranking.
 - Observability tests assert bounded provider/profile/version fields and the
   absence of raw prompt, question, evidence, answer, and credential content.
 - Real API acceptance verifies DashScope `glm-5` natural Chat, one grounded

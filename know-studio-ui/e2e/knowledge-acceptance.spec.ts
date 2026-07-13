@@ -96,10 +96,20 @@ test("knowledge answers and refusal evaluation remain usable", async ({
     const composer = page.getByPlaceholder(
       "询问知识库、粘贴材料，或描述要分析的问题..."
     )
-    await composer.fill("Java 类名如何命名？")
+    await composer.fill("Java 索引如何命名？")
     await page.getByLabel("Send message").click()
-    await expect(page.getByText(/UpperCamelCase/).last()).toBeVisible()
+    await expect(page.getByText(/pk_/).last()).toBeVisible()
+    await expect(page.getByText(/uk_/).last()).toBeVisible()
+    await expect(page.getByText(/idx_/).last()).toBeVisible()
+    await expect(page.getByLabel("Stop generation")).toBeHidden({
+      timeout: 30_000,
+    })
+    await expect(page.getByText(/varchar 字段上建立索引/)).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
+    await page.screenshot({
+      path: testInfo.outputPath("knowledge-natural-answer.png"),
+      fullPage: true,
+    })
 
     await page.goto("/admin/evaluations")
     await expect(

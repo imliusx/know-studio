@@ -61,8 +61,10 @@ events.
   do not let LLM expansion replace it with broader document-summary queries.
 - Contiguous retrieval hits -> cluster only around a scored anchor and its
   immediate neighbors; never chain an entire document into one evidence item.
-- Short explicit-rule question with a matching source rule -> prefer a bounded
-  extractive answer with citations over asking a small local model to expand it.
+- Short explicit-rule question with a matching source rule -> use deterministic
+  matching only to select and focus the exact evidence. The final answer still
+  goes through the Knowledge generation profile so source numbering and PDF
+  layout artifacts are rewritten as natural prose.
 - Without a configured reranker, cross-channel agreement is not sufficient by
   itself. Evidence must also cover a minimum share of meaningful question terms;
   otherwise grade it `NONE`, clear mixed-mode evidence, and return a
@@ -102,8 +104,8 @@ events.
 - Integration test authorized document download, revoked/unauthorized 403, and
   citation metadata round-trip.
 - Regression test that a long contiguous candidate run produces multiple
-  bounded evidence items, and that explicit naming rules are extracted without
-  unrelated model-generated advice.
+  bounded evidence items, and that explicit naming rules select the exact
+  source before model generation without mixing semantically different rules.
 - Configure a real MCP server and chat/reasoning provider before claiming remote
   MCP or full generated-answer end-to-end verification.
 

@@ -122,8 +122,66 @@ class AgentOrchestrationServiceTest {
                 ArgumentCaptor.forClass(know.studio.arag.platform.ai.provider.ChatRequest.class);
         verify(chatModelRouter).stream(aiRequestCaptor.capture());
         assertThat(aiRequestCaptor.getValue().profile()).isEqualTo(GenerationProfile.KNOWLEDGE);
-        assertThat(aiRequestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v1");
+        assertThat(aiRequestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v2");
         assertThat(aiRequestCaptor.getValue().systemPrompt()).contains("只能使用与问题直接相关的证据");
+    }
+
+    @Test
+    void generatesExplicitNamingRuleThroughKnowledgeModel() {
+        long userId = 20L;
+        long knowledgeBaseId = 11L;
+        long sessionId = 100L;
+        String question = "Java 索引如何命名？";
+        when(identityApi.currentUser()).thenReturn(new CurrentIdentity(
+                userId,
+                "user@example.com",
+                "User",
+                SystemRole.USER
+        ));
+        when(conversationApi.loadContextForOwner(userId, sessionId, ""))
+                .thenReturn(new ConversationContext(sessionId, "", "", List.of(), ""));
+        when(intentClassifier.classify(question, false))
+                .thenReturn(new IntentResult(IntentType.KNOWLEDGE, 0.95, ""));
+        when(retrievalApi.retrieve(any())).thenReturn(new EvidenceBundle(
+                List.of(new Evidence(
+                        knowledgeBaseId,
+                        101L,
+                        1001L,
+                        62,
+                        "java-guide.pdf",
+                        "主键索引名为 pk_字段名；唯一索引名为 uk_字段名；普通索引名为 idx_字段名。",
+                        0.9,
+                        Set.of("KEYWORD")
+                )),
+                EvidenceLevel.SUFFICIENT,
+                ""
+        ));
+        String naturalAnswer = "索引命名规则为：主键使用 `pk_`，唯一索引使用 `uk_`，普通索引使用 `idx_`。";
+        when(chatModelRouter.stream(any())).thenReturn(Flux.just(ChatChunk.token(naturalAnswer)));
+
+        List<ChatStreamEvent> events = service().streamChat(new ChatRequest(
+                sessionId,
+                question,
+                Set.of(knowledgeBaseId),
+                false,
+                false
+        )).collectList().block();
+
+        assertThat(events).extracting(ChatStreamEvent::type).containsExactly(
+                ChatStreamEvent.Type.CITATION,
+                ChatStreamEvent.Type.TOKEN,
+                ChatStreamEvent.Type.DONE
+        );
+        assertThat(events.get(1).payload()).isEqualTo(naturalAnswer);
+        ArgumentCaptor<know.studio.arag.platform.ai.provider.ChatRequest> requestCaptor =
+                ArgumentCaptor.forClass(know.studio.arag.platform.ai.provider.ChatRequest.class);
+        verify(chatModelRouter).stream(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().profile()).isEqualTo(GenerationProfile.KNOWLEDGE);
+        assertThat(requestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v2");
+        assertThat(requestCaptor.getValue().userPrompt())
+                .contains("pk_字段名")
+                .contains("uk_字段名")
+                .contains("idx_字段名");
     }
 
     @Test
@@ -241,38 +299,33 @@ class AgentOrchestrationServiceTest {
     }
 
     @Test
-    void extractsExplicitNamingRuleWithoutModelExpansion() {
-        Evidence evidence = new Evidence(
-                11L,
-                101L,
-                1001L,
-                7,
-                "java-guide.pdf",
-                """
-                        4. 【强制】类名使用 UpperCamelCase 风格，但以下情形例外：DO / BO / DTO / VO / AO /
-                        PO / UID 等。
-                        正例：ForceCode / UserDO / HtmlDTO / XmlService
-                        反例：forcecode / UserDo / HTMLDto / XMLService
-                        5. 【强制】方法名统一使用 lowerCamelCase 风格。
-                        """,
-                0.9,
-                Set.of("KEYWORD")
+    void prefersIndexNamingRuleOverIndexLengthRule() {
+        Evidence namingRule = evidence(
+                1L,
+                "主键索引名为 pk_字段名；唯一索引名为 uk_字段名；普通索引名为 idx_字段名。"
+        );
+        Evidence indexLengthRule = evidence(
+                2L,
+                "在 varchar 字段上建立索引时，必须指定索引长度。".repeat(12)
         );
 
-        assertThat(AgentOrchestrationService.extractNamingRule(
-                "Java 类名如何命名？",
-                List.of(evidence)
-        ).orElseThrow()).isEqualTo("""
-                根据知识库规范：
+        assertThat(AgentOrchestrationService.groundingEvidence(
+                "Java 索引如何命名？",
+                List.of(indexLengthRule, namingRule)
+        )).containsExactly(namingRule);
+    }
 
-                4. 【强制】类名使用 UpperCamelCase 风格，但以下情形例外：DO / BO / DTO / VO / AO /
+    @Test
+    void focusesIndexNamingRuleAndLeavesNaturalWordingToModel() {
+        String evidence = "主键索引名为 pk_字段名；唯一索引名为 uk_字段名；普通索引名为 idx_字段名。"
+                + "x".repeat(1_200)
+                + "在 varchar 字段上建立索引时，必须指定索引长度。";
 
-                PO / UID 等。
+        String focused = AgentOrchestrationService.focusEvidence("Java 索引如何命名？", evidence);
 
-                正例：ForceCode / UserDO / HtmlDTO / XmlService
-
-                反例：forcecode / UserDo / HTMLDto / XMLService
-                """.strip());
+        assertThat(focused)
+                .contains("主键索引名为 pk_字段名")
+                .doesNotContain("varchar 字段上建立索引");
     }
 
     private AgentOrchestrationService service() {

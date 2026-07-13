@@ -34,7 +34,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -132,17 +131,6 @@ public class AgentOrchestrationService implements AgentApi {
             return Flux.just(
                     ChatStreamEvent.token(bundle.guidance()),
                     new ChatStreamEvent(ChatStreamEvent.Type.DONE, donePayload(intent))
-            );
-        }
-        Optional<ExtractiveAnswer> extractiveAnswer = extractNamingRuleMatch(request.message(), bundle.evidence());
-        if (extractiveAnswer.isPresent()) {
-            ExtractiveAnswer answer = extractiveAnswer.orElseThrow();
-            return Flux.concat(
-                    citationEvents(List.of(answer.source())),
-                    Flux.just(
-                            ChatStreamEvent.token(answer.text()),
-                            new ChatStreamEvent(ChatStreamEvent.Type.DONE, donePayload(intent))
-                    )
             );
         }
         List<Evidence> groundingEvidence = groundingEvidence(request.message(), bundle.evidence());
@@ -416,55 +404,6 @@ public class AgentOrchestrationService implements AgentApi {
         return termScore + subjectRuleScore(normalizedText, namingSubject(question));
     }
 
-    static Optional<String> extractNamingRule(String question, List<Evidence> evidence) {
-        return extractNamingRuleMatch(question, evidence).map(ExtractiveAnswer::text);
-    }
-
-    private static Optional<ExtractiveAnswer> extractNamingRuleMatch(String question, List<Evidence> evidence) {
-        String subject = namingSubject(question);
-        if (subject.isBlank()) {
-            return Optional.empty();
-        }
-        Pattern explicitRule = Pattern.compile(
-                ".*【[^】]+】.*" + Pattern.quote(subject)
-                        + ".{0,20}(?:使用|采用|命名|风格|应当|应该|必须|开头|结尾).*"
-        );
-        List<Evidence> ranked = evidence.stream()
-                .sorted(java.util.Comparator.comparingInt(
-                        (Evidence item) -> evidenceRelevance(question, item.text())
-                ).reversed())
-                .toList();
-        for (Evidence item : ranked) {
-            List<String> lines = item.text().lines()
-                    .map(String::trim)
-                    .filter(line -> !line.isBlank())
-                    .toList();
-            for (int index = 0; index < lines.size(); index++) {
-                if (!explicitRule.matcher(lines.get(index)).matches()) {
-                    continue;
-                }
-                LinkedHashSet<String> selected = new LinkedHashSet<>();
-                selected.add(lines.get(index));
-                for (int next = index + 1; next < lines.size() && selected.size() < 4; next++) {
-                    String line = lines.get(next);
-                    if (line.matches("^\\d+\\.\\s*【.*")) {
-                        break;
-                    }
-                    if (line.startsWith("正例：")
-                            || line.startsWith("反例：")
-                            || selected.size() == 1) {
-                        selected.add(line);
-                    }
-                }
-                return Optional.of(new ExtractiveAnswer(
-                        "根据知识库规范：\n\n" + String.join("\n\n", selected),
-                        item
-                ));
-            }
-        }
-        return Optional.empty();
-    }
-
     static List<Evidence> groundingEvidence(String question, List<Evidence> evidence) {
         List<Evidence> ranked = evidence.stream()
                 .sorted(java.util.Comparator
@@ -474,6 +413,9 @@ public class AgentOrchestrationService implements AgentApi {
                 .toList();
         if (ranked.isEmpty()) {
             return List.of();
+        }
+        if (hasExplicitNamingRule(question, ranked.getFirst().text())) {
+            return List.of(ranked.getFirst());
         }
         double bestCoverage = questionTermCoverage(question, ranked.getFirst().text());
         if (bestCoverage >= 0.45) {
@@ -539,16 +481,25 @@ public class AgentOrchestrationService implements AgentApi {
         if (subject.isBlank()) {
             return 0;
         }
-        Pattern rulePattern = Pattern.compile(
-                Pattern.quote(subject) + ".{0,16}(?:使用|采用|命名|风格|应当|应该|必须|开头|结尾)",
-                Pattern.DOTALL
-        );
         int score = occurrenceCount(text, subject) * 8;
-        Matcher matcher = rulePattern.matcher(text);
+        Matcher matcher = namingRulePattern(subject).matcher(text);
         while (matcher.find()) {
-            score += 100;
+            score += 160;
         }
         return score;
+    }
+
+    private static boolean hasExplicitNamingRule(String question, String text) {
+        String subject = namingSubject(question);
+        return !subject.isBlank() && namingRulePattern(subject).matcher(text).find();
+    }
+
+    private static Pattern namingRulePattern(String subject) {
+        return Pattern.compile(
+                Pattern.quote(subject)
+                        + ".{0,16}(?:名为|名称|命名|使用|采用|风格|前缀|后缀|开头|结尾)",
+                Pattern.DOTALL
+        );
     }
 
     private static List<Evidence> deduplicateEvidence(List<Evidence> evidence) {
@@ -581,6 +532,4 @@ public class AgentOrchestrationService implements AgentApi {
         return Math.max(1, (content.length() + 3) / 4);
     }
 
-    private record ExtractiveAnswer(String text, Evidence source) {
-    }
 }
