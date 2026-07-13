@@ -12,7 +12,8 @@ public final class HeuristicIntentClassifier implements IntentClassifier {
             "搜索", "联网", "天气", "新闻", "订单", "客户", "库存", "search", "weather", "order"
     );
     private static final Set<String> CHAT_TERMS = Set.of(
-            "你好", "谢谢", "再见", "hello", "thanks", "who are you"
+            "你好", "谢谢", "再见", "你是谁", "介绍一下你自己", "能做什么", "你的能力",
+            "聊聊天", "讲个笑话", "hello", "thanks", "who are you", "what can you do"
     );
 
     @Override

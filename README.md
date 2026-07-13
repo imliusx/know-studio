@@ -32,9 +32,14 @@ docker compose up -d postgres redis rabbitmq minio elasticsearch ollama
 docker compose up ollama-model-init
 ```
 
-The default local AI setup uses `bge-m3` for 1024-dimensional embeddings and
-`qwen2.5:1.5b` for Chat. Override `OLLAMA_EMBEDDING_MODEL` or
-`OLLAMA_CHAT_MODEL` in `.env` when using another compatible Ollama model.
+The default AI setup matches the legacy backend: DashScope `glm-5` handles Chat
+and Ollama `bge-m3` provides 1024-dimensional embeddings. Configure
+`DASHSCOPE_API_KEY` in `.env`; never commit the real key. Override
+`DASHSCOPE_CHAT_MODEL` when using another compatible DashScope model.
+
+Ollama `qwen2.5:1.5b` remains a lower-priority Chat fallback. Set
+`OLLAMA_CHAT_FALLBACK_ENABLED=false` to disable it, or change
+`OLLAMA_CHAT_MODEL` to use another local fallback model.
 
 API documentation is available at `/doc.html` (Knife4j) and `/v3/api-docs`.
 Prometheus metrics are exposed at `/actuator/prometheus`.

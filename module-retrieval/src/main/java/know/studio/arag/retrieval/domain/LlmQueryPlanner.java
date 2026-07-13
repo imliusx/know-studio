@@ -5,6 +5,8 @@ import know.studio.arag.platform.ai.provider.AiCapability;
 import know.studio.arag.platform.ai.provider.AiProvider;
 import know.studio.arag.platform.ai.provider.ChatChunk;
 import know.studio.arag.platform.ai.provider.ChatRequest;
+import know.studio.arag.platform.ai.provider.GenerationProfile;
+import know.studio.arag.retrieval.prompt.RetrievalPromptCatalog;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Primary;
@@ -22,14 +24,10 @@ public class LlmQueryPlanner implements QueryPlanner {
 
     private static final int MAX_QUERIES = 3;
     private static final Duration PLAN_TIMEOUT = Duration.ofSeconds(8);
-    private static final String SYSTEM_PROMPT = """
-            You plan retrieval queries for a knowledge base. Return at most three concise search queries,
-            one query per line, without numbering or explanation. Preserve important entities and terms.
-            """;
-
     private final ChatModelRouter chatModelRouter;
     private final List<AiProvider> providers;
     private final HeuristicQueryPlanner fallback;
+    private final RetrievalPromptCatalog promptCatalog;
 
     @Override
     public List<String> plan(String question) {
@@ -41,7 +39,13 @@ public class LlmQueryPlanner implements QueryPlanner {
             return deterministicQueries;
         }
         try {
-            String output = chatModelRouter.stream(ChatRequest.chat(SYSTEM_PROMPT, question))
+            String output = chatModelRouter.stream(ChatRequest.of(
+                            promptCatalog.queryPlanning().text(),
+                            List.of(),
+                            question,
+                            GenerationProfile.PLANNING,
+                            promptCatalog.queryPlanning().version()
+                    ))
                     .filter(chunk -> chunk.type() == ChatChunk.Type.TOKEN)
                     .map(ChatChunk::content)
                     .collectList()

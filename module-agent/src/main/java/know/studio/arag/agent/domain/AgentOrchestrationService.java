@@ -4,6 +4,7 @@ import know.studio.arag.agent.api.AgentApi;
 import know.studio.arag.agent.api.ChatRequest;
 import know.studio.arag.agent.api.ChatStreamEvent;
 import know.studio.arag.agent.api.IntentResult;
+import know.studio.arag.agent.prompt.AgentPromptCatalog;
 import know.studio.arag.conversation.api.AppendMessageCommand;
 import know.studio.arag.conversation.api.ConversationApi;
 import know.studio.arag.conversation.api.ConversationContext;
@@ -13,6 +14,9 @@ import know.studio.arag.identity.api.CurrentIdentity;
 import know.studio.arag.identity.api.IdentityApi;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatChunk;
+import know.studio.arag.platform.ai.provider.ChatMessage;
+import know.studio.arag.platform.ai.provider.GenerationProfile;
+import know.studio.arag.platform.ai.prompt.PromptResource;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import know.studio.arag.retrieval.api.Evidence;
 import know.studio.arag.retrieval.api.EvidenceBundle;
@@ -50,15 +54,6 @@ public class AgentOrchestrationService implements AgentApi {
     private static final Set<String> QUESTION_STOP_TERMS = Set.of(
             "如何", "怎么", "怎样", "什么", "为何", "请问", "一下"
     );
-    private static final String ANSWER_SYSTEM_PROMPT = """
-            你是企业知识库问答助手。严格依据给定证据回答当前问题。
-            先直接回答用户问的内容，问什么答什么；禁止改为概括整份文档或编造无关背景。
-            只使用与问题直接相关的证据，忽略其他召回片段。证据不足时明确说明，不要编造。
-            对“某类元素如何命名”这类问题，只能回答证据中主语明确是该元素的规则，不得混入方法、变量、接口或其他元素的规则。
-            对简短事实问题，用一段话或最多三个要点回答，不要生成“总体概述”“总结”等无关章节。
-            使用合法 Markdown：标题符号与标题文字之间必须有空格。
-            """;
-
     private final IdentityApi identityApi;
     private final ConversationApi conversationApi;
     private final RetrievalApi retrievalApi;
@@ -66,6 +61,7 @@ public class AgentOrchestrationService implements AgentApi {
     private final AgentToolRegistry toolRegistry;
     private final QuestionDecomposer questionDecomposer;
     private final ChatModelRouter chatModelRouter;
+    private final AgentPromptCatalog promptCatalog;
 
     @Override
     @RagTraceNode("agent.orchestration")
@@ -109,7 +105,15 @@ public class AgentOrchestrationService implements AgentApi {
         return switch (intent.intent()) {
             case KNOWLEDGE -> knowledgeAnswer(request, context, intent);
             case TOOL -> toolAnswer(request, context, intent, ownerUserId);
-            case CHAT -> generate(contextPrompt(context, request.message()), "", false, intent);
+            case CHAT -> generate(
+                    context,
+                    request.message(),
+                    promptCatalog.chat(),
+                    request.message(),
+                    GenerationProfile.CHAT,
+                    false,
+                    intent
+            );
             case CLARIFY -> Flux.empty();
         };
     }
@@ -130,21 +134,31 @@ public class AgentOrchestrationService implements AgentApi {
                     new ChatStreamEvent(ChatStreamEvent.Type.DONE, donePayload(intent))
             );
         }
-        Optional<String> extractiveAnswer = extractNamingRule(request.message(), bundle.evidence());
+        Optional<ExtractiveAnswer> extractiveAnswer = extractNamingRuleMatch(request.message(), bundle.evidence());
         if (extractiveAnswer.isPresent()) {
+            ExtractiveAnswer answer = extractiveAnswer.orElseThrow();
             return Flux.concat(
-                    citationEvents(bundle.evidence()),
+                    citationEvents(List.of(answer.source())),
                     Flux.just(
-                            ChatStreamEvent.token(extractiveAnswer.orElseThrow()),
+                            ChatStreamEvent.token(answer.text()),
                             new ChatStreamEvent(ChatStreamEvent.Type.DONE, donePayload(intent))
                     )
             );
         }
+        List<Evidence> groundingEvidence = groundingEvidence(request.message(), bundle.evidence());
         return Flux.concat(
-                citationEvents(bundle.evidence()),
+                citationEvents(groundingEvidence),
                 generate(
-                        contextPrompt(context, request.message()),
-                        evidencePrompt(request.message(), bundle.evidence()),
+                        context,
+                        request.message(),
+                        promptCatalog.knowledge(),
+                        promptCatalog.knowledgeUser(
+                                request.message(),
+                                bundle.level().name(),
+                                bundle.guidance(),
+                                evidencePrompt(request.message(), groundingEvidence)
+                        ),
+                        GenerationProfile.KNOWLEDGE,
                         false,
                         intent
                 )
@@ -173,7 +187,20 @@ public class AgentOrchestrationService implements AgentApi {
                         new ChatStreamEvent(ChatStreamEvent.Type.TOOL_CALL, Map.of("name", tool.name())),
                         new ChatStreamEvent(ChatStreamEvent.Type.TOOL_RESULT, result)
                 ),
-                generate(contextPrompt(context, request.message()), result.content(), false, intent)
+                generate(
+                        context,
+                        request.message(),
+                        promptCatalog.knowledge(),
+                        promptCatalog.knowledgeUser(
+                                request.message(),
+                                EvidenceLevel.SUFFICIENT.name(),
+                                "业务工具已返回可用结果，只回答工具结果明确支持的内容。",
+                                result.content()
+                        ),
+                        GenerationProfile.KNOWLEDGE,
+                        false,
+                        intent
+                )
         );
     }
 
@@ -198,12 +225,21 @@ public class AgentOrchestrationService implements AgentApi {
             evidence.addAll(bundle.evidence());
         }
         List<Evidence> deduplicated = deduplicateEvidence(evidence);
+        List<Evidence> groundingEvidence = groundingEvidence(request.message(), deduplicated);
         return Flux.concat(
                 Flux.fromIterable(thinking),
-                citationEvents(deduplicated),
+                citationEvents(groundingEvidence),
                 generate(
-                        contextPrompt(context, request.message()),
-                        evidencePrompt(request.message(), deduplicated),
+                        context,
+                        request.message(),
+                        promptCatalog.knowledge(),
+                        promptCatalog.knowledgeUser(
+                                request.message(),
+                                EvidenceLevel.SUFFICIENT.name(),
+                                "综合多个子问题的证据回答，不得超出证据范围。",
+                                evidencePrompt(request.message(), groundingEvidence)
+                        ),
+                        GenerationProfile.KNOWLEDGE,
                         true,
                         intent
                 )
@@ -211,17 +247,22 @@ public class AgentOrchestrationService implements AgentApi {
     }
 
     private Flux<ChatStreamEvent> generate(
-            String context,
-            String grounding,
+            ConversationContext context,
+            String currentMessage,
+            PromptResource systemPrompt,
+            String userPrompt,
+            GenerationProfile profile,
             boolean reasoning,
             IntentResult intent
     ) {
-        String prompt = context + (grounding.isBlank() ? "" : "\n\n可用资料：\n" + grounding);
         know.studio.arag.platform.ai.provider.ChatRequest aiRequest =
                 new know.studio.arag.platform.ai.provider.ChatRequest(
-                        ANSWER_SYSTEM_PROMPT,
-                        prompt,
+                        systemPrompt.text(),
+                        historyMessages(context, currentMessage),
+                        userPrompt,
                         reasoning,
+                        profile,
+                        systemPrompt.version(),
                         Map.of()
                 );
         Flux<ChatStreamEvent> chunks = chatModelRouter.stream(aiRequest)
@@ -292,12 +333,15 @@ public class AgentOrchestrationService implements AgentApi {
         return Map.of("intent", intent.intent().name(), "confidence", intent.confidence());
     }
 
-    private static String contextPrompt(ConversationContext context, String currentMessage) {
-        StringBuilder prompt = new StringBuilder();
+    static List<ChatMessage> historyMessages(ConversationContext context, String currentMessage) {
+        List<ChatMessage> history = new ArrayList<>();
         if (!context.compactSummary().isBlank()) {
-            prompt.append("会话摘要：").append(context.compactSummary()).append("\n\n");
+            history.add(ChatMessage.system("会话摘要：\n" + context.compactSummary()));
         }
-        prompt.append("最近消息：\n");
+        if (!context.sessionSummary().isBlank()
+                && !context.sessionSummary().equals(context.compactSummary())) {
+            history.add(ChatMessage.system("会话记忆：\n" + context.sessionSummary()));
+        }
         List<ConversationMessage> recentMessages = context.recentMessages();
         for (int index = 0; index < recentMessages.size(); index++) {
             ConversationMessage message = recentMessages.get(index);
@@ -307,23 +351,20 @@ public class AgentOrchestrationService implements AgentApi {
             if (duplicatedCurrentMessage) {
                 continue;
             }
-            prompt.append(message.role()).append(": ").append(message.content()).append('\n');
+            switch (message.role()) {
+                case USER -> history.add(ChatMessage.user(message.content()));
+                case ASSISTANT -> history.add(ChatMessage.assistant(message.content()));
+                case TOOL -> history.add(ChatMessage.assistant("工具结果：\n" + message.content()));
+            }
         }
-        prompt.append("\n当前问题：").append(currentMessage);
-        return prompt.toString();
+        return List.copyOf(history);
     }
 
     private static String evidencePrompt(String question, List<Evidence> evidence) {
         StringBuilder prompt = new StringBuilder();
-        List<Evidence> groundingEvidence = evidence.stream()
-                .sorted(java.util.Comparator.comparingInt(
-                        (Evidence item) -> evidenceRelevance(question, item.text())
-                ).reversed())
-                .limit(MAX_GROUNDING_EVIDENCE)
-                .toList();
-        int evidenceCount = groundingEvidence.size();
+        int evidenceCount = evidence.size();
         for (int index = 0; index < evidenceCount; index++) {
-            Evidence item = groundingEvidence.get(index);
+            Evidence item = evidence.get(index);
             prompt.append("【证据 ").append(index + 1).append("｜")
                     .append(item.fileName()).append("#").append(item.chunkIndex()).append("】\n")
                     .append(focusEvidence(question, item.text())).append('\n');
@@ -376,6 +417,10 @@ public class AgentOrchestrationService implements AgentApi {
     }
 
     static Optional<String> extractNamingRule(String question, List<Evidence> evidence) {
+        return extractNamingRuleMatch(question, evidence).map(ExtractiveAnswer::text);
+    }
+
+    private static Optional<ExtractiveAnswer> extractNamingRuleMatch(String question, List<Evidence> evidence) {
         String subject = namingSubject(question);
         if (subject.isBlank()) {
             return Optional.empty();
@@ -411,10 +456,48 @@ public class AgentOrchestrationService implements AgentApi {
                         selected.add(line);
                     }
                 }
-                return Optional.of("根据知识库规范：\n\n" + String.join("\n\n", selected));
+                return Optional.of(new ExtractiveAnswer(
+                        "根据知识库规范：\n\n" + String.join("\n\n", selected),
+                        item
+                ));
             }
         }
         return Optional.empty();
+    }
+
+    static List<Evidence> groundingEvidence(String question, List<Evidence> evidence) {
+        List<Evidence> ranked = evidence.stream()
+                .sorted(java.util.Comparator
+                        .comparingDouble((Evidence item) -> questionTermCoverage(question, item.text()))
+                        .thenComparingInt(item -> evidenceRelevance(question, item.text()))
+                        .reversed())
+                .toList();
+        if (ranked.isEmpty()) {
+            return List.of();
+        }
+        double bestCoverage = questionTermCoverage(question, ranked.getFirst().text());
+        if (bestCoverage >= 0.45) {
+            return List.of(ranked.getFirst());
+        }
+        double minimumCoverage = Math.max(0.2, bestCoverage * 0.6);
+        List<Evidence> selected = new ArrayList<>();
+        selected.add(ranked.getFirst());
+        ranked.stream()
+                .skip(1)
+                .filter(item -> questionTermCoverage(question, item.text()) >= minimumCoverage)
+                .limit(MAX_GROUNDING_EVIDENCE - 1L)
+                .forEach(selected::add);
+        return List.copyOf(selected);
+    }
+
+    private static double questionTermCoverage(String question, String text) {
+        List<String> terms = focusTerms(question);
+        if (terms.isEmpty()) {
+            return 0.0;
+        }
+        String normalizedText = text.toLowerCase(Locale.ROOT);
+        long matched = terms.stream().filter(normalizedText::contains).count();
+        return (double) matched / terms.size();
     }
 
     private static List<String> focusTerms(String question) {
@@ -496,5 +579,8 @@ public class AgentOrchestrationService implements AgentApi {
 
     private static int estimateTokens(String content) {
         return Math.max(1, (content.length() + 3) / 4);
+    }
+
+    private record ExtractiveAnswer(String text, Evidence source) {
     }
 }

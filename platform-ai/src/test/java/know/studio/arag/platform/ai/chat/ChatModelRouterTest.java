@@ -69,6 +69,12 @@ class ChatModelRouterTest {
         assertThat(observation.get().providerId()).isEqualTo("primary");
         assertThat(observation.get().outputCharacters()).isEqualTo(6);
         assertThat(observation.get().success()).isTrue();
+        assertThat(observation.get().generationProfile()).isEqualTo("CHAT");
+        assertThat(observation.get().promptVersion()).isEqualTo("inline-chat");
+        assertThat(observation.get().toString())
+                .doesNotContain("secret-system")
+                .doesNotContain("secret-question")
+                .doesNotContain("answer");
     }
 
     private static ProviderCircuitBreakerRegistry registry() {

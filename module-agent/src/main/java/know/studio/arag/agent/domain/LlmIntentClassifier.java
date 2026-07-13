@@ -2,8 +2,10 @@ package know.studio.arag.agent.domain;
 
 import know.studio.arag.agent.api.IntentResult;
 import know.studio.arag.agent.api.IntentType;
+import know.studio.arag.agent.prompt.AgentPromptCatalog;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatRequest;
+import know.studio.arag.platform.ai.provider.GenerationProfile;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -17,17 +19,13 @@ import java.util.regex.Pattern;
 @RequiredArgsConstructor
 public class LlmIntentClassifier implements IntentClassifier {
 
+    private static final Duration CLASSIFICATION_TIMEOUT = Duration.ofSeconds(8);
     private static final Pattern INTENT_PATTERN = Pattern.compile(
             "(KNOWLEDGE|TOOL|CHAT|CLARIFY)\\s*[,|:]\\s*(0(?:\\.\\d+)?|1(?:\\.0+)?)",
             Pattern.CASE_INSENSITIVE
     );
-    private static final String SYSTEM_PROMPT = """
-            将用户意图分类为 KNOWLEDGE、TOOL、CHAT、CLARIFY。
-            KNOWLEDGE 表示需要知识库证据；TOOL 表示联网或业务系统查询；CHAT 表示普通闲聊；
-            信息不足或置信度低时选择 CLARIFY。只输出 INTENT,CONFIDENCE，例如 KNOWLEDGE,0.91。
-            """;
-
     private final ChatModelRouter chatModelRouter;
+    private final AgentPromptCatalog promptCatalog;
     private final HeuristicIntentClassifier fallback = new HeuristicIntentClassifier();
 
     @Override
@@ -38,8 +36,14 @@ public class LlmIntentClassifier implements IntentClassifier {
             return heuristic;
         }
         try {
-            String response = chatModelRouter.stream(ChatRequest.chat(SYSTEM_PROMPT, message))
-                    .timeout(Duration.ofSeconds(3))
+            String response = chatModelRouter.stream(ChatRequest.of(
+                            promptCatalog.intent().text(),
+                            java.util.List.of(),
+                            message,
+                            GenerationProfile.CLASSIFICATION,
+                            promptCatalog.intent().version()
+                    ))
+                    .timeout(CLASSIFICATION_TIMEOUT)
                     .map(chunk -> chunk.content())
                     .collectList()
                     .map(parts -> String.join("", parts))

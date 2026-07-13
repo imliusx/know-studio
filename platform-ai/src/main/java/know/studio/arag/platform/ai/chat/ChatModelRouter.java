@@ -88,7 +88,9 @@ public class ChatModelRouter {
                             elapsedMillis(start),
                             outputCharacters.get(),
                             "",
-                            traceId == null ? "" : traceId
+                            traceId == null ? "" : traceId,
+                            request.profile().name(),
+                            request.promptVersion()
                     )))
                     .doOnError(exception -> observationSink.record(new AiObservation(
                             provider.id(),
@@ -97,7 +99,9 @@ public class ChatModelRouter {
                             elapsedMillis(start),
                             outputCharacters.get(),
                             exception.getClass().getSimpleName(),
-                            traceId == null ? "" : traceId
+                            traceId == null ? "" : traceId,
+                            request.profile().name(),
+                            request.promptVersion()
                     )));
         });
     }

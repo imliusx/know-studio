@@ -20,6 +20,7 @@ This directory contains guidelines for backend development. Fill in each file wi
 | [Quality Guidelines](./quality-guidelines.md) | Lombok usage and Maven quality gate | Active |
 | [Logging Guidelines](./logging-guidelines.md) | SLF4J, Logback, JSON rolling, traceId | Active |
 | [Agent Conversation Guidelines](./agent-conversation-guidelines.md) | Conversation isolation, summary cursors, Agent SSE and MCP contracts | Active |
+| [Prompt Engineering Guidelines](./prompt-engineering-guidelines.md) | Scenario prompts, typed model messages, glm-5 routing and safe AI telemetry | Active |
 | [Observability and Evaluation](./observability-evaluation-guidelines.md) | Rate limits, reactive tracing, OTLP, Langfuse and retrieval ablation | Active |
 
 ---

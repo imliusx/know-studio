@@ -7,6 +7,8 @@ public record AiObservation(
         long latencyMillis,
         long outputCharacters,
         String errorType,
-        String traceId
+        String traceId,
+        String generationProfile,
+        String promptVersion
 ) {
 }

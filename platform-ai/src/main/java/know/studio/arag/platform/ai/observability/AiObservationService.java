@@ -38,6 +38,8 @@ public class AiObservationService implements AiObservationSink, AutoCloseable {
                         "arag.ai.request",
                         "provider", observation.providerId(),
                         "reasoning", Boolean.toString(observation.reasoning()),
+                        "profile", observation.generationProfile(),
+                        "prompt.version", observation.promptVersion(),
                         "status", status
                 )
                 .record(observation.latencyMillis(), TimeUnit.MILLISECONDS);
@@ -63,6 +65,8 @@ public class AiObservationService implements AiObservationSink, AutoCloseable {
                     "statusMessage", observation.errorType(),
                     "metadata", Map.of(
                             "reasoning", observation.reasoning(),
+                            "generationProfile", observation.generationProfile(),
+                            "promptVersion", observation.promptVersion(),
                             "latencyMs", observation.latencyMillis(),
                             "outputCharacters", observation.outputCharacters(),
                             "environment", properties.getEnvironment()

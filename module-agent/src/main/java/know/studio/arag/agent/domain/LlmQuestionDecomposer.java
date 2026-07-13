@@ -1,7 +1,9 @@
 package know.studio.arag.agent.domain;
 
+import know.studio.arag.agent.prompt.AgentPromptCatalog;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatRequest;
+import know.studio.arag.platform.ai.provider.GenerationProfile;
 import know.studio.arag.platform.core.trace.RagTraceNode;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
@@ -14,18 +16,22 @@ import java.util.List;
 @RequiredArgsConstructor
 public class LlmQuestionDecomposer implements QuestionDecomposer {
 
-    private static final String SYSTEM_PROMPT = """
-            将复杂问题分解为最多 3 个可独立检索的子问题，每行一个，不要编号和解释。
-            如果问题无需分解，只原样输出一行。
-            """;
-
     private final ChatModelRouter chatModelRouter;
+    private final AgentPromptCatalog promptCatalog;
 
     @Override
     @RagTraceNode("agent.decompose")
     public List<String> decompose(String question) {
         try {
-            String result = chatModelRouter.stream(new ChatRequest(SYSTEM_PROMPT, question, true, null))
+            String result = chatModelRouter.stream(new ChatRequest(
+                            promptCatalog.decomposition().text(),
+                            List.of(),
+                            question,
+                            true,
+                            GenerationProfile.PLANNING,
+                            promptCatalog.decomposition().version(),
+                            java.util.Map.of()
+                    ))
                     .timeout(Duration.ofSeconds(10))
                     .map(chunk -> chunk.content())
                     .collectList()

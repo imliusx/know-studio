@@ -111,10 +111,13 @@ services:
         until ollama list >/dev/null 2>&1; do sleep 2; done
         echo "Pulling embedding model bge-m3..."
         ollama pull bge-m3
-        echo "Pulling chat model $${OLLAMA_CHAT_MODEL}..."
-        ollama pull "$${OLLAMA_CHAT_MODEL}"
+        if [ "$${OLLAMA_CHAT_FALLBACK_ENABLED}" = "true" ]; then
+          echo "Pulling fallback chat model $${OLLAMA_CHAT_MODEL}..."
+          ollama pull "$${OLLAMA_CHAT_MODEL}"
+        fi
     environment:
       OLLAMA_HOST: http://ollama:11434
+      OLLAMA_CHAT_FALLBACK_ENABLED: ${OLLAMA_CHAT_FALLBACK_ENABLED:-true}
       OLLAMA_CHAT_MODEL: ${OLLAMA_CHAT_MODEL:-qwen2.5:1.5b}
     depends_on:
       ollama:

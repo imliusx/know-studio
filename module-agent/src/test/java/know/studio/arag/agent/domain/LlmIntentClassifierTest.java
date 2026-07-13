@@ -2,6 +2,7 @@ package know.studio.arag.agent.domain;
 
 import know.studio.arag.agent.api.IntentResult;
 import know.studio.arag.agent.api.IntentType;
+import know.studio.arag.agent.prompt.AgentPromptCatalog;
 import know.studio.arag.platform.ai.chat.ChatModelRouter;
 import know.studio.arag.platform.ai.provider.ChatChunk;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,14 @@ class LlmIntentClassifierTest {
     }
 
     @Test
+    void routesAssistantIntroductionToChatWithoutCallingModel() {
+        IntentResult result = classifier().classify("请介绍一下你自己，你能做什么？", false);
+
+        assertThat(result.intent()).isEqualTo(IntentType.CHAT);
+        verify(chatModelRouter, never()).stream(any());
+    }
+
+    @Test
     void fallsBackToHeuristicWhenModelConfidenceIsLow() {
         when(chatModelRouter.stream(any())).thenReturn(Flux.just(ChatChunk.token("KNOWLEDGE,0.40")));
 
@@ -41,6 +50,6 @@ class LlmIntentClassifierTest {
     }
 
     private LlmIntentClassifier classifier() {
-        return new LlmIntentClassifier(chatModelRouter);
+        return new LlmIntentClassifier(chatModelRouter, new AgentPromptCatalog());
     }
 }
