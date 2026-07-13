@@ -14,7 +14,7 @@ public class AgentPromptCatalog {
     );
     private final PromptResource knowledge = PromptResource.classpath(
             "prompts/agent/knowledge-system.st",
-            "knowledge-v2"
+            "knowledge-v3"
     );
     private final PromptResource knowledgeUser = PromptResource.classpath(
             "prompts/agent/knowledge-user.st",

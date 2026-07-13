@@ -98,12 +98,21 @@ test("knowledge answers and refusal evaluation remain usable", async ({
     )
     await composer.fill("Java 的索引如何命名？")
     await page.getByLabel("Send message").click()
+    await expect(page.getByLabel("Stop generation")).toBeHidden({
+      timeout: 45_000,
+    })
     await expect(page.getByText(/pk_/).last()).toBeVisible()
     await expect(page.getByText(/uk_/).last()).toBeVisible()
     await expect(page.getByText(/idx_/).last()).toBeVisible()
-    await expect(page.getByLabel("Stop generation")).toBeHidden({
-      timeout: 30_000,
-    })
+    await expect(
+      page.locator("li").filter({ hasText: /主键索引/ }).last()
+    ).toBeVisible()
+    await expect(
+      page.locator("li").filter({ hasText: /唯一索引/ }).last()
+    ).toBeVisible()
+    await expect(
+      page.locator("li").filter({ hasText: /普通索引/ }).last()
+    ).toBeVisible()
     await expect(page.getByText(/varchar 字段上建立索引/)).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
     await page.screenshot({

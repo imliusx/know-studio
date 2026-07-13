@@ -122,7 +122,7 @@ class AgentOrchestrationServiceTest {
                 ArgumentCaptor.forClass(know.studio.arag.platform.ai.provider.ChatRequest.class);
         verify(chatModelRouter).stream(aiRequestCaptor.capture());
         assertThat(aiRequestCaptor.getValue().profile()).isEqualTo(GenerationProfile.KNOWLEDGE);
-        assertThat(aiRequestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v2");
+        assertThat(aiRequestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v3");
         assertThat(aiRequestCaptor.getValue().systemPrompt()).contains("只能使用与问题直接相关的证据");
     }
 
@@ -177,7 +177,7 @@ class AgentOrchestrationServiceTest {
                 ArgumentCaptor.forClass(know.studio.arag.platform.ai.provider.ChatRequest.class);
         verify(chatModelRouter).stream(requestCaptor.capture());
         assertThat(requestCaptor.getValue().profile()).isEqualTo(GenerationProfile.KNOWLEDGE);
-        assertThat(requestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v2");
+        assertThat(requestCaptor.getValue().promptVersion()).isEqualTo("knowledge-v3");
         assertThat(requestCaptor.getValue().userPrompt())
                 .contains("pk_字段名")
                 .contains("uk_字段名")

@@ -17,9 +17,14 @@ class AgentPromptCatalogTest {
                 .contains("只能使用与问题直接相关的证据")
                 .contains("保持自然、直接、专业")
                 .contains("不要机械照抄")
-                .contains("精确标识符");
+                .contains("精确标识符")
+                .contains("CommonMark/GFM")
+                .contains("- 主键索引")
+                .contains("禁止写成 `-主键索引`")
+                .contains("每个列表项必须独占一行")
+                .contains("fenced code block");
         assertThat(catalog.chat().version()).isEqualTo("chat-v1");
-        assertThat(catalog.knowledge().version()).isEqualTo("knowledge-v2");
+        assertThat(catalog.knowledge().version()).isEqualTo("knowledge-v3");
     }
 
     @Test

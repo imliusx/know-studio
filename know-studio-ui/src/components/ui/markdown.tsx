@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown"
 import remarkBreaks from "remark-breaks"
 import remarkGfm from "remark-gfm"
 import { CodeBlock, CodeBlockCode } from "./code-block"
+import { normalizeMarkdownLists } from "./markdown-normalization"
 
 export type MarkdownProps = {
   children: string
@@ -246,7 +247,9 @@ function MarkdownComponent({
   const normalizedChildren = useMemo(
     () =>
       normalizeStrongDelimiters(
-        normalizeMarkdownHeadings(normalizeMarkdownCodeFences(children))
+        normalizeMarkdownLists(
+          normalizeMarkdownHeadings(normalizeMarkdownCodeFences(children))
+        )
       ),
     [children]
   )

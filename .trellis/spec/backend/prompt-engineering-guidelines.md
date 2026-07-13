@@ -37,7 +37,7 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   retain their original roles; the current user message is removed from history
   before the request is sent.
 - Prompt templates declare stable low-cardinality versions such as `chat-v1` or
-  `knowledge-v2`. Increment the version when behavior changes materially.
+  `knowledge-v3`. Increment the version when behavior changes materially.
 - `DASHSCOPE_API_KEY` is environment-only. `DASHSCOPE_CHAT_MODEL` defaults to
   `glm-5`; `OLLAMA_EMBEDDING_MODEL` defaults to `bge-m3`; optional Chat fallback
   is controlled by `OLLAMA_CHAT_FALLBACK_ENABLED` and `OLLAMA_CHAT_MODEL`.
@@ -59,6 +59,9 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
 - Knowledge generation preserves exact identifiers and casing while removing
   source numbering, page markers, broken PDF lines, duplicate fragments, and
   stiff fixed preambles.
+- Knowledge answers use valid CommonMark/GFM. List markers, ordered-list numbers,
+  and heading markers require a following space; list items and fenced-code
+  delimiters occupy their own lines. Known code-block languages are declared.
 
 ### 4. Validation & Error Matrix
 
@@ -75,6 +78,8 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
 - Knowledge evidence level `NONE` -> deterministic refusal without model call
   and without citations.
 - Partial evidence -> answer only the supported portion and state the limit.
+- Malformed pseudo-Markdown such as `-主键索引` -> prevent through the prompt
+  contract; the frontend may narrowly repair historical line-start hyphen lists.
 - Provider failure after output has started -> do not switch providers mid-answer.
 
 ### 5. Good/Base/Bad Cases
@@ -93,10 +98,14 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   model rewrites it as a concise list while preserving those identifiers.
 - Good: adding `的` or `中的` to the same naming question selects the same rule
   and citation as the shorter wording.
+- Good: multiple naming rules are emitted as separate `- ` list items with
+  identifiers such as `pk_字段名` formatted as inline code.
 - Bad: return `3. 【强制】...` directly from a PDF chunk or mistake a varchar
   index-length rule for an index-naming rule because both contain `索引`.
 - Bad: parse `Java 的索引如何命名` as `的索引`, then let repeated generic `索引`
   text outrank the direct `索引名为` rule.
+- Bad: emit `-主键索引` or place multiple list items on one line and rely on the
+  browser to guess the intended structure.
 
 ### 6. Tests Required
 
@@ -109,6 +118,9 @@ It applies to `platform-ai`, `module-agent`, `module-retrieval`, and
   semantic-coverage evidence ranking.
 - Naming-rule regression tests assert possessive and location variants normalize
   to the same domain subject and select the same direct evidence.
+- Prompt catalog tests assert the concrete CommonMark/GFM rules and the current
+  Knowledge prompt version. Browser acceptance asserts semantic list elements,
+  not only visible hyphen-prefixed text.
 - Observability tests assert bounded provider/profile/version fields and the
   absence of raw prompt, question, evidence, answer, and credential content.
 - Real API acceptance verifies DashScope `glm-5` natural Chat, one grounded

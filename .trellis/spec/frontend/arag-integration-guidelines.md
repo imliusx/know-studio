@@ -101,6 +101,61 @@ Required shape:
 - Deduplicate citations by stable chunk/document identity and correlate tool results to the tool call when an identifier is available.
 - Every stream owns an AbortController and is aborted on explicit stop, session change and component unmount.
 
+## Scenario: Knowledge Markdown Rendering
+
+### 1. Scope / Trigger
+
+- Applies when rendering streamed or persisted assistant Markdown in Chat.
+
+### 2. Signatures
+
+- `normalizeMarkdownLists(markdown: string): string` repairs malformed
+  line-start hyphen list markers before `marked` block lexing.
+- `Markdown` renders the normalized source through `react-markdown` with GFM and
+  hard-break support.
+
+### 3. Contracts
+
+- The backend owns valid CommonMark/GFM generation; the renderer is a narrow
+  compatibility boundary for historical or occasional formatting drift.
+- A line beginning `-内容` outside a fenced code block becomes `- 内容`.
+- Valid lists, fenced code content, and `---` horizontal rules remain unchanged.
+- Normalization affects display only. SSE token payloads and persisted message
+  content retain the backend response unchanged.
+
+### 4. Validation & Error Matrix
+
+- Malformed line-start hyphen list -> repair before lexing.
+- Line-start negative number such as `-1` -> preserve literally.
+- Hyphen inside fenced code -> preserve literally.
+- Horizontal rule containing three or more hyphens -> preserve literally.
+- Other ambiguous Markdown defects -> render through the standard parser; do not
+  apply broad regex rewriting.
+
+### 5. Good/Base/Bad Cases
+
+- Good: `-主键索引名为 \`pk_字段名\`` renders as a semantic list item.
+- Base: `- 主键索引名为 \`pk_字段名\`` passes through unchanged.
+- Bad: replace every line-start `*`, `+`, number, or hyphen pattern and corrupt
+  emphasis, arithmetic, code, or horizontal rules.
+
+### 6. Tests Required
+
+- Unit tests cover malformed hyphen repair plus fenced-code and horizontal-rule
+  preservation.
+- Desktop and mobile Playwright assert each index naming rule is inside an `li`
+  element and that the page has no horizontal overflow.
+
+### 7. Wrong vs Correct
+
+```ts
+// Wrong: broad replacement also corrupts horizontal rules and code.
+markdown.replace(/^-/, "- ")
+
+// Correct: normalize only high-confidence line-start list markers outside fences.
+normalizeMarkdownLists(markdown)
+```
+
 ## Permissions
 
 - System ADMIN: all Team, KnowledgeBase, document, Chat and evaluation operations.
