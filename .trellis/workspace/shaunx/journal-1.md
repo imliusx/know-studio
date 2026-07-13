@@ -210,3 +210,36 @@ Removed raw extractive final answers, routed all grounded responses through glm-
 ### Next Steps
 
 - None - task complete
+
+
+## Session 7: Normalize naming questions
+
+**Date**: 2026-07-13
+**Task**: Normalize naming questions
+**Branch**: `arag-backend`
+
+### Summary
+
+Normalized possessive and location variants in naming questions so direct index naming evidence consistently outranks generic index guidance; added unit, grounding, real API, and desktop/mobile browser regression coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `cbfd587` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
