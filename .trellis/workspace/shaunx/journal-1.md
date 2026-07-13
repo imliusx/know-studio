@@ -111,3 +111,36 @@ Removed Workspace from frontend, backend and schema; enforced Team Admin managem
 ### Next Steps
 
 - None - task complete
+
+
+## Session 4: Complete ACL acceptance audit
+
+**Date**: 2026-07-13
+**Task**: Complete ACL acceptance audit
+**Branch**: `arag-backend`
+
+### Summary
+
+Added standalone desktop/mobile Playwright acceptance coverage, verified refusal and focused knowledge answers plus evaluation authoring, cleaned temporary acceptance data, and archived the completed ACL audit task.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `835f6a8` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
