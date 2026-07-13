@@ -144,3 +144,36 @@ Added standalone desktop/mobile Playwright acceptance coverage, verified refusal
 ### Next Steps
 
 - None - task complete
+
+
+## Session 5: Restore legacy prompt engineering
+
+**Date**: 2026-07-13
+**Task**: Restore legacy prompt engineering
+**Branch**: `arag-backend`
+
+### Summary
+
+Restored module-owned scenario prompts, typed conversation messages, DashScope glm-5 primary Chat routing, bounded prompt telemetry, evidence-aligned citations, and desktop/mobile acceptance coverage.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `665761c` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
