@@ -177,3 +177,36 @@ Restored module-owned scenario prompts, typed conversation messages, DashScope g
 ### Next Steps
 
 - None - task complete
+
+
+## Session 6: Natural grounded knowledge answers
+
+**Date**: 2026-07-13
+**Task**: Natural grounded knowledge answers
+**Branch**: `arag-backend`
+
+### Summary
+
+Removed raw extractive final answers, routed all grounded responses through glm-5, tightened naming-rule evidence selection, added knowledge-v2 naturalization instructions, and verified complete desktop/mobile streaming output.
+
+### Main Changes
+
+(Add details)
+
+### Git Commits
+
+| Hash | Message |
+|------|---------|
+| `7fd4897` | (see git log) |
+
+### Testing
+
+- [OK] (Add test results)
+
+### Status
+
+[OK] **Completed**
+
+### Next Steps
+
+- None - task complete
