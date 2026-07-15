@@ -1,6 +1,6 @@
 package com.dong.ddrag.identity.service;
 
-import com.dong.ddrag.auth.security.JwtAuthenticationFilter;
+import cn.dev33.satoken.stp.StpUtil;
 import com.dong.ddrag.common.enums.SystemRole;
 import com.dong.ddrag.common.enums.UserStatus;
 import com.dong.ddrag.common.exception.BusinessException;
@@ -22,11 +22,11 @@ public class CurrentUserService {
     }
 
     public CurrentUser getRequiredCurrentUser(HttpServletRequest request) {
-        JwtAuthenticationFilter.AuthenticatedUser authenticatedUser = extractAuthenticatedUser(request);
-        if (authenticatedUser != null) {
-            return loadUserById(authenticatedUser.userId());
+        Object loginId = StpUtil.getLoginIdDefaultNull();
+        if (loginId == null) {
+            throw new UnauthorizedException("当前请求未登录");
         }
-        throw new UnauthorizedException("当前请求未登录");
+        return loadUserById(Long.valueOf(loginId.toString()));
     }
 
     public CurrentUser requireSystemAdmin(HttpServletRequest request) {
@@ -43,14 +43,6 @@ public class CurrentUserService {
             throw new ForbiddenException("系统管理员不能访问普通业务区");
         }
         return currentUser;
-    }
-
-    private JwtAuthenticationFilter.AuthenticatedUser extractAuthenticatedUser(HttpServletRequest request) {
-        Object attribute = request.getAttribute(JwtAuthenticationFilter.AUTHENTICATED_USER_REQUEST_ATTRIBUTE);
-        if (attribute instanceof JwtAuthenticationFilter.AuthenticatedUser authenticatedUser) {
-            return authenticatedUser;
-        }
-        return null;
     }
 
     private CurrentUser loadUserById(Long userId) {

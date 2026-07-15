@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { getCookie, setCookie, removeCookie } from '@/lib/cookies'
 import { setAuthToken } from '@/api/http'
-import { refreshToken, type CurrentUserProfile } from '@/api/auth'
+import { getCurrentUser, type CurrentUserProfile } from '@/api/auth'
 
 const ACCESS_TOKEN = 'ddrag_access_token'
 const CURRENT_USER = 'ddrag_current_user'
@@ -40,23 +40,22 @@ export const useAuthStore = create<AuthState>()((set) => {
           setAuthToken(accessToken)
           return { ...state, auth: { ...state.auth, accessToken } }
         }),
+      // Sa-Token 单 token 模式没有刷新端点：这里改为用 /auth/me 校验当前
+      // 会话，有效则沿用现有 token，失效则清空登录态并抛错。
       refreshSession: async () => {
         try {
-          const tokens = await refreshToken()
+          const currentUser = await getCurrentUser()
+          let activeToken = ''
           set((state) => {
-            setCookie(ACCESS_TOKEN, encodeURIComponent(tokens.accessToken))
-            writeStoredUser(tokens.currentUser)
-            setAuthToken(tokens.accessToken)
+            activeToken = state.auth.accessToken
+            writeStoredUser(currentUser)
             return {
               ...state,
-              auth: {
-                ...state.auth,
-                user: tokens.currentUser,
-                accessToken: tokens.accessToken,
-              },
+              auth: { ...state.auth, user: currentUser },
             }
           })
-          return tokens.accessToken
+          if (!activeToken) throw new Error('登录状态已失效')
+          return activeToken
         } catch (error) {
           removeCookie(ACCESS_TOKEN)
           writeStoredUser(null)

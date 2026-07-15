@@ -2,7 +2,6 @@ package com.dong.ddrag.auth.config;
 
 import com.dong.ddrag.common.exception.BusinessException;
 import com.dong.ddrag.auth.service.PasswordHasher;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -11,7 +10,6 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 
 @Configuration
-@EnableConfigurationProperties(AuthProperties.class)
 public class AuthConfiguration {
 
     private static final int BCRYPT_MAX_INPUT_BYTES = 72;

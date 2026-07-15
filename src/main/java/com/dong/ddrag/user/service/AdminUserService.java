@@ -1,7 +1,6 @@
 package com.dong.ddrag.user.service;
 
-import com.dong.ddrag.auth.security.RefreshTokenService;
-import com.dong.ddrag.auth.service.PasswordHasher;
+import cn.dev33.satoken.stp.StpUtil;
 import com.dong.ddrag.common.enums.UserStatus;
 import com.dong.ddrag.common.exception.BusinessException;
 import com.dong.ddrag.user.model.dto.UpdateUserStatusRequest;
@@ -16,16 +15,13 @@ import java.util.List;
 public class AdminUserService {
 
     private final JdbcTemplate jdbcTemplate;
-    private final RefreshTokenService refreshTokenService;
     private final UserQueryService userQueryService;
 
     public AdminUserService(
             JdbcTemplate jdbcTemplate,
-            RefreshTokenService refreshTokenService,
             UserQueryService userQueryService
     ) {
         this.jdbcTemplate = jdbcTemplate;
-        this.refreshTokenService = refreshTokenService;
         this.userQueryService = userQueryService;
     }
 
@@ -48,7 +44,7 @@ public class AdminUserService {
             throw new BusinessException("用户不存在");
         }
         if (request.status() == UserStatus.DISABLED) {
-            refreshTokenService.revokeActiveTokens(userId);
+            StpUtil.logout(userId);
         }
     }
 

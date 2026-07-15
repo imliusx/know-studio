@@ -1,6 +1,6 @@
 package com.dong.ddrag.user.service;
 
-import com.dong.ddrag.auth.security.RefreshTokenService;
+import cn.dev33.satoken.stp.StpUtil;
 import com.dong.ddrag.auth.service.PasswordHasher;
 import com.dong.ddrag.common.exception.BusinessException;
 import com.dong.ddrag.identity.service.CurrentUserService;
@@ -16,16 +16,13 @@ public class AccountService {
 
     private final JdbcTemplate jdbcTemplate;
     private final PasswordHasher passwordHasher;
-    private final RefreshTokenService refreshTokenService;
 
     public AccountService(
             JdbcTemplate jdbcTemplate,
-            PasswordHasher passwordHasher,
-            RefreshTokenService refreshTokenService
+            PasswordHasher passwordHasher
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.passwordHasher = passwordHasher;
-        this.refreshTokenService = refreshTokenService;
     }
 
     @Transactional
@@ -53,7 +50,8 @@ public class AccountService {
         if (updated == 0) {
             throw new BusinessException("用户不存在");
         }
-        refreshTokenService.revokeActiveTokens(currentUser.userId());
+        // 修改密码后强制所有会话下线，需重新登录。
+        StpUtil.logout(currentUser.userId());
     }
 
     private void validatePasswordPolicy(String newPassword) {

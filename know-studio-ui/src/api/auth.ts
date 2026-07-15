@@ -41,11 +41,6 @@ export async function register(request: RegisterRequest) {
   return unwrapApiResponse<void>(response.data, '注册失败')
 }
 
-export async function refreshToken() {
-  const response = await http.post('/auth/refresh')
-  return unwrapApiResponse<AuthTokensResponse>(response.data, '刷新登录状态失败')
-}
-
 export async function getCurrentUser() {
   const response = await http.get('/auth/me')
   return unwrapApiResponse<CurrentUserProfile>(response.data, '获取当前用户失败')

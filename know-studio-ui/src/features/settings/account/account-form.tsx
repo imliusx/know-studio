@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { changePassword } from '@/api/auth'
 import { extractApiError } from '@/api/http'
+import { useAuthStore } from '@/stores/auth-store'
 import { Button } from '@/components/ui/button'
 import {
   Field,
@@ -14,6 +16,8 @@ import {
 import { Input } from '@/components/ui/input'
 
 export function AccountForm() {
+  const navigate = useNavigate()
+  const { auth } = useAuthStore()
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -21,11 +25,10 @@ export function AccountForm() {
   const mutation = useMutation({
     mutationFn: changePassword,
     onSuccess: () => {
-      toast.success('密码已修改')
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-      setError(null)
+      // 后端修改密码后会注销全部会话，这里直接引导重新登录。
+      toast.success('密码已修改，请重新登录')
+      auth.reset()
+      navigate({ to: '/sign-in', replace: true })
     },
     onError: (requestError) =>
       toast.error(extractApiError(requestError, '修改密码失败')),

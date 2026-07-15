@@ -16,6 +16,19 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    container_name: know-studio-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   elasticsearch:
     build:
       context: .
@@ -102,6 +115,8 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/know_studio
       SPRING_DATASOURCE_USERNAME: root
       SPRING_DATASOURCE_PASSWORD: 123456
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
       STORAGE_MINIO_ENDPOINT: http://minio:9000
       STORAGE_MINIO_ACCESS_KEY: minioadmin
       STORAGE_MINIO_SECRET_KEY: minioadmin
@@ -110,7 +125,6 @@ services:
       ELASTICSEARCH_HOST: elasticsearch
       ELASTICSEARCH_PORT: 9200
       ELASTICSEARCH_SCHEME: http
-      KNOW_STUDIO_JWT_SECRET: know-studio-dev-jwt-secret-2026-04-20-32bytes
       MAVEN_OPTS: -Dfile.encoding=UTF-8
     ports:
       - "18080:8080"
@@ -119,6 +133,8 @@ services:
       - maven-repo:/root/.m2
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       elasticsearch:
         condition: service_healthy
@@ -161,6 +177,7 @@ services:
 
 volumes:
   postgres-data:
+  redis-data:
   elasticsearch-data:
   minio-data:
   ollama-data:

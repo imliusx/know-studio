@@ -1,8 +1,7 @@
 package com.dong.ddrag.auth.service;
 
+import cn.dev33.satoken.stp.StpUtil;
 import com.dong.ddrag.auth.model.dto.RegisterRequest;
-import com.dong.ddrag.auth.security.JwtAccessTokenService;
-import com.dong.ddrag.auth.security.RefreshTokenService;
 import com.dong.ddrag.common.enums.SystemRole;
 import com.dong.ddrag.common.enums.UserStatus;
 import com.dong.ddrag.common.exception.BusinessException;
@@ -37,21 +36,15 @@ public class AuthService {
 
     private final JdbcTemplate jdbcTemplate;
     private final PasswordHasher passwordHasher;
-    private final JwtAccessTokenService jwtAccessTokenService;
-    private final RefreshTokenService refreshTokenService;
     private final Clock clock;
 
     public AuthService(
             JdbcTemplate jdbcTemplate,
             PasswordHasher passwordHasher,
-            JwtAccessTokenService jwtAccessTokenService,
-            RefreshTokenService refreshTokenService,
             Clock clock
     ) {
         this.jdbcTemplate = jdbcTemplate;
         this.passwordHasher = passwordHasher;
-        this.jwtAccessTokenService = jwtAccessTokenService;
-        this.refreshTokenService = refreshTokenService;
         this.clock = clock;
     }
 
@@ -60,13 +53,12 @@ public class AuthService {
         LoginCommand command = validateLoginCommand(loginId, password);
         UserAccount user = loadUserForLogin(command.loginId());
         ensureUserCanLogin(user, command.password());
-        refreshTokenService.revokeActiveTokens(user.userId());
-        RefreshTokenService.IssuedRefreshToken refreshToken = refreshTokenService.issueToken(user.userId());
         updateSuccessfulLogin(user.userId());
+        // is-concurrent: false，登录会顶掉该账号已存在的会话，等价于原先登录时吊销全部旧 token。
+        StpUtil.login(user.userId());
         return new AuthTokens(
                 user.userId(),
-                issueAccessToken(user),
-                refreshToken.refreshToken(),
+                StpUtil.getTokenValue(),
                 user.mustChangePassword()
         );
     }
@@ -111,34 +103,14 @@ public class AuthService {
         if (updated == 0) {
             throw new BusinessException("账号信息不匹配");
         }
-        refreshTokenService.revokeActiveTokens(user.userId());
+        // 密码重置后强制所有会话下线。
+        StpUtil.logout(user.userId());
     }
 
-    @Transactional
-    public AuthTokens refresh(String refreshToken) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            throw new BusinessException("refresh token 不存在或已失效");
+    public void logout() {
+        if (StpUtil.isLogin()) {
+            StpUtil.logout();
         }
-        RefreshTokenRecord activeToken = refreshTokenService.findActiveToken(refreshToken)
-                .orElseThrow(() -> new BusinessException("refresh token 不存在或已失效"));
-        UserAccount user = loadUserById(activeToken.userId());
-        ensureRefreshAllowed(user);
-        refreshTokenService.revokeToken(refreshToken);
-        RefreshTokenService.IssuedRefreshToken nextRefreshToken = refreshTokenService.issueToken(user.userId());
-        return new AuthTokens(
-                user.userId(),
-                issueAccessToken(user),
-                nextRefreshToken.refreshToken(),
-                user.mustChangePassword()
-        );
-    }
-
-    @Transactional
-    public void logout(String refreshToken) {
-        if (refreshToken == null || refreshToken.isBlank()) {
-            return;
-        }
-        refreshTokenService.revokeToken(refreshToken);
     }
 
     public CurrentUserService.CurrentUser getCurrentUser(Long userId) {
@@ -375,12 +347,6 @@ public class AuthService {
         }
     }
 
-    private void ensureRefreshAllowed(UserAccount user) {
-        if (user.status() == UserStatus.DISABLED) {
-            throw new BusinessException("账号已被禁用");
-        }
-    }
-
     private void updateSuccessfulLogin(Long userId) {
         jdbcTemplate.update(
                 "update users set last_login_at = ?, updated_at = ? where id = ?",
@@ -390,22 +356,9 @@ public class AuthService {
         );
     }
 
-    private String issueAccessToken(UserAccount user) {
-        return jwtAccessTokenService.issueToken(
-                new JwtAccessTokenService.TokenSubject(
-                        user.userId(),
-                        user.userCode(),
-                        user.displayName(),
-                        user.systemRole(),
-                        user.mustChangePassword()
-                )
-        );
-    }
-
     public record AuthTokens(
             Long userId,
             String accessToken,
-            String refreshToken,
             boolean mustChangePassword
     ) {
     }

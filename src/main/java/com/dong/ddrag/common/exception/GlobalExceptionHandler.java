@@ -1,5 +1,6 @@
 package com.dong.ddrag.common.exception;
 
+import cn.dev33.satoken.exception.NotLoginException;
 import com.dong.ddrag.common.api.ApiResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -29,6 +30,18 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     public ApiResponse<Void> handleUnauthorizedException(UnauthorizedException exception) {
         return new ApiResponse<>(false, null, exception.getMessage());
+    }
+
+    @ExceptionHandler(NotLoginException.class)
+    @ResponseStatus(HttpStatus.UNAUTHORIZED)
+    public ApiResponse<Void> handleNotLoginException(NotLoginException exception) {
+        String message = switch (exception.getType()) {
+            case NotLoginException.BE_REPLACED -> "账号已在其他设备登录，当前会话已失效";
+            case NotLoginException.KICK_OUT -> "会话已被强制下线";
+            case NotLoginException.TOKEN_TIMEOUT -> "登录已过期，请重新登录";
+            default -> "当前请求未登录";
+        };
+        return new ApiResponse<>(false, null, message);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

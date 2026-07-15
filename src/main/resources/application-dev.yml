@@ -9,6 +9,15 @@ spring:
     url: jdbc:postgresql://localhost:5433/know_studio
     username: root
     password: 123456
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 0
   flyway:
     enabled: true
   ai:
@@ -64,15 +73,22 @@ elasticsearch:
   scheme: http
   index-name: know_studio_document_chunks
 
+# Sa-Token 登录态配置：token 从 Authorization: Bearer 头读取，会话存 Redis。
+sa-token:
+  token-name: Authorization
+  token-prefix: Bearer
+  # 会话有效期 14 天，对齐原 refresh token 有效期。
+  timeout: 1209600
+  # 不做无操作过期，会话只受 timeout 约束。
+  active-timeout: -1
+  # 同一账号重复登录时踢掉旧会话，对齐原“登录时吊销全部旧 token”行为。
+  is-concurrent: false
+  is-read-cookie: false
+  is-read-header: true
+  token-style: random-64
+  is-log: false
+
 ddrag:
-  auth:
-    issuer: know-studio
-    access-token-expire-minutes: 30
-    refresh-token-expire-days: 14
-    # 仅开发环境兜底，生产环境仍应显式配置安全密钥。
-    jwt-secret: ${KNOW_STUDIO_JWT_SECRET:know-studio-dev-jwt-secret-2026-04-20-32bytes}
-    refresh-cookie-name: KNOW_STUDIO_REFRESH_TOKEN
-    refresh-cookie-secure: false
   dev-admin:
     username: ${KNOW_STUDIO_DEV_ADMIN_USERNAME:admin}
     email: ${KNOW_STUDIO_DEV_ADMIN_EMAIL:admin@local.know-studio.test}
